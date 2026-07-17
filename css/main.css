@@ -91,6 +91,7 @@ body {
   height: 100%;
   display: block;
   z-index: 1;
+  touch-action: none; /* el gesto de disparo no debe scrollear ni zoomear */
 }
 
 /* ── Hitmaker (esquina inferior derecha) ────────── */
