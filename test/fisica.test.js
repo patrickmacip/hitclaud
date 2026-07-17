@@ -1,100 +1,129 @@
 // hitclaud — test de fisica.js en node: node test/fisica.test.js
-// Mundo LATERAL con gravedad + potencia por velocidad de suelta + chanfle.
-// Viewport 390×844. Lanza desde el reposo del hitmaker.
+// Tiro 1:1 con el dedo (sin distancia, sin chanfle). Viewport 390×844.
 
 const F = require('../js/fisica.js');
 
 const VIEWPORT = { w: 390, h: 844 };
 const ORIGEN = { x: 338, y: 792 };
+const UMBRAL_SUELTA = 0.15; // igual que main.js: por debajo, cae
 
-function recto(x0, y0, x1, y1, durMs, n) {
+// Gesto uniforme: velocidad constante `vel` px/ms, longitud `dist`, dir (ux,uy).
+// Muestreado cada `dtMs` (simula pointer events regulares).
+function uniforme(vel, dist, ux, uy, dtMs) {
+  const dur = dist / vel;
+  const n = Math.max(2, Math.round(dur / dtMs) + 1);
   const p = [];
+  const L = Math.hypot(ux, uy);
   for (let i = 0; i < n; i++) {
     const k = i / (n - 1);
-    p.push({ x: x0 + (x1 - x0) * k, y: y0 + (y1 - y0) * k, t: k * durMs });
+    p.push({ x: ORIGEN.x + (ux / L) * dist * k, y: ORIGEN.y + (uy / L) * dist * k, t: k * dur });
   }
   return p;
 }
 
-// Arco circular de central `barrido` rad, longitud de arco fija.
-function arco(largo, barrido, durMs, n) {
-  const r = largo / Math.abs(barrido);
-  const p = [];
-  for (let i = 0; i < n; i++) {
-    const k = i / (n - 1);
-    const a = barrido * k;
-    p.push({ x: r * Math.sin(a), y: -r * (1 - Math.cos(a)), t: k * durMs });
-  }
-  return p;
-}
-
-// Rota los puntos alrededor del último para que la dirección de suelta
-// (últimos ~50ms) apunte hacia arriba. Preserva longitudes, dt y el ángulo
-// entre mitades → misma potencia y mismo |spin|, sólo cambia la orientación.
-function orientarSueltaArriba(p) {
-  const s = F.crearDisparo(p, VIEWPORT.h); // sólo para leer dir de suelta
-  const alpha = Math.atan2(s.vy, s.vx);
-  const rot = -Math.PI / 2 - alpha; // objetivo: (0,-1) = arriba
-  const cos = Math.cos(rot);
-  const sin = Math.sin(rot);
-  const piv = p[p.length - 1];
-  return p.map((q) => {
-    const dx = q.x - piv.x;
-    const dy = q.y - piv.y;
-    return { x: piv.x + dx * cos - dy * sin, y: piv.y + dx * sin + dy * cos, t: q.t };
+function ruido(p, amp) {
+  return p.map(function (q) {
+    return { x: q.x + (Math.random() * 2 - 1) * amp, y: q.y + (Math.random() * 2 - 1) * amp, t: q.t };
   });
 }
 
-function volar(d) {
-  const b = { x: ORIGEN.x, y: ORIGEN.y, vx: d.vx, vy: d.vy, spin: d.spin, edad: 0, viva: true };
-  const tray = [];
-  let t = 0;
-  const DT = 5;
-  while (b.viva && t < 7000) {
-    F.paso(b, DT, VIEWPORT);
-    t += DT;
-    tray.push({ t: t, x: b.x, y: b.y });
+function salida(p) {
+  const d = F.crearDisparo(p);
+  const rap = Math.hypot(d.vx, d.vy);
+  const cae = d.velSuelta < UMBRAL_SUELTA;
+  return { velSuelta: d.velSuelta, rapidez: cae ? 0 : rap, cae: cae };
+}
+
+// ── RONDAS DE AFINADO DE LA VENTANA/LECTURA ────────────────────────
+// Reimplementaciones locales para comparar técnicas sobre el MISMO gesto
+// ruidoso (±1px, dt≈16ms). Métrica: dispersión de 5 lecturas de salida.
+function leerNaive2(p) { // últimos 2 puntos (naïve): sensible al último evento
+  const a = p[p.length - 2], b = p[p.length - 1];
+  const dt = Math.max(b.t - a.t, 1);
+  return Math.hypot(b.x - a.x, b.y - a.y) / dt;
+}
+function leerSingle(p, ventana) { // extremos de la ventana
+  const tFin = p[p.length - 1].t;
+  let i = p.length - 1;
+  while (i > 0 && tFin - p[i - 1].t <= ventana) i--;
+  const a = p[i], b = p[p.length - 1];
+  const dt = Math.max(b.t - a.t, 1);
+  return Math.hypot(b.x - a.x, b.y - a.y) / dt;
+}
+function leerMediana(p, ventana) {
+  const tFin = p[p.length - 1].t;
+  let i = p.length - 1;
+  while (i > 0 && tFin - p[i - 1].t <= ventana) i--;
+  const tr = p.slice(i);
+  const vs = [];
+  for (let k = 1; k < tr.length; k++) {
+    const dt = tr[k].t - tr[k - 1].t;
+    if (dt > 0) vs.push(Math.hypot(tr[k].x - tr[k - 1].x, tr[k].y - tr[k - 1].y) / dt);
   }
-  return { b: b, t: t, tray: tray };
+  vs.sort(function (a, b) { return a - b; });
+  const m = vs.length >> 1;
+  return vs.length ? (vs.length % 2 ? vs[m] : (vs[m - 1] + vs[m]) / 2) : 0;
+}
+function dispersion(fn) {
+  const base = uniforme(1.8, 300, -0.6, -1, 16);
+  const lec = [];
+  for (let r = 0; r < 60; r++) lec.push(fn(ruido(base, 1)));
+  const min = Math.min.apply(null, lec);
+  const max = Math.max.apply(null, lec);
+  const med = lec.reduce(function (a, b) { return a + b; }, 0) / lec.length;
+  return ((max - min) / med * 100);
 }
 
-function reporta(nombre, p) {
-  const d = F.crearDisparo(p, VIEWPORT.h);
-  const r = volar(d);
-  let apiceY = ORIGEN.y;
-  let tAp = 0;
-  for (const q of r.tray) if (q.y < apiceY) { apiceY = q.y; tAp = q.t; }
-  console.log(
-    `\n${nombre}\n  velSuelta=${d.velSuelta.toFixed(2)} px/ms  |v0|=${Math.hypot(d.vx, d.vy).toFixed(2)} px/ms  ` +
-    `(×${(Math.hypot(d.vx, d.vy) / d.velSuelta).toFixed(2)} del dedo)  pot=${d.potencia.toFixed(2)} spin=${d.spin.toFixed(2)}\n` +
-    `  ápice: subió ${Math.round(ORIGEN.y - apiceY)}px en ${tAp}ms  salida (${Math.round(r.b.x)},${Math.round(r.b.y)}) a ${r.t}ms`
-  );
-  return { d: d, r: r };
+console.log('=== RONDAS de afinado de la lectura de suelta (verdad = 1.80 px/ms) ===');
+console.log('  Dispersión de 60 lecturas con ruido gaussiano ±1px, dt≈16ms:');
+console.log(`    R1 naïve últimos-2 pts : ±${(dispersion(leerNaive2) / 2).toFixed(1)}%`);
+console.log(`    R2 extremos ventana 50ms: ±${(dispersion(function (p) { return leerSingle(p, 50); }) / 2).toFixed(1)}%`);
+console.log(`    R3 mediana ventana 50ms : ±${(dispersion(function (p) { return leerMediana(p, 50); }) / 2).toFixed(1)}%`);
+console.log(`    R4 mediana ventana 70ms : ±${(dispersion(function (p) { return leerMediana(p, 70); }) / 2).toFixed(1)}%`);
+// R5: UN evento errático al final (dt 4ms + salto de 16px) — "se me pasó un
+// puntito al soltar". Es el caso que motiva la mediana sobre la naïve.
+const conPico = uniforme(1.8, 300, -0.6, -1, 16);
+const u = conPico[conPico.length - 1];
+conPico.push({ x: u.x - 16, y: u.y - 5, t: u.t + 4 });
+console.log('  Evento errático final (salto 16px en 4ms):');
+console.log(`    naïve últimos-2 pts: ${leerNaive2(conPico).toFixed(2)} px/ms  vs  mediana 70ms: ${leerMediana(conPico, 70).toFixed(2)} px/ms`);
+console.log('  → elegido: MEDIANA, ventana 70ms. 70ms baja la dispersión de ruido');
+console.log('    frente a 50ms (más segmentos), y la mediana ignora el evento errático');
+console.log('    que dispara la lectura naïve. Sin suavizar el seguimiento del dedo.');
+
+// ── 5 CASOS ────────────────────────────────────────────────────────
+console.log('\n=== a. MISMA velocidad de suelta, distancias 80px vs 400px ===');
+const a1 = salida(uniforme(1.8, 80, -0.6, -1, 12));
+const a2 = salida(uniforme(1.8, 400, -0.6, -1, 12));
+const difA = Math.abs(a1.rapidez - a2.rapidez) / a1.rapidez * 100;
+console.log(`  80px : velSuelta=${a1.velSuelta.toFixed(3)}  salida=${a1.rapidez.toFixed(3)} px/ms`);
+console.log(`  400px: velSuelta=${a2.velSuelta.toFixed(3)}  salida=${a2.rapidez.toFixed(3)} px/ms`);
+console.log(`  → diferencia ${difA.toFixed(2)}%  [criterio ±2%: ${difA <= 2 ? 'OK ✓' : 'NO ✗'}]`);
+
+console.log('\n=== b. Suelta LENTA → tiro suave / c. Suelta RÁPIDA → tiro fuerte ===');
+const b = salida(uniforme(0.5, 200, -0.5, -1, 16));
+const c = salida(uniforme(2.4, 200, -0.5, -1, 12));
+console.log(`  b lenta : velSuelta=${b.velSuelta.toFixed(2)}  salida=${b.rapidez.toFixed(2)} px/ms`);
+console.log(`  c rápida: velSuelta=${c.velSuelta.toFixed(2)}  salida=${c.rapidez.toFixed(2)} px/ms`);
+
+console.log('\n=== d. Dedo DETENIDO al soltar → cae ===');
+// Se mueve y luego se queda quieto los últimos ~90ms (varios eventos iguales).
+const dq = uniforme(1.5, 150, -0.5, -1, 16);
+const fin = dq[dq.length - 1];
+for (let e = 1; e <= 6; e++) dq.push({ x: fin.x, y: fin.y, t: fin.t + e * 15 });
+const d = salida(dq);
+console.log(`  velSuelta=${d.velSuelta.toFixed(3)}  cae=${d.cae ? 'sí ✓' : 'no ✗'}  salida=${d.rapidez.toFixed(3)} px/ms`);
+
+console.log('\n=== e. MISMO gesto ×5 con micro-ruido ±1px → predecibilidad ±5% ===');
+const baseE = uniforme(1.9, 260, -0.55, -1, 16);
+const salidas = [];
+for (let r = 0; r < 5; r++) {
+  const s = salida(ruido(baseE, 1));
+  salidas.push(s.rapidez);
+  console.log(`  tiro ${r + 1}: salida=${s.rapidez.toFixed(3)} px/ms`);
 }
-
-console.log('=== potencia por velocidad de suelta ===');
-reporta('a. Suelta RÁPIDA corta (80px/40ms)', recto(338, 792, 300, 722, 40, 6));
-reporta('b. Suelta LENTA larga (300px/700ms)', recto(338, 792, 120, 520, 700, 30));
-reporta('c. Suelta RÁPIDA larga (300px/150ms)', recto(338, 792, 120, 520, 150, 16));
-
-console.log('\n=== chanfle: (d) recto vs (e) curvo 45°, MISMA potencia ===');
-// (d) recto y (e) arco 90° (→ 45° entre mitades), misma longitud y duración,
-// ambos orientados a soltar hacia arriba: sólo difieren en el spin.
-const LARGO = 220;
-const DUR = 120;
-const N = 24;
-const gd = orientarSueltaArriba(recto(0, 0, 0, -LARGO, DUR, N));
-const ge = orientarSueltaArriba(arco(LARGO, Math.PI / 2, DUR, N));
-const D = reporta('d. Recto (potencia media, spin≈0)', gd);
-const E = reporta('e. Curvo 90° arco = 45° entre mitades', ge);
-
-// Diferencia lateral (horizontal) máxima mientras ambos siguen vivos.
-let maxLat = 0;
-const nComun = Math.min(D.r.tray.length, E.r.tray.length);
-for (let i = 0; i < nComun; i++) {
-  maxLat = Math.max(maxLat, Math.abs(E.r.tray[i].x - D.r.tray[i].x));
-}
-console.log(
-  `\n  → desviación lateral máxima (e) vs (d): ${Math.round(maxLat)}px  ` +
-  `[criterio ≥100px: ${maxLat >= 100 ? 'OK ✓' : 'NO ✗'}]`
-);
+const minE = Math.min.apply(null, salidas);
+const maxE = Math.max.apply(null, salidas);
+const medE = salidas.reduce(function (a, b) { return a + b; }, 0) / salidas.length;
+const spreadE = (maxE - minE) / medE * 100;
+console.log(`  → dispersión ${spreadE.toFixed(2)}%  [criterio ±5%: ${spreadE <= 5 ? 'OK ✓' : 'NO ✗'}]`);

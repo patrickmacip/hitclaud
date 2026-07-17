@@ -9,41 +9,19 @@
   // MUNDO: vista LATERAL con GRAVEDAD (no cenital). La bolita sube, alcanza
   // ápice y cae, conservando su dirección horizontal. Sin paredes: vuela
   // libre y muere al salir del viewport o al agotar la vida máxima.
+  //
+  // TIRO 1:1 CON EL DEDO: la potencia es SOLO la velocidad instantánea de
+  // suelta × un multiplicador FIJO. La distancia NO entra — el mismo gesto
+  // rinde igual sin importar cuánto arrastraste (tiro predecible).
   const FISICA = {
-    // Potencia por VELOCIDAD DE SUELTA (cómo sueltas, no el promedio del
-    // gesto que siempre arranca en 0). Dominante la suelta, minoritaria la
-    // distancia. potencia = PESO_SUELTA·velNorm + PESO_DISTANCIA·distNorm.
-    PESO_SUELTA: 0.8,         // peso de la velocidad instantánea de suelta
-    PESO_DISTANCIA: 0.2,      // peso de la distancia total normalizada
-    VENTANA_SUELTA_MS: 50,    // ventana de la velocidad instantánea de suelta
-    VEL_GESTO_TOPE: 2.5,      // px/ms de dedo que dan velNorm = 1
-    DIST_TOPE_FRACCION: 0.4,  // distancia tope = 40% de la altura del viewport
-    // Mapeo de salida: la bolita sale a MULT_SUELTA× la velocidad del dedo
-    // (componente velocidad pura), nunca por debajo del dedo. El anillo no
-    // miente: potencia manda el disparo 1:1.
-    MULT_SUELTA: 1.4,         // multiplicador base sobre la velocidad del dedo
-    // VEL_SALIDA_TOPE = MULT_SUELTA·VEL_GESTO_TOPE/PESO_SUELTA = 1.4·2.5/0.8.
-    VEL_SALIDA_TOPE: 4.375,   // px/ms de salida con potencia = 1
+    MULT_SUELTA: 1.4,         // salida = velocidad del dedo al soltar × 1.4
+    VENTANA_SUELTA_MS: 70,    // ventana de lectura de la velocidad de suelta
     VEL_SALIDA_MAX: 5.0,      // px/ms tope de seguridad de la velocidad de salida
-    // Spin por giro ENTRE MITADES del trazo (ventana completa del gesto),
-    // referencia 60° = spin máximo.
-    SPIN_REF_RAD: Math.PI / 3,
-    // Chanfle medible: giro de ~45° (spin 0.75) a potencia media desvía
-    // ≥100 px lateralmente en el vuelo visible (ver test d vs e).
-    FACTOR_MAGNUS: 0.002,     // aceleración perpendicular = factor · spin · |v|
-    DECAIMIENTO_SPIN: 0.0015, // tasa exponencial de decaimiento del spin, por ms
-    // Gravedad: a potencia máx (≈4.375 px/ms) y tiro vertical el ápice sube
-    // v²/(2g) muy alto → sale por el borde superior; a media potencia arco
-    // corto. Cuenta de referencia con 2.2 px/ms: 2.2²/(2·0.0035) ≈ 691 px.
     GRAVEDAD: 0.0035,         // px/ms² de aceleración hacia abajo
     VEL_CAIDA_MAX: 2.8,       // px/ms tope de velocidad vertical de caída
     VIDA_MAX_MS: 6000,        // válvula de seguridad: muere a los 6 s
     RADIO_BOLITA: 14,         // px (bolita de 28)
   };
-
-  function clamp01(v) {
-    return v < 0 ? 0 : v > 1 ? 1 : v;
-  }
 
   function largoTrazo(puntos) {
     let largo = 0;
@@ -53,59 +31,50 @@
     return largo;
   }
 
-  // Spin por giro ENTRE MITADES del trazo (ventana completa del gesto):
-  // ángulo firmado de la dirección 1ª mitad → 2ª mitad, normalizado con
-  // SPIN_REF_RAD (60°) = ±1.
-  function spinDeTrazo(puntos) {
-    const n = puntos.length;
-    if (n < 3) return 0;
-    const mid = Math.floor((n - 1) / 2);
-    const d1x = puntos[mid].x - puntos[0].x;
-    const d1y = puntos[mid].y - puntos[0].y;
-    const d2x = puntos[n - 1].x - puntos[mid].x;
-    const d2y = puntos[n - 1].y - puntos[mid].y;
-    if ((d1x === 0 && d1y === 0) || (d2x === 0 && d2y === 0)) return 0;
-    let ang = Math.atan2(d2y, d2x) - Math.atan2(d1y, d1x);
-    while (ang > Math.PI) ang -= 2 * Math.PI;
-    while (ang < -Math.PI) ang += 2 * Math.PI;
-    return Math.max(-1, Math.min(1, ang / FISICA.SPIN_REF_RAD));
+  function mediana(valores) {
+    if (valores.length === 0) return 0;
+    const s = valores.slice().sort(function (a, b) { return a - b; });
+    const m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
   }
 
-  // Velocidad instantánea de suelta (px/ms) + su dirección: rapidez del
-  // trazo en los últimos VENTANA_SUELTA_MS; si <2 puntos caen en la ventana,
-  // los 2 últimos con su dt real.
-  function sueltaDeTrazo(puntos) {
+  // Velocidad instantánea de suelta (px/ms) + su dirección.
+  // Lectura robusta: en los últimos VENTANA_SUELTA_MS toma la MEDIANA de las
+  // velocidades por segmento (los pointer events llegan irregulares; un dt de
+  // 4 ms con un salto grande dispararía un falso pico — la mediana lo ignora).
+  // Si <2 puntos caen en la ventana, usa los 2 últimos con su dt real.
+  // NO suaviza el seguimiento del dedo; sólo la lectura AL SOLTAR.
+  function velocidadSuelta(puntos) {
     const tFin = puntos[puntos.length - 1].t;
     let i = puntos.length - 1;
     while (i > 0 && tFin - puntos[i - 1].t <= FISICA.VENTANA_SUELTA_MS) i--;
     let tramo = puntos.slice(i);
     if (tramo.length < 2) tramo = puntos.slice(-2);
-    const dur = Math.max(tramo[tramo.length - 1].t - tramo[0].t, 1);
+
+    const velos = [];
+    for (let k = 1; k < tramo.length; k++) {
+      const dt = tramo[k].t - tramo[k - 1].t;
+      if (dt <= 0) continue;
+      velos.push(Math.hypot(tramo[k].x - tramo[k - 1].x, tramo[k].y - tramo[k - 1].y) / dt);
+    }
+    const velocidad = mediana(velos);
+
+    // Dirección = extremos de la ventana (hacia dónde va el dedo al soltar).
     const a = tramo[0];
     const b = tramo[tramo.length - 1];
-    return { velocidad: largoTrazo(tramo) / dur, dx: b.x - a.x, dy: b.y - a.y };
+    return { velocidad: velocidad, dx: b.x - a.x, dy: b.y - a.y };
   }
 
-  // puntosDelGesto: [{x, y, t}] (t en ms). alturaViewport: px.
-  // → {vx, vy, spin, potencia, velSuelta} en px/ms, o null si no hay disparo.
-  function crearDisparo(puntos, alturaViewport) {
+  // puntosDelGesto: [{x, y, t}] (t en ms).
+  // → {vx, vy, velSuelta} en px/ms, o null si el gesto no da disparo.
+  function crearDisparo(puntos) {
     if (!puntos || puntos.length < 2) return null;
-    const largo = largoTrazo(puntos);
-    if (largo === 0) return null;
 
-    const suelta = sueltaDeTrazo(puntos);
-    const velNorm = clamp01(suelta.velocidad / FISICA.VEL_GESTO_TOPE);
-    const distNorm = clamp01(largo / (FISICA.DIST_TOPE_FRACCION * alturaViewport));
-    const potencia = clamp01(
-      FISICA.PESO_SUELTA * velNorm + FISICA.PESO_DISTANCIA * distNorm
-    );
+    const suelta = velocidadSuelta(puntos);
+    const rapidez = Math.min(suelta.velocidad * FISICA.MULT_SUELTA, FISICA.VEL_SALIDA_MAX);
 
-    // La potencia manda el disparo 1:1 (el anillo no miente). Calibrado:
-    // componente velocidad pura → MULT_SUELTA× la velocidad del dedo.
-    const rapidez = Math.min(potencia * FISICA.VEL_SALIDA_TOPE, FISICA.VEL_SALIDA_MAX);
-
-    // Dirección = hacia dónde va el dedo AL SOLTAR; si el dedo está detenido,
-    // cae desde inicio→fin del gesto.
+    // Dirección de la suelta; si el dedo está detenido (sin dirección en la
+    // ventana), cae desde inicio→fin del gesto.
     let dx = suelta.dx;
     let dy = suelta.dy;
     let dnorm = Math.hypot(dx, dy);
@@ -122,26 +91,13 @@
       vy = (dy / dnorm) * rapidez;
     }
 
-    return { vx: vx, vy: vy, spin: spinDeTrazo(puntos), potencia: potencia, velSuelta: suelta.velocidad };
+    return { vx: vx, vy: vy, velSuelta: suelta.velocidad };
   }
 
-  // Integra un paso de dt ms. bolita: {x, y, vx, vy, spin, edad, viva}.
+  // Integra un paso de dt ms. bolita: {x, y, vx, vy, edad, viva}.
   // limites: {w, h}. Muta y devuelve la bolita. Sin paredes: vuelo libre;
   // marca viva=false al salir del viewport o al agotar la vida máxima.
   function paso(bolita, dt, limites) {
-    // Magnus simplificado (chanfle): aceleración perpendicular a la
-    // velocidad, proporcional al spin, con decaimiento exponencial. Se
-    // SUMA a la gravedad → la curva se nota sobre la parábola.
-    const v = Math.hypot(bolita.vx, bolita.vy);
-    if (v > 0 && bolita.spin !== 0) {
-      const a = FISICA.FACTOR_MAGNUS * bolita.spin * v;
-      const nx = -bolita.vy / v;
-      const ny = bolita.vx / v;
-      bolita.vx += nx * a * dt;
-      bolita.vy += ny * a * dt;
-    }
-    bolita.spin *= Math.exp(-FISICA.DECAIMIENTO_SPIN * dt);
-
     // Gravedad constante hacia abajo, con tope de velocidad de caída.
     bolita.vy += FISICA.GRAVEDAD * dt;
     if (bolita.vy > FISICA.VEL_CAIDA_MAX) bolita.vy = FISICA.VEL_CAIDA_MAX;
@@ -170,7 +126,6 @@
     crearDisparo: crearDisparo,
     paso: paso,
     largoTrazo: largoTrazo,
-    spinDeTrazo: spinDeTrazo,
   };
 
   if (typeof module !== 'undefined' && module.exports) {
