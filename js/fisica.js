@@ -19,10 +19,15 @@
     // k = MULT_SUELTA / VEL_SALIDA_MAX para que la pendiente inicial sea
     // MULT_SUELTA. Zona baja/media ≈ 1:1 con el dedo; cerca del techo la
     // ganancia decae; nunca se supera VEL_SALIDA_MAX.
+    // TECHO CONTROLADO: tiro vertical desde el reposo (y≈792 en h=844) debe
+    // apenas no cruzar el borde superior. Subida objetivo ~730px →
+    // v = √(2·0.0035·730) = √5.11 ≈ 2.26 px/ms. Como tanh satura, la salida
+    // real queda por debajo → el ápice llega "casi casi", nunca cruza.
     MULT_SUELTA: 1.4,         // ganancia de zona baja (pendiente inicial de la curva)
     VENTANA_SUELTA_MS: 70,    // ventana de lectura de la velocidad de suelta
-    VEL_SALIDA_MAX: 4.0,      // px/ms techo asintótico de la velocidad de salida
-    GRAVEDAD: 0.0035,         // px/ms² de aceleración hacia abajo
+    VEL_SALIDA_MAX: 2.26,     // px/ms techo asintótico (subida ~730px a potencia máx)
+    GRAVEDAD: 0.0035,         // px/ms² de aceleración hacia abajo (bolitas)
+    G_TARGET: 0.0021,         // px/ms² de los targets = 0.6 × GRAVEDAD (flote lunar)
     VEL_CAIDA_MAX: 2.8,       // px/ms tope de velocidad vertical de caída
     VIDA_MAX_MS: 6000,        // válvula de seguridad: muere a los 6 s
     RADIO_BOLITA: 14,         // px (bolita de 28)
@@ -39,15 +44,19 @@
     PESO_INFERIOR: 0.40,
     PESO_LATERAL: 0.45,
     PESO_SUPERIOR: 0.15,
-    FUERZA: 0.85,             // recorte global de velocidad inicial (−15%): targets más lentos
-    MARGEN: 40,               // px fuera del borde donde nace el target
+    FUERZA: 1.0,              // sin recorte: el flote lunar (G_TARGET) ya alarga los arcos
+    MARGEN: 40,               // px fuera del borde donde nace el target (inferior)
+    LAT_MARGEN: 8,            // margen lateral menor: menos demora de entrada → vuelo ≥1.5s
     SUP_MARGEN: 10,           // margen menor arriba: menos pre-aceleración → cruce ≥0.6s
-    INF_X: [0.05, 0.70],      // fracción de ancho (70% izq, lejos del hitmaker)
-    INF_VX: [-0.10, 0.25],    // leve componente lateral
-    INF_VY: [1.5, 2.1],       // hacia arriba (se resta): arco visible 0.8–1.4s
-    LAT_Y: [0.72, 0.86],      // fracción de altura (mitad-baja; ápice queda 20–80%)
-    LAT_VX: [0.24, 0.40],     // hacia el interior
-    LAT_VY: [1.45, 1.70],     // hacia arriba
+    INF_X: [0.05, 0.55],      // fracción de ancho (izq, lejos del hitmaker; deja pista)
+    INF_VX: [-0.05, 0.12],    // leve componente lateral
+    INF_VY: [1.66, 1.73],     // hacia arriba: con flote lunar → 1.5–1.6s, ápice 0.72–0.80
+    // Laterales: corredor ESTRECHO. Para llegar a 1.5s el ápice debe rozar
+    // el 80% (tope), así que vy e y quedan muy acotados y los laterales salen
+    // casi idénticos. Ampliar el ápice (≤0.90) o bajar G_TARGET daría variedad.
+    LAT_Y: [0.95, 0.975],     // fracción de altura (casi al fondo)
+    LAT_VX: [0.13, 0.20],     // hacia el interior, suave (no sale por el costado antes de 1.5s)
+    LAT_VY: [1.60, 1.63],     // hacia arriba
     SUP_X_BORDE: [0.05, 0.22], // fracción de ancho cerca del borde de origen
     SUP_VX: [0.22, 0.40],     // componente lateral (cruza en diagonal, pista completa)
     SUP_VY: [0.02, 0.14],     // hacia abajo, casi nula: entra lento → cruce ≥0.6s
@@ -150,7 +159,7 @@
     } else if (origen === 'lateral') {
       const izq = Math.random() < 0.5;
       y = rango(LANZA.LAT_Y) * h;
-      x = izq ? -M : w + M;
+      x = izq ? -LANZA.LAT_MARGEN : w + LANZA.LAT_MARGEN;
       vx = izq ? rango(LANZA.LAT_VX) : -rango(LANZA.LAT_VX);
       vy = -rango(LANZA.LAT_VY);
     } else {
@@ -166,7 +175,7 @@
     return {
       x: x, y: y, vx: vx * LANZA.FUERZA, vy: vy * LANZA.FUERZA,
       rot: 0, velRot: rango(LANZA.VEL_ROT),
-      radio: FISICA.RADIO_TARGET,
+      radio: FISICA.RADIO_TARGET, gravedad: FISICA.G_TARGET,
       haEntrado: false, edad: 0, viva: true, origen: origen,
     };
   }
@@ -176,7 +185,10 @@
   // Fuente ÚNICA de física para bolitas y targets. Sin paredes: vuelo libre.
   function paso(o, dt, limites) {
     // Gravedad constante hacia abajo, con tope de velocidad de caída.
-    o.vy += FISICA.GRAVEDAD * dt;
+    // Excepción declarada a la física única: gravedad por objeto. Bolitas
+    // usan GRAVEDAD (validada); targets usan G_TARGET (flote lunar).
+    const g = o.gravedad || FISICA.GRAVEDAD;
+    o.vy += g * dt;
     if (o.vy > FISICA.VEL_CAIDA_MAX) o.vy = FISICA.VEL_CAIDA_MAX;
 
     o.x += o.vx * dt;

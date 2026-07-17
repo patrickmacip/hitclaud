@@ -2,10 +2,9 @@
 // Simula 60 lanzamientos (20 por grupo) y mide vuelo visible y ápice.
 // Viewport 390×844.
 //
-// NOTA DE FÍSICA (declarada): con g=0.0035 y h=844 el vuelo visible máximo
-// de una parábola es ~1.39s (844px de subida = 694ms, ×2), con el ápice
-// pegado al techo. El criterio original "1.5–3.5s con ápice 20–80%" es
-// físicamente imposible; se evalúa la banda ALCANZABLE 0.8–1.4s.
+// NOTA DE FÍSICA (declarada): los targets usan G_TARGET = 0.0021 (flote
+// lunar, 0.6× la gravedad de las bolitas). Con esa gravedad la banda
+// 1.5–3.5s con ápice 20–80% SÍ es alcanzable (con g=0.0035 no lo era).
 
 const F = require('../js/fisica.js');
 const VIEWPORT = { w: 390, h: 844 };
@@ -59,10 +58,9 @@ function grupo(origen, evalua) {
 
 console.log('=== Simulación de 60 lanzamientos (20 por grupo) ===');
 
-// Inferior y laterales: banda alcanzable con targets recortados −15%:
-// 0.6–1.4s (el máx físico de una parábola es ~1.39s), ápice 20–80%.
+// Inferior y laterales (flote lunar): vuelo visible 1.5–3.5s, ápice 20–80%.
 const evalArco = function (r) {
-  return r.visible >= 0.6 && r.visible <= 1.4 && r.apexFrac >= 0.20 && r.apexFrac <= 0.80;
+  return r.visible >= 1.5 && r.visible <= 3.5 && r.apexFrac >= 0.20 && r.apexFrac <= 0.80;
 };
 const pInf = grupo('inferior', evalArco);
 const pLat = grupo('lateral', evalArco);

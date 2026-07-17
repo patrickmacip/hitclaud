@@ -61,7 +61,7 @@ console.log('=== BARRIDO de linealidad de la curva de respuesta ===');
   const dmin = Math.min.apply(null, deltas);
   const dmax = Math.max.apply(null, deltas);
   const dprom = deltas.reduce(function (a, b) { return a + b; }, 0) / deltas.length;
-  console.log(`  salida 0.2→3.0 px/ms: ${outs[0].s.toFixed(2)} … ${outs[outs.length - 1].s.toFixed(2)} px/ms  (techo 4.0)`);
+  console.log(`  salida 0.2→3.0 px/ms: ${outs[0].s.toFixed(2)} … ${outs[outs.length - 1].s.toFixed(2)} px/ms  (techo ${F.FISICA.VEL_SALIDA_MAX})`);
   console.log(`  deltas por paso: mín=${dmin.toFixed(3)} máx=${dmax.toFixed(3)} prom=${dprom.toFixed(3)}`);
   console.log(`  monótona creciente: ${monot ? 'sí ✓' : 'NO ✗'}`);
   console.log(`  peor delta vs promedio previo: ${peorRatio.toFixed(2)}× (en velSuelta=${vPeor.toFixed(1)})  [criterio ≤1.6×: ${peorRatio <= 1.6 ? 'OK ✓' : 'NO ✗'}]`);
