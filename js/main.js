@@ -67,34 +67,26 @@
 
   function rnd(a, b) { return a + Math.random() * (b - a); }
 
-  // Convierte un target destruido en sus 20 cubos. Cada cubo: velocidad del
-  // target + impulso radial desde el punto de impacto (mayor cuanto más cerca)
-  // + jitter. Dirección diversa según ángulo y fuerza del golpe.
-  function explotar(t, golpe) {
-    const CUBO = 8;
-    const cw = Math.cos(t.rot);
-    const sw = Math.sin(t.rot);
-    for (let f = 0; f < 4; f++) {
-      for (let c = 0; c < 5; c++) {
-        const lx = c * CUBO - 16; // centro del cubo en local (sprite 40×32)
-        const ly = f * CUBO - 12;
-        const wx = t.x + lx * cw - ly * sw;
-        const wy = t.y + lx * sw + ly * cw;
-        const dx = wx - golpe.px;
-        const dy = wy - golpe.py;
-        const d = Math.hypot(dx, dy);
-        let dirx, diry;
-        if (d > 0.001) { dirx = dx / d; diry = dy / d; }
-        else { const a = rnd(0, Math.PI * 2); dirx = Math.cos(a); diry = Math.sin(a); }
-        const mag = CUBO_FUERZA * golpe.vImpact * (0.4 + 1 / (1 + d / 12));
-        cubos.push({
-          x: wx, y: wy,
-          vx: t.vx + dirx * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
-          vy: t.vy + diry * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
-          rot: t.rot, velRot: rnd(-0.01, 0.01),
-          edad: 0, vida: rnd(CUBO_VIDA_MIN, CUBO_VIDA_MAX),
-        });
-      }
+  // Anima una lista de cubos liberados (arrancados o de destrucción total).
+  // Cada cubo: velocidad del target + impulso radial desde el impacto (mayor
+  // cuanto más cerca) + jitter. Sistema ÚNICO: lo usan golpe suave y fuerte.
+  function explotarCubos(centros, px, py, vImpact, tvx, tvy) {
+    for (let k = 0; k < centros.length; k++) {
+      const wc = centros[k];
+      const dx = wc.x - px;
+      const dy = wc.y - py;
+      const d = Math.hypot(dx, dy);
+      let dirx, diry;
+      if (d > 0.001) { dirx = dx / d; diry = dy / d; }
+      else { const a = rnd(0, Math.PI * 2); dirx = Math.cos(a); diry = Math.sin(a); }
+      const mag = CUBO_FUERZA * vImpact * (0.4 + 1 / (1 + d / 12));
+      cubos.push({
+        x: wc.x, y: wc.y,
+        vx: tvx + dirx * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
+        vy: tvy + diry * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
+        rot: rnd(0, Math.PI * 2), velRot: rnd(-0.01, 0.01),
+        edad: 0, vida: rnd(CUBO_VIDA_MIN, CUBO_VIDA_MAX),
+      });
     }
     while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
   }
@@ -249,14 +241,20 @@
     // Golpe fuerte destruye; suave empuja y marca. La bolita sigue viva.
     for (let ti = targets.length - 1; ti >= 0; ti--) {
       const tg = targets[ti];
-      let golpe = null;
+      let murio = false;
       for (let bi = 0; bi < bolitas.length; bi++) {
         const r = F.resolverImpacto(bolitas[bi], tg);
-        if (r && r.destruido) { golpe = r; break; }
+        if (!r) continue;
+        if (r.cubosLiberados.length > 0) {
+          explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy);
+        }
+        if (r.muerto) {
+          sacudidaHasta = t + SACUDIDA_MS; // micro-sacudida solo en muerte
+          murio = true;
+          break;
+        }
       }
-      if (golpe) {
-        explotar(tg, golpe);                 // 20 cubos (animación pura)
-        sacudidaHasta = t + SACUDIDA_MS;      // micro-sacudida solo en destrucción
+      if (murio) {
         targets.splice(ti, 1);
         proximoSpawn = Math.max(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX));
       }
@@ -302,7 +300,7 @@
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.rotate(t.rot);
-      dibujarSpriteTarget(-20, -16); // sprite 40×32 centrado
+      dibujarSpriteTarget(t); // solo celdas vivas (el boquete se ve)
       ctx.restore();
     }
     // Cubos de explosión (animación pura).
@@ -349,21 +347,23 @@
     ctx.globalAlpha = 1;
   }
 
-  // Sprite del target: retícula 5×4 de cubos de 8px en --coral (top-left x,y).
-  // Cubos esquineros de 8×8 con SOLO su esquina exterior redondeada a 4px;
-  // ojos de 4px en --negro. Se dibuja dentro de un translate/rotate.
-  function dibujarSpriteTarget(x, y) {
+  // Sprite del target centrado en (0,0): retícula 5×4 de cubos de 8px en
+  // --coral, dibujando SOLO las celdas vivas (t.celdas) → el boquete se ve.
+  // Cubos esquineros con la esquina exterior a 4px; ojos (celdas 6 y 8) en
+  // --negro, cada uno solo si su celda sigue viva.
+  function dibujarSpriteTarget(t) {
     const CUBO = 8;
     const COLS = 5;
     const FILAS = 4;
     const RADIO_ESQ = 4;
+    const x = -20;
+    const y = -16;
     ctx.fillStyle = COLOR.coral;
     for (let f = 0; f < FILAS; f++) {
       for (let c = 0; c < COLS; c++) {
+        if (!t.celdas[f * COLS + c]) continue; // celda muerta = boquete
         const cx = x + c * CUBO;
         const cy = y + f * CUBO;
-        // Radios [sup-izq, sup-der, inf-der, inf-izq]: solo la esquina
-        // exterior del sprite lleva 4px.
         const radios = [
           f === 0 && c === 0 ? RADIO_ESQ : 0,
           f === 0 && c === COLS - 1 ? RADIO_ESQ : 0,
@@ -375,10 +375,10 @@
         ctx.fill();
       }
     }
-    // Ojos: dos cuadrados de 4px (2×2 respecto a la retícula base)
+    // Ojos: celdas 6 (f1,c1) y 8 (f1,c3), cada una si sigue viva.
     ctx.fillStyle = COLOR.negro;
-    ctx.fillRect(x + 1 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
-    ctx.fillRect(x + 3 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
+    if (t.celdas[6]) ctx.fillRect(x + 1 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
+    if (t.celdas[8]) ctx.fillRect(x + 3 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
   }
 
   // Bolita: 28px --indigo con borde 3px --indigo-vivo.

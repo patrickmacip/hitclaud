@@ -36,11 +36,18 @@
     TARGET_HW: 20,
     TARGET_HH: 16,
     RESTITUCION_GOLPE: 0.6,   // atenuación del rebote de la hitball
-    MASA_TARGET: 2.5,         // "peso" del target: cuánto frena/empuja el golpe
+    MASA_TARGET: 2.5,         // "peso" de un target intacto (20 cubos); baja con el daño
     // Umbral de destrucción (rapidez normal de impacto, px/ms). Cuenta: la
     // salida a velSuelta≈0.68 px/ms (flick deliberado) es 2.26·tanh(0.619·0.68)
-    // ≈ 0.9; por debajo el target sobrevive y sólo recibe empuje.
+    // ≈ 0.9; por encima destruye entero.
     UMBRAL_DESTRUCCION: 0.9,
+    // Daño parcial entre [MÍNIMO, DESTRUCCIÓN): arranca cubos cercanos al
+    // impacto. Mapeo lineal 0.3→2 cubos, 0.9→8 cubos. Por debajo del mínimo:
+    // solo empuje (un roce no desmorona).
+    UMBRAL_MINIMO_DANO: 0.3,
+    DANO_CUBOS_MIN: 2,
+    DANO_CUBOS_MAX: 8,
+    DESMORONA_CUBOS: 4,       // ≤ este nº de cubos vivos tras un golpe → muere
   };
 
   // Rangos de LANZAMIENTO de targets (px/ms, px). Los targets se lanzan como
@@ -181,10 +188,15 @@
       vy = rango(LANZA.SUP_VY);
     }
 
+    // celdas: máscara de 20 cubos vivos (idx = fila*5 + col). Los ojos son
+    // las celdas 6 (f1,c1) y 8 (f1,c3): si mueren, ese ojo desaparece.
+    const celdas = [];
+    for (let i = 0; i < 20; i++) celdas.push(true);
     return {
       x: x, y: y, vx: vx * LANZA.FUERZA, vy: vy * LANZA.FUERZA,
       rot: 0, velRot: rango(LANZA.VEL_ROT),
       radio: FISICA.RADIO_TARGET, gravedad: FISICA.G_TARGET,
+      celdas: celdas, vivos: 20, masa: FISICA.MASA_TARGET, golpeado: false,
       haEntrado: false, edad: 0, viva: true, origen: origen,
     };
   }
@@ -220,31 +232,77 @@
     return o;
   }
 
-  // Colisión círculo–rectángulo ROTADO: transforma el centro de la bolita al
-  // espacio local del target (rotación −rot), prueba círculo vs rect eje-
-  // alineado (punto más cercano con clamp a ±HW/±HH), y devuelve la normal y
-  // el punto de contacto en coordenadas de mundo (rotación +rot). null si no
-  // hay solape.
+  // ── Modelo de cubos del target ─────────────────────────────────────
+  function celdaLocal(idx) {
+    const c = idx % 5;
+    const f = (idx / 5) | 0;
+    return { x: c * 8 - 16, y: f * 8 - 12 }; // centro del cubo (sprite 40×32)
+  }
+
+  function celdaMundo(t, idx) {
+    const l = celdaLocal(idx);
+    const cw = Math.cos(t.rot);
+    const sw = Math.sin(t.rot);
+    return { x: t.x + l.x * cw - l.y * sw, y: t.y + l.x * sw + l.y * cw };
+  }
+
+  function cubosVivosMundo(t) {
+    const out = [];
+    for (let i = 0; i < 20; i++) if (t.celdas[i]) out.push(celdaMundo(t, i));
+    return out;
+  }
+
+  // Caja de colisión LOCAL = bounding box de las celdas vivas (mordido = más
+  // chico = más difícil de acertar). {cx,cy} = centro, {hw,hh} = medios ejes.
+  function cajaLocal(t) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let i = 0; i < 20; i++) {
+      if (!t.celdas[i]) continue;
+      const l = celdaLocal(i);
+      if (l.x - 4 < minX) minX = l.x - 4;
+      if (l.x + 4 > maxX) maxX = l.x + 4;
+      if (l.y - 4 < minY) minY = l.y - 4;
+      if (l.y + 4 > maxY) maxY = l.y + 4;
+    }
+    if (minX > maxX) return null;
+    return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, hw: (maxX - minX) / 2, hh: (maxY - minY) / 2 };
+  }
+
+  // Índices de las n celdas vivas más cercanas al punto de mundo (px,py).
+  function celdasCercanas(t, px, py, n) {
+    const arr = [];
+    for (let i = 0; i < 20; i++) {
+      if (!t.celdas[i]) continue;
+      const w = celdaMundo(t, i);
+      arr.push({ i: i, d: Math.hypot(w.x - px, w.y - py) });
+    }
+    arr.sort(function (a, b) { return a.d - b.d; });
+    return arr.slice(0, n).map(function (o) { return o.i; });
+  }
+
+  // Colisión círculo–rectángulo ROTADO contra la CAJA DE CELDAS VIVAS.
+  // Transforma el centro de la bolita al espacio local (rotación −rot),
+  // prueba círculo vs rect eje-alineado (centrado en la caja de celdas vivas),
+  // y devuelve normal y punto de contacto en mundo (rotación +rot).
   function colisionCirculoRect(bolita, t) {
-    const HW = FISICA.TARGET_HW;
-    const HH = FISICA.TARGET_HH;
+    const caja = cajaLocal(t);
+    if (!caja) return null;
     const R = FISICA.RADIO_BOLITA;
     const dx = bolita.x - t.x;
     const dy = bolita.y - t.y;
     const c = Math.cos(-t.rot);
     const s = Math.sin(-t.rot);
-    const lx = dx * c - dy * s; // centro de la bolita en espacio local
-    const ly = dx * s + dy * c;
-    const clx = Math.max(-HW, Math.min(HW, lx));
-    const cly = Math.max(-HH, Math.min(HH, ly));
+    const lx = (dx * c - dy * s) - caja.cx; // relativo al centro de la caja
+    const ly = (dx * s + dy * c) - caja.cy;
+    const clx = Math.max(-caja.hw, Math.min(caja.hw, lx));
+    const cly = Math.max(-caja.hh, Math.min(caja.hh, ly));
     let nlx = lx - clx;
     let nly = ly - cly;
     let dist = Math.hypot(nlx, nly);
     if (dist > R) return null;
     if (dist < 1e-6) {
-      // Centro dentro del rect: normal por el eje de menor penetración.
-      const penX = HW - Math.abs(lx);
-      const penY = HH - Math.abs(ly);
+      const penX = caja.hw - Math.abs(lx);
+      const penY = caja.hh - Math.abs(ly);
       if (penX < penY) { nlx = lx < 0 ? -1 : 1; nly = 0; }
       else { nlx = 0; nly = ly < 0 ? -1 : 1; }
     } else {
@@ -252,47 +310,23 @@
     }
     const cw = Math.cos(t.rot);
     const sw = Math.sin(t.rot);
+    const lpx = clx + caja.cx;
+    const lpy = cly + caja.cy;
     return {
       nx: nlx * cw - nly * sw,
       ny: nlx * sw + nly * cw,
       pen: R - dist,
-      px: t.x + (clx * cw - cly * sw),
-      py: t.y + (clx * sw + cly * cw),
+      px: t.x + (lpx * cw - lpy * sw),
+      py: t.y + (lpx * sw + lpy * cw),
     };
   }
 
-  // Resuelve el impacto de una hitball contra un target. Muta ambos.
-  // → {destruido, px, py, nx, ny, vImpact} o null si no hay golpe.
-  // La hitball SIGUE VIVA (su vida/muerte no cambian).
-  function resolverImpacto(bolita, t) {
-    const col = colisionCirculoRect(bolita, t);
-    if (!col) return null;
-    const nx = col.nx;
-    const ny = col.ny;
-    // Saca la bolita de la penetración (evita re-golpes en cuadros seguidos).
-    bolita.x += nx * col.pen;
-    bolita.y += ny * col.pen;
-
-    const vn = bolita.vx * nx + bolita.vy * ny; // <0 = entrando a la superficie
-    if (vn > 0) return null;                     // ya saliendo, no re-resolver
-    const vImpact = -vn;                          // rapidez de impacto en la normal
+  // Colisión 1D con restitución sobre la normal (transferencia de momento).
+  // La bolita rebota; el target recibe empuje. Usa la masa ACTUAL del target.
+  function transferirMomento(bolita, t, nx, ny, vn) {
     const e = FISICA.RESTITUCION_GOLPE;
-
-    if (vImpact >= FISICA.UMBRAL_DESTRUCCION) {
-      // Golpe fuerte: destruye. La bolita rebota con restitución y pierde
-      // rapidez por la masa del target roto: conserva M/(1+M).
-      bolita.vx -= (1 + e) * vn * nx;
-      bolita.vy -= (1 + e) * vn * ny;
-      const drag = FISICA.MASA_TARGET / (1 + FISICA.MASA_TARGET);
-      bolita.vx *= drag;
-      bolita.vy *= drag;
-      return { destruido: true, px: col.px, py: col.py, nx: nx, ny: ny, vImpact: vImpact };
-    }
-
-    // Golpe suave: colisión 1D con restitución sobre la normal (transferencia
-    // de momento). La bolita rebota, el target recibe empuje y queda marcado.
     const m = 1;
-    const M = FISICA.MASA_TARGET;
+    const M = t.masa;
     const u1 = vn;
     const u2 = t.vx * nx + t.vy * ny;
     const v1 = (m * u1 + M * u2 + M * e * (u2 - u1)) / (m + M);
@@ -301,8 +335,71 @@
     bolita.vy += (v1 - u1) * ny;
     t.vx += (v2 - u2) * nx;
     t.vy += (v2 - u2) * ny;
+  }
+
+  // Resuelve el impacto de una hitball contra un target. Muta ambos y la
+  // máscara de celdas. La hitball SIGUE VIVA (su vida/muerte no cambian).
+  // → null si no hay golpe, o:
+  //   {tipo, px, py, nx, ny, vImpact, cubosLiberados:[{x,y}], destruidos, muerto}
+  //   tipo: 'destruido' | 'mordido' | 'empuje'
+  function resolverImpacto(bolita, t) {
+    const col = colisionCirculoRect(bolita, t);
+    if (!col) return null;
+    const nx = col.nx;
+    const ny = col.ny;
+    bolita.x += nx * col.pen; // saca la bolita de la penetración
+    bolita.y += ny * col.pen;
+
+    const vn = bolita.vx * nx + bolita.vy * ny; // <0 = entrando
+    if (vn > 0) return null;
+    const vImpact = -vn;
+    const base = { px: col.px, py: col.py, nx: nx, ny: ny, vImpact: vImpact };
+
+    if (vImpact >= FISICA.UMBRAL_DESTRUCCION) {
+      // Golpe fuerte: destrucción total. Rebote con restitución y frenado por
+      // la masa actual: la bolita conserva M/(1+M).
+      const e = FISICA.RESTITUCION_GOLPE;
+      bolita.vx -= (1 + e) * vn * nx;
+      bolita.vy -= (1 + e) * vn * ny;
+      const drag = t.masa / (1 + t.masa);
+      bolita.vx *= drag;
+      bolita.vy *= drag;
+      const libres = cubosVivosMundo(t);
+      for (let i = 0; i < 20; i++) t.celdas[i] = false;
+      t.vivos = 0;
+      return Object.assign(base, { tipo: 'destruido', cubosLiberados: libres, destruidos: libres.length, muerto: true });
+    }
+
+    // Empuje siempre (transferencia de momento con la masa actual).
+    transferirMomento(bolita, t, nx, ny, vn);
     t.golpeado = true;
-    return { destruido: false, px: col.px, py: col.py, nx: nx, ny: ny, vImpact: vImpact };
+
+    if (vImpact < FISICA.UMBRAL_MINIMO_DANO) {
+      // Roce: solo empuje, sin daño. Cuenta como toque (hit).
+      return Object.assign(base, { tipo: 'empuje', cubosLiberados: [], destruidos: 0, muerto: false });
+    }
+
+    // Daño parcial: arranca las n celdas vivas más cercanas al impacto.
+    const rango01 = (vImpact - FISICA.UMBRAL_MINIMO_DANO) /
+      (FISICA.UMBRAL_DESTRUCCION - FISICA.UMBRAL_MINIMO_DANO);
+    let n = Math.round(FISICA.DANO_CUBOS_MIN + rango01 * (FISICA.DANO_CUBOS_MAX - FISICA.DANO_CUBOS_MIN));
+    n = Math.min(n, t.vivos);
+    const arrancadas = celdasCercanas(t, col.px, col.py, n);
+    const libres = arrancadas.map(function (i) { return celdaMundo(t, i); });
+    for (let k = 0; k < arrancadas.length; k++) t.celdas[arrancadas[k]] = false;
+    t.vivos -= arrancadas.length;
+    t.masa = FISICA.MASA_TARGET * (t.vivos / 20); // masa proporcional a los cubos vivos
+
+    let muerto = false;
+    if (t.vivos <= FISICA.DESMORONA_CUBOS) {
+      // Desmoronamiento: los cubos restantes también explotan.
+      const resto = cubosVivosMundo(t);
+      for (let j = 0; j < resto.length; j++) libres.push(resto[j]);
+      for (let i = 0; i < 20; i++) t.celdas[i] = false;
+      t.vivos = 0;
+      muerto = true;
+    }
+    return Object.assign(base, { tipo: 'mordido', cubosLiberados: libres, destruidos: libres.length, muerto: muerto });
   }
 
   const Fisica = {
@@ -314,6 +411,8 @@
     largoTrazo: largoTrazo,
     colisionCirculoRect: colisionCirculoRect,
     resolverImpacto: resolverImpacto,
+    cajaLocal: cajaLocal,
+    celdaLocal: celdaLocal,
   };
 
   if (typeof module !== 'undefined' && module.exports) {
