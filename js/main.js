@@ -1,8 +1,9 @@
 // hitclaud — main.js
-// Shell + input táctil + vuelo de la bolita en canvas.
+// Shell + input táctil + vuelo de bolitas y targets en canvas.
 // La física vive en fisica.js (módulo puro); aquí solo captura y pintura.
-// El target de muestra es DECORACIÓN: sin colisión en esta fase.
-// Todo el vuelo se dibuja en canvas dentro de un solo rAF — cero layout thrashing.
+// Los targets son LANZADOS (spawner, tope 3). SIN colisión con las bolitas:
+// se atraviesan (la colisión es la fase 3b).
+// Todo se dibuja en canvas dentro de un solo rAF — cero layout thrashing.
 
 (function () {
   'use strict';
@@ -28,6 +29,11 @@
   const MAX_BOLITAS = 24;     // tope de bolitas vivas simultáneas (rendimiento)
   const LAG_ESTELA = 3;       // muestreo hacia atrás por fantasma (×1,2,3)
 
+  // ── Constantes del spawner de targets ──────────────────────────────
+  const MAX_TARGETS = 3;      // tope de targets vivos
+  const SPAWN_MIN = 400;      // retardo mín tras una muerte (ms)
+  const SPAWN_MAX = 1200;     // retardo máx (ms)
+
   let W = 0;
   let H = 0;
 
@@ -35,8 +41,26 @@
   const gesto = { activo: false, puntos: [] };
   const bolitas = [];   // cada una: {x,y,vx,vy,edad,viva, historia:[]}
   let ultimoDisparo = -Infinity;
+  // Targets lanzados (tope 3). SIN colisión con las bolitas: se atraviesan.
+  const targets = [];
+  let ultimoOrigen = null;    // ritmo: no dos seguidos del mismo origen
+  let proximoSpawn = 0;       // timestamp mínimo del próximo lanzamiento
   let rafId = null;
   let tPrev = 0;
+
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+
+  // Lanza un target respetando el ritmo (origen distinto al anterior; como
+  // 'superior' es un origen, "no dos seguidos" ya prohíbe dos superiores).
+  function generarTarget() {
+    let t;
+    for (let i = 0; i < 12; i++) {
+      t = F.crearTarget({ w: W, h: H });
+      if (t.origen !== ultimoOrigen) break;
+    }
+    ultimoOrigen = t.origen;
+    targets.push(t);
+  }
 
   function reposo() {
     // Posición de descanso de la bolita, dentro del núcleo del hitmaker
@@ -126,18 +150,35 @@
       if (b.historia.length > LAG_ESTELA * 3 + 1) b.historia.pop();
       if (!b.viva) bolitas.splice(i, 1); // sale del viewport o agota vida
     }
-    dibujar();
-    if (gesto.activo || bolitas.length > 0) {
-      rafId = requestAnimationFrame(cuadro);
-    } else {
-      rafId = null;
+    // Targets: misma física; al morir uno, programa el siguiente con retardo.
+    for (let i = targets.length - 1; i >= 0; i--) {
+      F.paso(targets[i], dt, limites);
+      if (!targets[i].viva) {
+        targets.splice(i, 1);
+        proximoSpawn = Math.max(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX));
+      }
     }
+    if (targets.length < MAX_TARGETS && t >= proximoSpawn) {
+      generarTarget();
+      proximoSpawn = t + rnd(SPAWN_MIN, SPAWN_MAX);
+    }
+    dibujar();
+    // El juego lanza targets de continuo → el bucle sigue vivo.
+    rafId = requestAnimationFrame(cuadro);
   }
 
   // ── Pintura ────────────────────────────────────────────────────────
   function dibujar() {
     ctx.clearRect(0, 0, W, H);
-    dibujarTarget(W / 2 - 20, H * 0.3); // decoración, sin colisión
+    // Targets lanzados, rotados sobre su centro. SIN colisión (se atraviesan).
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.rotate(t.rot);
+      dibujarSpriteTarget(-20, -16); // sprite 40×32 centrado
+      ctx.restore();
+    }
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
       dibujarEstela(b);
@@ -166,10 +207,10 @@
     ctx.globalAlpha = 1;
   }
 
-  // Target de muestra: retícula 5×4 de cubos de 8px en --coral.
+  // Sprite del target: retícula 5×4 de cubos de 8px en --coral (top-left x,y).
   // Cubos esquineros de 8×8 con SOLO su esquina exterior redondeada a 4px;
-  // ojos de 4px en --negro.
-  function dibujarTarget(x, y) {
+  // ojos de 4px en --negro. Se dibuja dentro de un translate/rotate.
+  function dibujarSpriteTarget(x, y) {
     const CUBO = 8;
     const COLS = 5;
     const FILAS = 4;
@@ -212,6 +253,7 @@
 
   window.addEventListener('resize', redimensionar);
   redimensionar();
+  arrancarBucle(); // el spawner de targets corre desde el arranque
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
