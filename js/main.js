@@ -38,6 +38,15 @@
   const SPAWN_MIN = 400;      // retardo mín tras una muerte (ms)
   const SPAWN_MAX = 1200;     // retardo máx (ms)
 
+  // ── Constantes de la explosión de cubos (animación pura) ───────────
+  const MAX_CUBOS = 120;      // tope de cubos vivos = 6 explosiones simultáneas
+  const CUBO_VIDA_MIN = 800;  // ms de vida (se desvanecen)
+  const CUBO_VIDA_MAX = 1200;
+  const CUBO_FUERZA = 0.5;    // escala del impulso radial por rapidez de impacto
+  const CUBO_JITTER = 0.12;   // px/ms de ruido aleatorio por cubo
+  const SACUDIDA_AMP = 2;     // px de micro-sacudida de pantalla en destrucción
+  const SACUDIDA_MS = 80;     // duración de la sacudida
+
   let W = 0;
   let H = 0;
 
@@ -50,10 +59,45 @@
   const targets = [];
   let ultimoOrigen = null;    // ritmo: no dos seguidos del mismo origen
   let proximoSpawn = 0;       // timestamp mínimo del próximo lanzamiento
+  // Cubos de explosión: animación PURA, sin colisión con nada.
+  const cubos = [];
+  let sacudidaHasta = 0;      // timestamp fin de la micro-sacudida de pantalla
   let rafId = null;
   let tPrev = 0;
 
   function rnd(a, b) { return a + Math.random() * (b - a); }
+
+  // Convierte un target destruido en sus 20 cubos. Cada cubo: velocidad del
+  // target + impulso radial desde el punto de impacto (mayor cuanto más cerca)
+  // + jitter. Dirección diversa según ángulo y fuerza del golpe.
+  function explotar(t, golpe) {
+    const CUBO = 8;
+    const cw = Math.cos(t.rot);
+    const sw = Math.sin(t.rot);
+    for (let f = 0; f < 4; f++) {
+      for (let c = 0; c < 5; c++) {
+        const lx = c * CUBO - 16; // centro del cubo en local (sprite 40×32)
+        const ly = f * CUBO - 12;
+        const wx = t.x + lx * cw - ly * sw;
+        const wy = t.y + lx * sw + ly * cw;
+        const dx = wx - golpe.px;
+        const dy = wy - golpe.py;
+        const d = Math.hypot(dx, dy);
+        let dirx, diry;
+        if (d > 0.001) { dirx = dx / d; diry = dy / d; }
+        else { const a = rnd(0, Math.PI * 2); dirx = Math.cos(a); diry = Math.sin(a); }
+        const mag = CUBO_FUERZA * golpe.vImpact * (0.4 + 1 / (1 + d / 12));
+        cubos.push({
+          x: wx, y: wy,
+          vx: t.vx + dirx * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
+          vy: t.vy + diry * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
+          rot: t.rot, velRot: rnd(-0.01, 0.01),
+          edad: 0, vida: rnd(CUBO_VIDA_MIN, CUBO_VIDA_MAX),
+        });
+      }
+    }
+    while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
+  }
 
   // Lanza un target respetando el ritmo (origen distinto al anterior; como
   // 'superior' es un origen, "no dos seguidos" ya prohíbe dos superiores).
@@ -205,15 +249,27 @@
     // Golpe fuerte destruye; suave empuja y marca. La bolita sigue viva.
     for (let ti = targets.length - 1; ti >= 0; ti--) {
       const tg = targets[ti];
-      let destruido = false;
+      let golpe = null;
       for (let bi = 0; bi < bolitas.length; bi++) {
         const r = F.resolverImpacto(bolitas[bi], tg);
-        if (r && r.destruido) { destruido = true; break; }
+        if (r && r.destruido) { golpe = r; break; }
       }
-      if (destruido) {
+      if (golpe) {
+        explotar(tg, golpe);                 // 20 cubos (animación pura)
+        sacudidaHasta = t + SACUDIDA_MS;      // micro-sacudida solo en destrucción
         targets.splice(ti, 1);
         proximoSpawn = Math.max(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX));
       }
+    }
+    // Cubos: gravedad de los targets, giro y desvanecimiento. Sin colisión.
+    for (let i = cubos.length - 1; i >= 0; i--) {
+      const q = cubos[i];
+      q.vy += F.FISICA.G_TARGET * dt;
+      q.x += q.vx * dt;
+      q.y += q.vy * dt;
+      q.rot += q.velRot * dt;
+      q.edad += dt;
+      if (q.edad >= q.vida) cubos.splice(i, 1);
     }
     if (targets.length < MAX_TARGETS && t >= proximoSpawn) {
       generarTarget();
@@ -227,7 +283,20 @@
   // ── Pintura ────────────────────────────────────────────────────────
   function dibujar() {
     ctx.clearRect(0, 0, W, H);
-    // Targets lanzados, rotados sobre su centro. SIN colisión (se atraviesan).
+
+    // Micro-sacudida de pantalla (solo en destrucción): desplaza todo el dibujo.
+    let ox = 0;
+    let oy = 0;
+    const rem = sacudidaHasta - performance.now();
+    if (rem > 0) {
+      const p = rem / SACUDIDA_MS;
+      ox = (Math.random() * 2 - 1) * SACUDIDA_AMP * p;
+      oy = (Math.random() * 2 - 1) * SACUDIDA_AMP * p;
+    }
+    ctx.save();
+    ctx.translate(ox, oy);
+
+    // Targets lanzados, rotados sobre su centro. SIN colisión con los cubos.
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
       ctx.save();
@@ -236,6 +305,20 @@
       dibujarSpriteTarget(-20, -16); // sprite 40×32 centrado
       ctx.restore();
     }
+    // Cubos de explosión (animación pura).
+    for (let i = 0; i < cubos.length; i++) {
+      const q = cubos[i];
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - q.edad / q.vida);
+      ctx.translate(q.x, q.y);
+      ctx.rotate(q.rot);
+      ctx.fillStyle = COLOR.coral;
+      ctx.beginPath();
+      ctx.roundRect(-4, -4, 8, 8, 1.5);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
       dibujarEstela(b);
@@ -250,6 +333,8 @@
       const r = reposo();
       dibujarBolita(r.x, r.y);
     }
+
+    ctx.restore();
   }
 
   // Estela propia de la bolita: 3 fantasmas al 30/20/10% de alfa.
