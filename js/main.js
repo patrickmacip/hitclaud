@@ -11,14 +11,33 @@
   const canvas = document.getElementById('juego');
   const ctx = canvas.getContext('2d');
   const F = window.Fisica;
+  const P = window.Puntuacion;
 
   const tokens = getComputedStyle(document.documentElement);
   const COLOR = {
     coral: tokens.getPropertyValue('--coral').trim(),
+    coralVivo: tokens.getPropertyValue('--coral-vivo').trim(),
     negro: tokens.getPropertyValue('--negro').trim(),
     indigo: tokens.getPropertyValue('--indigo').trim(),
     indigoVivo: tokens.getPropertyValue('--indigo-vivo').trim(),
+    fuente: tokens.getPropertyValue('--fuente').trim(),
   };
+
+  // Marcador (puntuación por demolición) + su celda en la barra superior.
+  const marcador = P.crearMarcador();
+  const elActual = document.querySelector('.marcador--actual .valor');
+  function actualizarMarcador() { elActual.textContent = marcador.puntos; }
+
+  // Números flotantes de feedback (animación pura, en canvas).
+  const flotantes = [];
+  const FLOTANTE_VIDA = 700;   // ms del +N en el punto de impacto
+  const FLOTANTE_BONO_VIDA = 900;
+  function flotante(x, y, texto) {
+    flotantes.push({ x: x, y: y, texto: texto, edad: 0, vida: FLOTANTE_VIDA, grande: false });
+  }
+  function flotanteBono(bono) {
+    flotantes.push({ x: W / 2, y: H * 0.42, texto: '+' + bono, edad: 0, vida: FLOTANTE_BONO_VIDA, grande: true });
+  }
 
   // ── Constantes de input ────────────────────────────────────────────
   const RADIO_HITMAKER = 145; // hit-test RADIAL desde la esquina inf-der
@@ -167,6 +186,7 @@
       vy: detenido ? 0 : disparo.vy,
       edad: 0,
       viva: true,
+      tocado: false, // ¿tocó algún target? (para racha y fallo)
       historia: [],
     });
     ultimoDisparo = performance.now();
@@ -221,13 +241,13 @@
     }
 
     const limites = { w: W, h: H };
-    for (let i = bolitas.length - 1; i >= 0; i--) {
+    // Avanza las bolitas (no las retira aún: la colisión debe verlas vivas
+    // para saber si fue fallo).
+    for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
       F.paso(b, dt, limites);
-      // Historia propia para los 3 fantasmas (no hay estela compartida).
-      b.historia.unshift({ x: b.x, y: b.y });
+      b.historia.unshift({ x: b.x, y: b.y }); // estela propia (3 fantasmas)
       if (b.historia.length > LAG_ESTELA * 3 + 1) b.historia.pop();
-      if (!b.viva) bolitas.splice(i, 1); // sale del viewport o agota vida
     }
     // Targets: misma física; al morir uno, programa el siguiente con retardo.
     for (let i = targets.length - 1; i >= 0; i--) {
@@ -238,16 +258,27 @@
       }
     }
     // Colisión hitball↔target: una bolita puede golpear varios (carambola).
-    // Golpe fuerte destruye; suave empuja y marca. La bolita sigue viva.
+    // Fuerte destruye; suave muerde; roce empuja. Todo toque cuenta como hit.
     for (let ti = targets.length - 1; ti >= 0; ti--) {
       const tg = targets[ti];
       let murio = false;
       for (let bi = 0; bi < bolitas.length; bi++) {
-        const r = F.resolverImpacto(bolitas[bi], tg);
+        const b = bolitas[bi];
+        const r = F.resolverImpacto(b, tg);
         if (!r) continue;
+        if (!b.tocado) {                       // primer toque de esta bolita = hit
+          b.tocado = true;
+          const bono = P.anotarHit(marcador);
+          if (bono > 0) flotanteBono(bono);
+        }
+        if (r.destruidos > 0) {                // 10 pts por cubo demolido
+          const g = P.anotarDestruidos(marcador, r.destruidos);
+          flotante(r.px, r.py, '+' + g);
+        }
         if (r.cubosLiberados.length > 0) {
           explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy);
         }
+        actualizarMarcador();
         if (r.muerto) {
           sacudidaHasta = t + SACUDIDA_MS; // micro-sacudida solo en muerte
           murio = true;
@@ -258,6 +289,18 @@
         targets.splice(ti, 1);
         proximoSpawn = Math.max(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX));
       }
+    }
+    // Retira las bolitas muertas: si no tocó nada = FALLO (−100, rompe racha).
+    for (let i = bolitas.length - 1; i >= 0; i--) {
+      if (!bolitas[i].viva) {
+        if (!bolitas[i].tocado) { P.anotarFallo(marcador); actualizarMarcador(); }
+        bolitas.splice(i, 1);
+      }
+    }
+    // Flotantes de feedback: suben y se desvanecen.
+    for (let i = flotantes.length - 1; i >= 0; i--) {
+      flotantes[i].edad += dt;
+      if (flotantes[i].edad >= flotantes[i].vida) flotantes.splice(i, 1);
     }
     // Cubos: gravedad de los targets, giro y desvanecimiento. Sin colisión.
     for (let i = cubos.length - 1; i >= 0; i--) {
@@ -332,6 +375,20 @@
       dibujarBolita(r.x, r.y);
     }
 
+    // Números flotantes: +N en el impacto (sube y se desvanece); bonos de
+    // racha más grandes en el centro. --coral-vivo.
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = COLOR.coralVivo;
+    for (let i = 0; i < flotantes.length; i++) {
+      const fl = flotantes[i];
+      const p = fl.edad / fl.vida;
+      ctx.globalAlpha = Math.max(0, 1 - p);
+      ctx.font = (fl.grande ? '600 34px ' : '600 20px ') + COLOR.fuente;
+      ctx.fillText(fl.texto, fl.x, fl.y - p * 30); // sube 30px en su vida
+    }
+    ctx.globalAlpha = 1;
+
     ctx.restore();
   }
 
@@ -395,7 +452,8 @@
 
   window.addEventListener('resize', redimensionar);
   redimensionar();
-  arrancarBucle(); // el spawner de targets corre desde el arranque
+  actualizarMarcador();  // arranca en 0 (no el placeholder del HTML)
+  arrancarBucle();       // el spawner de targets corre desde el arranque
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
