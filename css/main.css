@@ -1,0 +1,123 @@
+/* hitclaud — layout de la pantalla de juego (estática, sin lógica) */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--bg);
+  font: var(--texto-s);
+  color: var(--texto-apagado-fuerte);
+  -webkit-font-smoothing: antialiased;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Barra superior ─────────────────────────────── */
+
+.barra {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--barra-alto) + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  padding-left: calc(16px + env(safe-area-inset-left));
+  padding-right: calc(16px + env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+}
+
+.marcador {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.marcador .etiqueta {
+  font: var(--texto-s);
+}
+
+.marcador--record .etiqueta { color: var(--texto-apagado); }
+.marcador--record .valor {
+  font: var(--texto-l);
+  color: var(--texto-apagado-fuerte);
+}
+
+.marcador--actual {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+}
+
+.marcador--actual .etiqueta { color: var(--coral); }
+.marcador--actual .valor {
+  font: var(--texto-xl);
+  color: var(--coral-vivo);
+}
+
+.boton-pausa {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--texto-apagado-fuerte);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.boton-pausa svg {
+  display: block;
+}
+
+/* ── Canvas de juego ────────────────────────────── */
+
+#juego {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 1;
+}
+
+/* ── Hitmaker (esquina inferior derecha) ────────── */
+
+.hitmaker {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 290px;
+  height: 290px;
+  transform: translate(50%, 50%); /* cuarto de círculo sangrando */
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--coral) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.hitmaker::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--coral-vivo);
+  animation: pulso 2s ease-in-out infinite;
+}
+
+@keyframes pulso {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 0.5; }
+}

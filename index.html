@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#121216">
+  <title>hitclaud</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <header class="barra">
+    <div class="marcador marcador--record">
+      <span class="etiqueta">Record</span>
+      <span class="valor">128</span>
+    </div>
+    <div class="marcador marcador--actual">
+      <span class="etiqueta">Actual</span>
+      <span class="valor">42</span>
+    </div>
+    <button class="boton-pausa" aria-label="Pausa">
+      <svg width="14" height="16" viewBox="0 0 14 16" fill="currentColor" aria-hidden="true">
+        <rect x="0" y="0" width="5" height="16" rx="1.5"/>
+        <rect x="9" y="0" width="5" height="16" rx="1.5"/>
+      </svg>
+    </button>
+  </header>
+
+  <canvas id="juego"></canvas>
+
+  <div class="hitmaker" aria-hidden="true"></div>
+
+  <script src="js/fisica.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

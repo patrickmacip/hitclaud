@@ -1,0 +1,28 @@
+/* hitclaud — tokens de diseño. Fuente única de verdad: no usar valores crudos fuera de aquí. */
+
+:root {
+  /* Color */
+  --bg: #121216;
+  --superficie: #15151C;
+  --coral: #E8704E;
+  --coral-vivo: #FF8764;
+  --crema: #FFD9CE;
+  --indigo: #5C5CC8;
+  --indigo-vivo: #7C7CFF;
+  --texto-apagado: #8989B1;
+  --texto-apagado-fuerte: #B9B9DC;
+  --negro: #000;
+
+  /* Tipografía */
+  --fuente: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Escala del spec */
+  --texto-s: 400 15px/1.3 var(--fuente);   /* 15/400 */
+  --texto-m: 600 20px/1.25 var(--fuente);  /* 20/600 */
+  --texto-l: 400 24px/1.2 var(--fuente);   /* 24/400 */
+  --texto-xl: 600 28px/1.15 var(--fuente); /* 28/600 */
+
+  /* Layout */
+  --barra-alto: 58px;
+  --radio: 8px;
+}
