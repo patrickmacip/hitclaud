@@ -1,3 +1,165 @@
 // hitclaud — fisica.js
-// Motor de física del juego (bolita, rebotes, colisiones con targets).
-// VACÍO a propósito: primero tokens y datos, después lógica.
+// Motor de física del disparo. Módulo PURO: sin DOM, sin canvas.
+// Corre igual en navegador (window.Fisica) y en node (module.exports).
+
+(function (global) {
+  'use strict';
+
+  // ── Tokens de la física (afinar con el dueño jugando) ──────────────
+  const FISICA = {
+    PESO_VELOCIDAD: 0.7,      // peso de la componente velocidad en la potencia
+    PESO_DISTANCIA: 0.3,      // peso de la componente distancia
+    VEL_GESTO_TOPE: 2.5,      // px/ms de gesto que dan componente velocidad = 1
+    DIST_TOPE_FRACCION: 0.4,  // distancia tope = 40% de la altura del viewport
+    VENTANA_SOLTAR_MS: 100,   // último tramo del gesto: cómo SUELTAS
+    PESO_TRAMO_FINAL: 0.65,   // énfasis del último tramo en la rapidez media
+    VEL_BOLITA_MIN: 0.35,     // px/ms de la bolita con potencia 0
+    VEL_BOLITA_MAX: 2.2,      // px/ms de la bolita con potencia 1
+    VENTANA_SPIN_MS: 80,      // tramo final del trazo que define el spin
+    SPIN_ANGULO_TOPE: 1.2,    // rad de curvatura que dan spin = ±1
+    FACTOR_MAGNUS: 0.0008,    // aceleración perpendicular = factor · spin · |v|
+    DECAIMIENTO_SPIN: 0.0015, // tasa exponencial de decaimiento del spin, por ms
+    RESTITUCION: 0.82,        // atenuación de la componente normal al rebotar
+    REBOTE_SPIN: 0.7,         // el rebote conserva spin × 0.7
+    RADIO_BOLITA: 14,         // px (bolita de 28)
+  };
+
+  function clamp01(v) {
+    return v < 0 ? 0 : v > 1 ? 1 : v;
+  }
+
+  function largoTrazo(puntos) {
+    let largo = 0;
+    for (let i = 1; i < puntos.length; i++) {
+      largo += Math.hypot(puntos[i].x - puntos[i - 1].x, puntos[i].y - puntos[i - 1].y);
+    }
+    return largo;
+  }
+
+  // Rapidez media (px/ms) de los puntos cuyo t cae en los últimos `ventanaMs`.
+  function rapidezTramoFinal(puntos, ventanaMs) {
+    const tFin = puntos[puntos.length - 1].t;
+    let i = puntos.length - 1;
+    while (i > 0 && tFin - puntos[i - 1].t <= ventanaMs) i--;
+    const tramo = puntos.slice(i);
+    if (tramo.length < 2) return 0;
+    const dur = Math.max(tramo[tramo.length - 1].t - tramo[0].t, 1);
+    return largoTrazo(tramo) / dur;
+  }
+
+  // Curvatura firmada (rad acumulados) del tramo final del trazo.
+  function curvaturaTramoFinal(puntos, ventanaMs) {
+    const tFin = puntos[puntos.length - 1].t;
+    const tramo = puntos.filter((p) => tFin - p.t <= ventanaMs);
+    let suma = 0;
+    let anguloPrevio = null;
+    for (let i = 1; i < tramo.length; i++) {
+      const dx = tramo[i].x - tramo[i - 1].x;
+      const dy = tramo[i].y - tramo[i - 1].y;
+      if (dx === 0 && dy === 0) continue;
+      const angulo = Math.atan2(dy, dx);
+      if (anguloPrevio !== null) {
+        let d = angulo - anguloPrevio;
+        if (d > Math.PI) d -= 2 * Math.PI;
+        if (d < -Math.PI) d += 2 * Math.PI;
+        suma += d;
+      }
+      anguloPrevio = angulo;
+    }
+    return suma;
+  }
+
+  // puntosDelGesto: [{x, y, t}] (t en ms). alturaViewport: px.
+  // → {vx, vy, spin, potencia} en px/ms, o null si el gesto no da disparo.
+  function crearDisparo(puntos, alturaViewport) {
+    if (!puntos || puntos.length < 2) return null;
+    const ini = puntos[0];
+    const fin = puntos[puntos.length - 1];
+    const dx = fin.x - ini.x;
+    const dy = fin.y - ini.y;
+    const cuerda = Math.hypot(dx, dy);
+    const largo = largoTrazo(puntos);
+    if (cuerda === 0 || largo === 0) return null;
+
+    // Componente VELOCIDAD: rapidez media con énfasis en el último tramo.
+    const durTotal = Math.max(fin.t - ini.t, 1);
+    const rapidezTotal = largo / durTotal;
+    const rapidezFinal = rapidezTramoFinal(puntos, FISICA.VENTANA_SOLTAR_MS);
+    const rapidez =
+      (1 - FISICA.PESO_TRAMO_FINAL) * rapidezTotal +
+      FISICA.PESO_TRAMO_FINAL * rapidezFinal;
+    const compVelocidad = clamp01(rapidez / FISICA.VEL_GESTO_TOPE);
+
+    // Componente DISTANCIA: largo total contra su tope (40% de la altura).
+    const compDistancia = clamp01(largo / (FISICA.DIST_TOPE_FRACCION * alturaViewport));
+
+    const potencia =
+      FISICA.PESO_VELOCIDAD * compVelocidad +
+      FISICA.PESO_DISTANCIA * compDistancia;
+
+    const velocidad =
+      FISICA.VEL_BOLITA_MIN + potencia * (FISICA.VEL_BOLITA_MAX - FISICA.VEL_BOLITA_MIN);
+
+    // Dirección: vector inicio→fin.
+    const vx = (dx / cuerda) * velocidad;
+    const vy = (dy / cuerda) * velocidad;
+
+    // Spin: curvatura de los últimos ~80 ms, normalizada a ±1.
+    const curva = curvaturaTramoFinal(puntos, FISICA.VENTANA_SPIN_MS);
+    const spin = Math.max(-1, Math.min(1, curva / FISICA.SPIN_ANGULO_TOPE));
+
+    return { vx: vx, vy: vy, spin: spin, potencia: potencia };
+  }
+
+  // Integra un paso de dt ms. bolita: {x, y, vx, vy, spin, rebotes}.
+  // limites: {w, h}. Muta y devuelve la bolita.
+  function paso(bolita, dt, limites) {
+    // Magnus simplificado: aceleración perpendicular a la velocidad,
+    // proporcional al spin, con decaimiento exponencial del spin.
+    const v = Math.hypot(bolita.vx, bolita.vy);
+    if (v > 0 && bolita.spin !== 0) {
+      const a = FISICA.FACTOR_MAGNUS * bolita.spin * v;
+      bolita.vx += (-bolita.vy / v) * a * dt;
+      bolita.vy += (bolita.vx / v) * a * dt;
+    }
+    bolita.spin *= Math.exp(-FISICA.DECAIMIENTO_SPIN * dt);
+
+    bolita.x += bolita.vx * dt;
+    bolita.y += bolita.vy * dt;
+
+    // Rebote en bordes del viewport: refleja la componente normal con
+    // restitución, conserva spin × REBOTE_SPIN y cuenta el rebote.
+    const r = FISICA.RADIO_BOLITA;
+    if (bolita.x < r) {
+      bolita.x = r + (r - bolita.x);
+      bolita.vx = -bolita.vx * FISICA.RESTITUCION;
+      bolita.spin *= FISICA.REBOTE_SPIN;
+      bolita.rebotes++;
+    } else if (bolita.x > limites.w - r) {
+      bolita.x = 2 * (limites.w - r) - bolita.x;
+      bolita.vx = -bolita.vx * FISICA.RESTITUCION;
+      bolita.spin *= FISICA.REBOTE_SPIN;
+      bolita.rebotes++;
+    }
+    if (bolita.y < r) {
+      bolita.y = r + (r - bolita.y);
+      bolita.vy = -bolita.vy * FISICA.RESTITUCION;
+      bolita.spin *= FISICA.REBOTE_SPIN;
+      bolita.rebotes++;
+    } else if (bolita.y > limites.h - r) {
+      bolita.y = 2 * (limites.h - r) - bolita.y;
+      bolita.vy = -bolita.vy * FISICA.RESTITUCION;
+      bolita.spin *= FISICA.REBOTE_SPIN;
+      bolita.rebotes++;
+    }
+    return bolita;
+  }
+
+  const Fisica = { FISICA: FISICA, crearDisparo: crearDisparo, paso: paso, largoTrazo: largoTrazo };
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Fisica;
+  } else {
+    global.Fisica = Fisica;
+  }
+})(typeof window !== 'undefined' ? window : globalThis);
