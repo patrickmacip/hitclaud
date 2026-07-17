@@ -14,9 +14,14 @@
   // suelta × un multiplicador FIJO. La distancia NO entra — el mismo gesto
   // rinde igual sin importar cuánto arrastraste (tiro predecible).
   const FISICA = {
-    MULT_SUELTA: 1.4,         // salida = velocidad del dedo al soltar × 1.4
+    // Curva de respuesta con saturación asintótica (sin tope duro, sin
+    // escalón): v_salida = VEL_SALIDA_MAX · tanh(k · velSuelta), con
+    // k = MULT_SUELTA / VEL_SALIDA_MAX para que la pendiente inicial sea
+    // MULT_SUELTA. Zona baja/media ≈ 1:1 con el dedo; cerca del techo la
+    // ganancia decae; nunca se supera VEL_SALIDA_MAX.
+    MULT_SUELTA: 1.4,         // ganancia de zona baja (pendiente inicial de la curva)
     VENTANA_SUELTA_MS: 70,    // ventana de lectura de la velocidad de suelta
-    VEL_SALIDA_MAX: 5.0,      // px/ms tope de seguridad de la velocidad de salida
+    VEL_SALIDA_MAX: 4.0,      // px/ms techo asintótico de la velocidad de salida
     GRAVEDAD: 0.0035,         // px/ms² de aceleración hacia abajo
     VEL_CAIDA_MAX: 2.8,       // px/ms tope de velocidad vertical de caída
     VIDA_MAX_MS: 6000,        // válvula de seguridad: muere a los 6 s
@@ -71,7 +76,9 @@
     if (!puntos || puntos.length < 2) return null;
 
     const suelta = velocidadSuelta(puntos);
-    const rapidez = Math.min(suelta.velocidad * FISICA.MULT_SUELTA, FISICA.VEL_SALIDA_MAX);
+    // Saturación suave hacia el techo: 1:1 abajo, sin escalón arriba.
+    const k = FISICA.MULT_SUELTA / FISICA.VEL_SALIDA_MAX;
+    const rapidez = FISICA.VEL_SALIDA_MAX * Math.tanh(k * suelta.velocidad);
 
     // Dirección de la suelta; si el dedo está detenido (sin dirección en la
     // ventana), cae desde inicio→fin del gesto.

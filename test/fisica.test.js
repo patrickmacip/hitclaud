@@ -34,6 +34,39 @@ function salida(p) {
   return { velSuelta: d.velSuelta, rapidez: cae ? 0 : rap, cae: cae };
 }
 
+// ── BARRIDO DE LINEALIDAD (sin escalón, monótono) ──────────────────
+// velSuelta 0.2→3.0 paso 0.1; construye un gesto uniforme a esa velocidad
+// y mide la salida real de crearDisparo. Requisitos: monótona creciente y
+// ningún delta > 1.6× el promedio de los deltas anteriores.
+console.log('=== BARRIDO de linealidad de la curva de respuesta ===');
+(function () {
+  const outs = [];
+  for (let v = 0.2; v <= 3.001; v += 0.1) {
+    outs.push({ v: v, s: salida(uniforme(v, Math.max(90, v * 120), -0.5, -1, 12)).rapidez });
+  }
+  const deltas = [];
+  let monot = true;
+  let peorRatio = 0;
+  let vPeor = 0;
+  for (let i = 1; i < outs.length; i++) {
+    const d = outs[i].s - outs[i - 1].s;
+    if (d <= 0) monot = false;
+    if (deltas.length) {
+      const prom = deltas.reduce(function (a, b) { return a + b; }, 0) / deltas.length;
+      const ratio = d / prom;
+      if (ratio > peorRatio) { peorRatio = ratio; vPeor = outs[i].v; }
+    }
+    deltas.push(d);
+  }
+  const dmin = Math.min.apply(null, deltas);
+  const dmax = Math.max.apply(null, deltas);
+  const dprom = deltas.reduce(function (a, b) { return a + b; }, 0) / deltas.length;
+  console.log(`  salida 0.2→3.0 px/ms: ${outs[0].s.toFixed(2)} … ${outs[outs.length - 1].s.toFixed(2)} px/ms  (techo 4.0)`);
+  console.log(`  deltas por paso: mín=${dmin.toFixed(3)} máx=${dmax.toFixed(3)} prom=${dprom.toFixed(3)}`);
+  console.log(`  monótona creciente: ${monot ? 'sí ✓' : 'NO ✗'}`);
+  console.log(`  peor delta vs promedio previo: ${peorRatio.toFixed(2)}× (en velSuelta=${vPeor.toFixed(1)})  [criterio ≤1.6×: ${peorRatio <= 1.6 ? 'OK ✓' : 'NO ✗'}]`);
+})();
+
 // ── RONDAS DE AFINADO DE LA VENTANA/LECTURA ────────────────────────
 // Reimplementaciones locales para comparar técnicas sobre el MISMO gesto
 // ruidoso (±1px, dt≈16ms). Métrica: dispersión de 5 lecturas de salida.
