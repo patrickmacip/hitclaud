@@ -32,6 +32,15 @@
     VIDA_MAX_MS: 6000,        // válvula de seguridad: muere a los 6 s
     RADIO_BOLITA: 14,         // px (bolita de 28)
     RADIO_TARGET: 24,         // px de margen de salida del target (sprite 40×32)
+    // Colisión hitball ↔ target (sprite 40×32 → medios ejes 20×16).
+    TARGET_HW: 20,
+    TARGET_HH: 16,
+    RESTITUCION_GOLPE: 0.6,   // atenuación del rebote de la hitball
+    MASA_TARGET: 2.5,         // "peso" del target: cuánto frena/empuja el golpe
+    // Umbral de destrucción (rapidez normal de impacto, px/ms). Cuenta: la
+    // salida a velSuelta≈0.68 px/ms (flick deliberado) es 2.26·tanh(0.619·0.68)
+    // ≈ 0.9; por debajo el target sobrevive y sólo recibe empuje.
+    UMBRAL_DESTRUCCION: 0.9,
   };
 
   // Rangos de LANZAMIENTO de targets (px/ms, px). Los targets se lanzan como
@@ -211,6 +220,91 @@
     return o;
   }
 
+  // Colisión círculo–rectángulo ROTADO: transforma el centro de la bolita al
+  // espacio local del target (rotación −rot), prueba círculo vs rect eje-
+  // alineado (punto más cercano con clamp a ±HW/±HH), y devuelve la normal y
+  // el punto de contacto en coordenadas de mundo (rotación +rot). null si no
+  // hay solape.
+  function colisionCirculoRect(bolita, t) {
+    const HW = FISICA.TARGET_HW;
+    const HH = FISICA.TARGET_HH;
+    const R = FISICA.RADIO_BOLITA;
+    const dx = bolita.x - t.x;
+    const dy = bolita.y - t.y;
+    const c = Math.cos(-t.rot);
+    const s = Math.sin(-t.rot);
+    const lx = dx * c - dy * s; // centro de la bolita en espacio local
+    const ly = dx * s + dy * c;
+    const clx = Math.max(-HW, Math.min(HW, lx));
+    const cly = Math.max(-HH, Math.min(HH, ly));
+    let nlx = lx - clx;
+    let nly = ly - cly;
+    let dist = Math.hypot(nlx, nly);
+    if (dist > R) return null;
+    if (dist < 1e-6) {
+      // Centro dentro del rect: normal por el eje de menor penetración.
+      const penX = HW - Math.abs(lx);
+      const penY = HH - Math.abs(ly);
+      if (penX < penY) { nlx = lx < 0 ? -1 : 1; nly = 0; }
+      else { nlx = 0; nly = ly < 0 ? -1 : 1; }
+    } else {
+      nlx /= dist; nly /= dist;
+    }
+    const cw = Math.cos(t.rot);
+    const sw = Math.sin(t.rot);
+    return {
+      nx: nlx * cw - nly * sw,
+      ny: nlx * sw + nly * cw,
+      pen: R - dist,
+      px: t.x + (clx * cw - cly * sw),
+      py: t.y + (clx * sw + cly * cw),
+    };
+  }
+
+  // Resuelve el impacto de una hitball contra un target. Muta ambos.
+  // → {destruido, px, py, nx, ny, vImpact} o null si no hay golpe.
+  // La hitball SIGUE VIVA (su vida/muerte no cambian).
+  function resolverImpacto(bolita, t) {
+    const col = colisionCirculoRect(bolita, t);
+    if (!col) return null;
+    const nx = col.nx;
+    const ny = col.ny;
+    // Saca la bolita de la penetración (evita re-golpes en cuadros seguidos).
+    bolita.x += nx * col.pen;
+    bolita.y += ny * col.pen;
+
+    const vn = bolita.vx * nx + bolita.vy * ny; // <0 = entrando a la superficie
+    if (vn > 0) return null;                     // ya saliendo, no re-resolver
+    const vImpact = -vn;                          // rapidez de impacto en la normal
+    const e = FISICA.RESTITUCION_GOLPE;
+
+    if (vImpact >= FISICA.UMBRAL_DESTRUCCION) {
+      // Golpe fuerte: destruye. La bolita rebota con restitución y pierde
+      // rapidez por la masa del target roto: conserva M/(1+M).
+      bolita.vx -= (1 + e) * vn * nx;
+      bolita.vy -= (1 + e) * vn * ny;
+      const drag = FISICA.MASA_TARGET / (1 + FISICA.MASA_TARGET);
+      bolita.vx *= drag;
+      bolita.vy *= drag;
+      return { destruido: true, px: col.px, py: col.py, nx: nx, ny: ny, vImpact: vImpact };
+    }
+
+    // Golpe suave: colisión 1D con restitución sobre la normal (transferencia
+    // de momento). La bolita rebota, el target recibe empuje y queda marcado.
+    const m = 1;
+    const M = FISICA.MASA_TARGET;
+    const u1 = vn;
+    const u2 = t.vx * nx + t.vy * ny;
+    const v1 = (m * u1 + M * u2 + M * e * (u2 - u1)) / (m + M);
+    const v2 = (m * u1 + M * u2 + m * e * (u1 - u2)) / (m + M);
+    bolita.vx += (v1 - u1) * nx;
+    bolita.vy += (v1 - u1) * ny;
+    t.vx += (v2 - u2) * nx;
+    t.vy += (v2 - u2) * ny;
+    t.golpeado = true;
+    return { destruido: false, px: col.px, py: col.py, nx: nx, ny: ny, vImpact: vImpact };
+  }
+
   const Fisica = {
     FISICA: FISICA,
     LANZA: LANZA,
@@ -218,6 +312,8 @@
     crearTarget: crearTarget,
     paso: paso,
     largoTrazo: largoTrazo,
+    colisionCirculoRect: colisionCirculoRect,
+    resolverImpacto: resolverImpacto,
   };
 
   if (typeof module !== 'undefined' && module.exports) {

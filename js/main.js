@@ -201,6 +201,20 @@
         proximoSpawn = Math.max(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX));
       }
     }
+    // Colisión hitball↔target: una bolita puede golpear varios (carambola).
+    // Golpe fuerte destruye; suave empuja y marca. La bolita sigue viva.
+    for (let ti = targets.length - 1; ti >= 0; ti--) {
+      const tg = targets[ti];
+      let destruido = false;
+      for (let bi = 0; bi < bolitas.length; bi++) {
+        const r = F.resolverImpacto(bolitas[bi], tg);
+        if (r && r.destruido) { destruido = true; break; }
+      }
+      if (destruido) {
+        targets.splice(ti, 1);
+        proximoSpawn = Math.max(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX));
+      }
+    }
     if (targets.length < MAX_TARGETS && t >= proximoSpawn) {
       generarTarget();
       proximoSpawn = t + rnd(SPAWN_MIN, SPAWN_MAX);
