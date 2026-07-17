@@ -24,20 +24,30 @@
     dibujarMuestra();
   }
 
-  // Target de muestra: retícula 5×4 de cubos de 8px en --coral,
-  // esquinas reducidas a 4px, ojos de 4px en --negro.
+  // Target de muestra: retícula 5×4 de cubos de 8px en --coral.
+  // Cubos esquineros de 8×8 con SOLO su esquina exterior redondeada a 4px;
+  // ojos de 4px en --negro.
   function dibujarTarget(x, y) {
     const CUBO = 8;
     const COLS = 5;
     const FILAS = 4;
+    const RADIO_ESQ = 4;
     ctx.fillStyle = COLOR.coral;
     for (let f = 0; f < FILAS; f++) {
       for (let c = 0; c < COLS; c++) {
-        const esquina =
-          (f === 0 || f === FILAS - 1) && (c === 0 || c === COLS - 1);
-        const lado = esquina ? 4 : CUBO;
-        const off = esquina ? (CUBO - lado) / 2 : 0;
-        ctx.fillRect(x + c * CUBO + off, y + f * CUBO + off, lado, lado);
+        const cx = x + c * CUBO;
+        const cy = y + f * CUBO;
+        // Radios [sup-izq, sup-der, inf-der, inf-izq]: solo la esquina
+        // exterior del sprite lleva 4px.
+        const radios = [
+          f === 0 && c === 0 ? RADIO_ESQ : 0,
+          f === 0 && c === COLS - 1 ? RADIO_ESQ : 0,
+          f === FILAS - 1 && c === COLS - 1 ? RADIO_ESQ : 0,
+          f === FILAS - 1 && c === 0 ? RADIO_ESQ : 0,
+        ];
+        ctx.beginPath();
+        ctx.roundRect(cx, cy, CUBO, CUBO, radios);
+        ctx.fill();
       }
     }
     // Ojos: dos cuadrados de 4px (2×2 respecto a la retícula base)
