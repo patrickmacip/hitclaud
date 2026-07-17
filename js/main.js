@@ -25,17 +25,17 @@
   const RADIO_HITMAKER = 145; // hit-test RADIAL desde la esquina inf-der
   const RADIO_NUCLEO = 60;    // soltar de vuelta aquí = cancelar
   const UMBRAL_PX = 14;       // trazo menor = ignorar
-  const PUNTOS_GUIA = 12;     // puntos de la línea de trayectoria estimada
-  const DT_GUIA_MS = 45;      // separación temporal entre puntos de guía
-  const REBOTES_MUERTE = 2;   // la bolita muere al 2º contacto con borde
+  const CADENCIA_MS = 100;    // separación mínima entre disparos (afinable)
+  const MAX_BOLITAS = 24;     // tope de bolitas vivas simultáneas (rendimiento)
+  const LAG_ESTELA = 3;       // muestreo hacia atrás por fantasma (×1,2,3)
 
   let W = 0;
   let H = 0;
 
-  // Estado (una bolita a la vez)
+  // Estado: MÚLTIPLES bolitas vivas. Cada una lleva SU propia estela.
   const gesto = { activo: false, puntos: [] };
-  let bolita = null;   // en vuelo: {x,y,vx,vy,spin,rebotes}
-  const estela = [];   // posiciones recientes para los 3 fantasmas
+  const bolitas = [];   // cada una: {x,y,vx,vy,spin,edad,viva, historia:[]}
+  let ultimoDisparo = -Infinity;
   let rafId = null;
   let tPrev = 0;
 
@@ -58,9 +58,9 @@
     dibujar();
   }
 
-  // ── Input (pointer events) ─────────────────────────────────────────
+  // ── Input (pointer events) — un gesto (un dedo) a la vez ────────────
   canvas.addEventListener('pointerdown', function (e) {
-    if (bolita) return; // esperar a que la bolita muera
+    if (gesto.activo) return;
     if (distEsquina(e.clientX, e.clientY) > RADIO_HITMAKER) return;
     gesto.activo = true;
     gesto.puntos = [{ x: e.clientX, y: e.clientY, t: performance.now() }];
@@ -81,11 +81,18 @@
     const fin = puntos[puntos.length - 1];
     if (F.largoTrazo(puntos) < UMBRAL_PX) return;          // umbral
     if (distEsquina(fin.x, fin.y) <= RADIO_NUCLEO) return; // cancelación
+    // Cadencia: no dispares antes de CADENCIA_MS del anterior.
+    const ahora = performance.now();
+    if (ahora - ultimoDisparo < CADENCIA_MS) return;
+    if (bolitas.length >= MAX_BOLITAS) return;             // tope de rendimiento
     const disparo = F.crearDisparo(puntos, H);
     if (!disparo) return;
     const r = reposo();
-    bolita = { x: r.x, y: r.y, vx: disparo.vx, vy: disparo.vy, spin: disparo.spin, rebotes: 0 };
-    estela.length = 0;
+    bolitas.push({
+      x: r.x, y: r.y, vx: disparo.vx, vy: disparo.vy,
+      spin: disparo.spin, edad: 0, viva: true, historia: [],
+    });
+    ultimoDisparo = ahora;
     arrancarBucle();
   });
 
@@ -104,18 +111,17 @@
   function cuadro(t) {
     const dt = Math.min(t - tPrev, 32); // techo: pestañas en segundo plano
     tPrev = t;
-    if (bolita) {
-      F.paso(bolita, dt, { w: W, h: H });
-      estela.unshift({ x: bolita.x, y: bolita.y });
-      if (estela.length > 10) estela.pop();
-      if (bolita.rebotes >= REBOTES_MUERTE) {
-        // Muere al 2º contacto y reaparece lista en el hitmaker
-        bolita = null;
-        estela.length = 0;
-      }
+    const limites = { w: W, h: H };
+    for (let i = bolitas.length - 1; i >= 0; i--) {
+      const b = bolitas[i];
+      F.paso(b, dt, limites);
+      // Historia propia para los 3 fantasmas (no hay estela compartida).
+      b.historia.unshift({ x: b.x, y: b.y });
+      if (b.historia.length > LAG_ESTELA * 3 + 1) b.historia.pop();
+      if (!b.viva) bolitas.splice(i, 1); // sale del viewport o agota vida
     }
     dibujar();
-    if (gesto.activo || bolita) {
+    if (gesto.activo || bolitas.length > 0) {
       rafId = requestAnimationFrame(cuadro);
     } else {
       rafId = null;
@@ -126,36 +132,26 @@
   function dibujar() {
     ctx.clearRect(0, 0, W, H);
     dibujarTarget(W / 2 - 20, H * 0.3); // decoración, sin colisión
-    if (gesto.activo) dibujarGuia();
-    if (bolita) {
-      dibujarEstela();
-      dibujarBolita(bolita.x, bolita.y);
-    } else if (!gesto.activo) {
+    if (gesto.activo) dibujarAnillo();
+    for (let i = 0; i < bolitas.length; i++) {
+      const b = bolitas[i];
+      dibujarEstela(b);
+      dibujarBolita(b.x, b.y);
+    }
+    // Bolita en reposo = señal de "listo": aparece al cumplirse la cadencia.
+    if (!gesto.activo && performance.now() - ultimoDisparo >= CADENCIA_MS) {
       const r = reposo();
       dibujarBolita(r.x, r.y);
     }
   }
 
-  // Guía visual: línea de puntos + anillo de potencia. AMBOS salen de
-  // crearDisparo sobre el trazo parcial — la previsualización nunca miente.
-  // Técnica del anillo: arco dibujado EN CANVAS (no CSS var) para mantener
-  // una sola superficie de pintura por cuadro.
-  function dibujarGuia() {
+  // Anillo de potencia del hitmaker: lectura de ENERGÍA (no de puntería).
+  // Sale de crearDisparo sobre el trazo parcial — nunca miente. Arco
+  // dibujado EN CANVAS (una sola superficie de pintura por cuadro).
+  // (La antigua guía de puntos de trayectoria fue eliminada a propósito.)
+  function dibujarAnillo() {
     const previa = F.crearDisparo(gesto.puntos, H);
     if (!previa) return;
-    const r = reposo();
-    const sim = { x: r.x, y: r.y, vx: previa.vx, vy: previa.vy, spin: previa.spin, rebotes: 0 };
-    ctx.globalAlpha = 0.5;
-    ctx.fillStyle = COLOR.crema;
-    for (let i = 0; i < PUNTOS_GUIA; i++) {
-      F.paso(sim, DT_GUIA_MS, { w: W, h: H });
-      ctx.beginPath();
-      ctx.arc(sim.x, sim.y, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    // Anillo llenándose: cuarto de arco desde la izquierda (π) hacia
-    // arriba (3π/2), barrido proporcional a la potencia.
     ctx.beginPath();
     ctx.arc(W, H, 130, Math.PI, Math.PI + previa.potencia * (Math.PI / 2));
     ctx.strokeStyle = COLOR.coralVivo;
@@ -164,12 +160,11 @@
     ctx.stroke();
   }
 
-  // Estela: 3 fantasmas al 30/20/10% de alfa, muestreados hacia atrás.
-  function dibujarEstela() {
-    const lags = [3, 6, 9];
+  // Estela propia de la bolita: 3 fantasmas al 30/20/10% de alfa.
+  function dibujarEstela(b) {
     const alfas = [0.3, 0.2, 0.1];
-    for (let i = 0; i < lags.length; i++) {
-      const p = estela[lags[i]];
+    for (let i = 0; i < alfas.length; i++) {
+      const p = b.historia[(i + 1) * LAG_ESTELA];
       if (!p) continue;
       ctx.globalAlpha = alfas[i];
       dibujarBolita(p.x, p.y);
