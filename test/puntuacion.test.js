@@ -30,7 +30,7 @@ console.log('\n(c) 5 hits seguidos → bono +500 al 5º');
   console.log(`  → bono al 5º=${bono5} puntos=${m.puntos}  ${bono5 === 500 ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('\n(d) Fallo con marcador en 50 → queda en 0 (piso, no negativo)');
+console.log('\n(d) Fallo (−50) con marcador en 50 → queda en 0 (piso, no negativo)');
 {
   const m = P.crearMarcador();
   m.puntos = 50; m.racha = 3;

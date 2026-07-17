@@ -20,12 +20,13 @@
     // MULT_SUELTA. Zona baja/media ≈ 1:1 con el dedo; cerca del techo la
     // ganancia decae; nunca se supera VEL_SALIDA_MAX.
     // TECHO CONTROLADO: tiro vertical desde el reposo (y≈792 en h=844) debe
-    // apenas no cruzar el borde superior. Subida objetivo ~730px →
-    // v = √(2·0.0035·730) = √5.11 ≈ 2.26 px/ms. Como tanh satura, la salida
-    // real queda por debajo → el ápice llega "casi casi", nunca cruza.
+    // apenas no cruzar el borde superior. Con subpasos (integración precisa),
+    // ápice objetivo ~50px del borde → subida 742px → v = √(2·0.0035·742) =
+    // √5.19 ≈ 2.28 px/ms. Como tanh satura, la salida real queda por debajo.
     MULT_SUELTA: 1.4,         // ganancia de zona baja (pendiente inicial de la curva)
     VENTANA_SUELTA_MS: 70,    // ventana de lectura de la velocidad de suelta
-    VEL_SALIDA_MAX: 2.26,     // px/ms techo asintótico (subida ~730px a potencia máx)
+    VEL_SALIDA_MAX: 2.28,     // px/ms techo asintótico (subpasos: ápice ~50px del borde)
+    MAX_PASO_PX: 6,           // desplazamiento máx por subpaso de paso() (fin del túnel)
     GRAVEDAD: 0.0035,         // px/ms² de aceleración hacia abajo (bolitas)
     G_TARGET: 0.0021,         // px/ms² de los targets = 0.6 × GRAVEDAD (flote lunar)
     VEL_CAIDA_MAX: 2.8,       // px/ms tope de velocidad vertical de caída
@@ -201,33 +202,39 @@
     };
   }
 
-  // Integra un paso de dt ms. objeto: {x, y, vx, vy, edad, viva} y opcional
-  // {rot, velRot, radio, haEntrado}. limites: {w, h}. Muta y devuelve.
-  // Fuente ÚNICA de física para bolitas y targets. Sin paredes: vuelo libre.
-  function paso(o, dt, limites) {
-    // Gravedad constante hacia abajo, con tope de velocidad de caída.
-    // Excepción declarada a la física única: gravedad por objeto. Bolitas
-    // usan GRAVEDAD (validada); targets usan G_TARGET (flote lunar).
+  // Integra un paso de dt ms EN SUBPASOS: divide dt en n subpasos tales que
+  // el objeto no se desplace más de MAX_PASO_PX por subpaso (fin del túnel).
+  // onPaso() se llama tras CADA subpaso (las bolitas prueban colisión ahí).
+  // objeto: {x, y, vx, vy, edad, viva} y opcional {rot, velRot, radio,
+  // haEntrado, gravedad}. Fuente ÚNICA de física para bolitas y targets.
+  function paso(o, dt, limites, onPaso) {
+    const speed = Math.hypot(o.vx, o.vy);
+    const n = Math.max(1, Math.ceil((speed * dt) / FISICA.MAX_PASO_PX));
+    const sub = dt / n;
+    // Gravedad por objeto: bolitas GRAVEDAD (validada); targets G_TARGET (luna).
     const g = o.gravedad || FISICA.GRAVEDAD;
-    o.vy += g * dt;
-    if (o.vy > FISICA.VEL_CAIDA_MAX) o.vy = FISICA.VEL_CAIDA_MAX;
-
-    o.x += o.vx * dt;
-    o.y += o.vy * dt;
-    if (o.velRot) o.rot += o.velRot * dt; // giro constante (targets)
-
-    o.edad += dt;
-
-    // haEntrado: los targets nacen fuera; no son matables hasta entrar una
-    // vez (las bolitas nacen dentro → entran en su primer cuadro).
     const r = o.radio || FISICA.RADIO_BOLITA;
-    if (o.x >= 0 && o.x <= limites.w && o.y >= 0 && o.y <= limites.h) {
-      o.haEntrado = true;
-    }
-    const fuera =
-      o.x < -r || o.x > limites.w + r || o.y < -r || o.y > limites.h + r;
-    if (o.edad >= FISICA.VIDA_MAX_MS || (o.haEntrado && fuera)) {
-      o.viva = false;
+    for (let i = 0; i < n; i++) {
+      o.vy += g * sub;
+      if (o.vy > FISICA.VEL_CAIDA_MAX) o.vy = FISICA.VEL_CAIDA_MAX;
+      o.x += o.vx * sub;
+      o.y += o.vy * sub;
+      if (o.velRot) o.rot += o.velRot * sub; // giro constante (targets)
+      o.edad += sub;
+
+      // haEntrado: los targets nacen fuera; no son matables hasta entrar una
+      // vez (las bolitas nacen dentro → entran en su primer subpaso).
+      if (o.x >= 0 && o.x <= limites.w && o.y >= 0 && o.y <= limites.h) {
+        o.haEntrado = true;
+      }
+      if (onPaso) onPaso(); // colisión probada en CADA subpaso
+
+      const fuera =
+        o.x < -r || o.x > limites.w + r || o.y < -r || o.y > limites.h + r;
+      if (o.edad >= FISICA.VIDA_MAX_MS || (o.haEntrado && fuera)) {
+        o.viva = false;
+        break;
+      }
     }
     return o;
   }

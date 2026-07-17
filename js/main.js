@@ -17,6 +17,7 @@
   const COLOR = {
     coral: tokens.getPropertyValue('--coral').trim(),
     coralVivo: tokens.getPropertyValue('--coral-vivo').trim(),
+    crema: tokens.getPropertyValue('--crema').trim(),
     negro: tokens.getPropertyValue('--negro').trim(),
     indigo: tokens.getPropertyValue('--indigo').trim(),
     indigoVivo: tokens.getPropertyValue('--indigo-vivo').trim(),
@@ -40,14 +41,14 @@
   }
 
   // ── Constantes de input ────────────────────────────────────────────
-  const RADIO_HITMAKER = 145; // hit-test RADIAL desde la esquina inf-der
+  const RADIO_HITMAKER = 203; // hit-test RADIAL desde la esquina inf-der (+40%)
   const RADIO_NUCLEO = 60;    // soltar de vuelta aquí = cancelar
   const UMBRAL_PX = 14;       // trazo menor = ignorar
   const UMBRAL_SUELTA = 0.15; // px/ms: soltar más lento = la bolita CAE
-  // Frenos anti-paseo de la hitball agarrada (radio de agarre = 145px):
+  // Frenos anti-paseo de la hitball agarrada (radio de agarre = 203px):
   const QUIETUD_VEL = 0.08;   // px/ms: por debajo cuenta como quieto
   const QUIETUD_MS = 250;     // ms continuos quieto → se suelta sola
-  const CORREA_PX = 180;      // dist radial máx desde la esquina → se suelta sola
+  const CORREA_PX = 252;      // dist radial máx desde la esquina → se suelta sola (proporcional a 203)
   const CADENCIA_MS = 100;    // separación mínima entre SUELTAS (afinable)
   const MAX_BOLITAS = 24;     // tope de bolitas vivas simultáneas (rendimiento)
   const LAG_ESTELA = 3;       // muestreo hacia atrás por fantasma (×1,2,3)
@@ -65,6 +66,7 @@
   const CUBO_JITTER = 0.12;   // px/ms de ruido aleatorio por cubo
   const SACUDIDA_AMP = 2;     // px de micro-sacudida de pantalla en destrucción
   const SACUDIDA_MS = 80;     // duración de la sacudida
+  const DESTELLO_MS = 70;     // destello del target en CUALQUIER contacto (feedback)
 
   let W = 0;
   let H = 0;
@@ -241,15 +243,7 @@
     }
 
     const limites = { w: W, h: H };
-    // Avanza las bolitas (no las retira aún: la colisión debe verlas vivas
-    // para saber si fue fallo).
-    for (let i = 0; i < bolitas.length; i++) {
-      const b = bolitas[i];
-      F.paso(b, dt, limites);
-      b.historia.unshift({ x: b.x, y: b.y }); // estela propia (3 fantasmas)
-      if (b.historia.length > LAG_ESTELA * 3 + 1) b.historia.pop();
-    }
-    // Targets: misma física; al morir uno, programa el siguiente con retardo.
+    // Targets: misma física (sub-paseada); al morir uno, programa el siguiente.
     for (let i = targets.length - 1; i >= 0; i--) {
       F.paso(targets[i], dt, limites);
       if (!targets[i].viva) {
@@ -257,15 +251,15 @@
         proximoSpawn = Math.max(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX));
       }
     }
-    // Colisión hitball↔target: una bolita puede golpear varios (carambola).
-    // Fuerte destruye; suave muerde; roce empuja. Todo toque cuenta como hit.
-    for (let ti = targets.length - 1; ti >= 0; ti--) {
-      const tg = targets[ti];
-      let murio = false;
-      for (let bi = 0; bi < bolitas.length; bi++) {
-        const b = bolitas[bi];
+
+    // Prueba la colisión de UNA bolita contra todos los targets (llamado en
+    // cada subpaso de paso() → sin túnel). Carambola: puede golpear varios.
+    function colisionar(b) {
+      for (let ti = targets.length - 1; ti >= 0; ti--) {
+        const tg = targets[ti];
         const r = F.resolverImpacto(b, tg);
         if (!r) continue;
+        tg.destelloHasta = t + DESTELLO_MS;    // destello en CUALQUIER contacto
         if (!b.tocado) {                       // primer toque de esta bolita = hit
           b.tocado = true;
           const bono = P.anotarHit(marcador);
@@ -280,17 +274,22 @@
         }
         actualizarMarcador();
         if (r.muerto) {
-          sacudidaHasta = t + SACUDIDA_MS; // micro-sacudida solo en muerte
-          murio = true;
-          break;
+          sacudidaHasta = t + SACUDIDA_MS;     // micro-sacudida solo en muerte
+          targets.splice(ti, 1);
+          proximoSpawn = Math.max(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX));
         }
       }
-      if (murio) {
-        targets.splice(ti, 1);
-        proximoSpawn = Math.max(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX));
-      }
     }
-    // Retira las bolitas muertas: si no tocó nada = FALLO (−100, rompe racha).
+
+    // Avanza cada bolita en SUBPASOS, probando colisión en cada uno (fin del
+    // túnel). No se retiran aún: la colisión debe verlas vivas (para el fallo).
+    for (let i = 0; i < bolitas.length; i++) {
+      const b = bolitas[i];
+      F.paso(b, dt, limites, function () { colisionar(b); });
+      b.historia.unshift({ x: b.x, y: b.y }); // estela propia (3 fantasmas)
+      if (b.historia.length > LAG_ESTELA * 3 + 1) b.historia.pop();
+    }
+    // Retira las bolitas muertas: si no tocó nada = FALLO (−50, rompe racha).
     for (let i = bolitas.length - 1; i >= 0; i--) {
       if (!bolitas[i].viva) {
         if (!bolitas[i].tocado) { P.anotarFallo(marcador); actualizarMarcador(); }
@@ -340,10 +339,11 @@
     // Targets lanzados, rotados sobre su centro. SIN colisión con los cubos.
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
+      const destella = t.destelloHasta && performance.now() < t.destelloHasta;
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.rotate(t.rot);
-      dibujarSpriteTarget(t); // solo celdas vivas (el boquete se ve)
+      dibujarSpriteTarget(t, destella); // solo celdas vivas; destello = --crema
       ctx.restore();
     }
     // Cubos de explosión (animación pura).
@@ -408,14 +408,14 @@
   // --coral, dibujando SOLO las celdas vivas (t.celdas) → el boquete se ve.
   // Cubos esquineros con la esquina exterior a 4px; ojos (celdas 6 y 8) en
   // --negro, cada uno solo si su celda sigue viva.
-  function dibujarSpriteTarget(t) {
+  function dibujarSpriteTarget(t, destella) {
     const CUBO = 8;
     const COLS = 5;
     const FILAS = 4;
     const RADIO_ESQ = 4;
     const x = -20;
     const y = -16;
-    ctx.fillStyle = COLOR.coral;
+    ctx.fillStyle = destella ? COLOR.crema : COLOR.coral; // destello breve al contacto
     for (let f = 0; f < FILAS; f++) {
       for (let c = 0; c < COLS; c++) {
         if (!t.celdas[f * COLS + c]) continue; // celda muerta = boquete

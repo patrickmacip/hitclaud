@@ -6,7 +6,7 @@
   'use strict';
 
   const PTS_CUBO = 10;       // cada cubo destruido = 10 pts (target intacto = 200)
-  const PENAL_FALLO = 100;   // fallo (hitball que no toca nada) = −100
+  const PENAL_FALLO = 50;    // fallo (hitball que no toca nada) = −50
   // Bonos de racha (×10 respecto al spec original). Se pagan UNA vez, al
   // alcanzar el hito exacto (no acumulativo por N).
   const HITOS = { 5: 500, 10: 1000, 50: 5000, 100: 20000 };
