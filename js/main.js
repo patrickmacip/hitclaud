@@ -25,6 +25,10 @@
   const RADIO_NUCLEO = 60;    // soltar de vuelta aquí = cancelar
   const UMBRAL_PX = 14;       // trazo menor = ignorar
   const UMBRAL_SUELTA = 0.15; // px/ms: soltar más lento = la bolita CAE
+  // Frenos anti-paseo de la hitball agarrada (radio de agarre = 145px):
+  const QUIETUD_VEL = 0.08;   // px/ms: por debajo cuenta como quieto
+  const QUIETUD_MS = 250;     // ms continuos quieto → se suelta sola
+  const CORREA_PX = 180;      // dist radial máx desde la esquina → se suelta sola
   const CADENCIA_MS = 100;    // separación mínima entre SUELTAS (afinable)
   const MAX_BOLITAS = 24;     // tope de bolitas vivas simultáneas (rendimiento)
   const LAG_ESTELA = 3;       // muestreo hacia atrás por fantasma (×1,2,3)
@@ -41,6 +45,7 @@
   const gesto = { activo: false, puntos: [] };
   const bolitas = [];   // cada una: {x,y,vx,vy,edad,viva, historia:[]}
   let ultimoDisparo = -Infinity;
+  let quietoDesde = 0;  // timestamp del último instante en que el dedo se movió
   // Targets lanzados (tope 3). SIN colisión con las bolitas: se atraviesan.
   const targets = [];
   let ultimoOrigen = null;    // ritmo: no dos seguidos del mismo origen
@@ -87,6 +92,7 @@
     if (distEsquina(e.clientX, e.clientY) > RADIO_HITMAKER) return;
     gesto.activo = true;
     gesto.puntos = [{ x: e.clientX, y: e.clientY, t: performance.now() }];
+    quietoDesde = performance.now();
     canvas.setPointerCapture(e.pointerId);
     arrancarBucle();
   });
@@ -100,17 +106,22 @@
     if (!gesto.activo) return;
     gesto.activo = false;
     gesto.puntos.push({ x: e.clientX, y: e.clientY, t: performance.now() });
-    const puntos = gesto.puntos;
+    ejecutarSuelta(gesto.puntos, false); // suelta normal: aplica umbral/cancelación
+  });
+
+  // Ejecuta la suelta desde la posición del dedo. forzar=true (frenos) siempre
+  // dispara y respeta la velocidad de suelta real (tiro rápido = tiro real;
+  // lento = cae). forzar=false (pointerup) aplica umbral y cancelación.
+  function ejecutarSuelta(puntos, forzar) {
     const fin = puntos[puntos.length - 1];
-    if (F.largoTrazo(puntos) < UMBRAL_PX) return;          // umbral
-    if (distEsquina(fin.x, fin.y) <= RADIO_NUCLEO) return; // cancelación
-    // Cadencia: no sueltes antes de CADENCIA_MS de la anterior.
-    const ahora = performance.now();
-    if (ahora - ultimoDisparo < CADENCIA_MS) return;
-    if (bolitas.length >= MAX_BOLITAS) return;             // tope de rendimiento
+    if (!forzar) {
+      if (F.largoTrazo(puntos) < UMBRAL_PX) return;          // umbral
+      if (distEsquina(fin.x, fin.y) <= RADIO_NUCLEO) return; // cancelación
+      if (performance.now() - ultimoDisparo < CADENCIA_MS) return; // cadencia
+    }
+    if (bolitas.length >= MAX_BOLITAS) return;               // tope de rendimiento
     const disparo = F.crearDisparo(puntos);
     if (!disparo) return;
-    // Suelta DESDE LA POSICIÓN DEL DEDO (sin teletransporte al reposo).
     // Dedo detenido (bajo umbral) = cae desde ahí (física honesta).
     const detenido = disparo.velSuelta < UMBRAL_SUELTA;
     bolitas.push({
@@ -122,9 +133,29 @@
       viva: true,
       historia: [],
     });
-    ultimoDisparo = ahora;
-    arrancarBucle();
-  });
+    ultimoDisparo = performance.now();
+  }
+
+  // Frenos anti-paseo: la hitball agarrada se suelta sola (cae o dispara según
+  // su velocidad de suelta real). El gesto termina; el pointerup posterior se
+  // ignora (gesto.activo ya es false). Sin animación nueva: simplemente cae.
+  function soltarPorFreno() {
+    if (!gesto.activo) return;
+    gesto.activo = false;
+    ejecutarSuelta(gesto.puntos, true);
+  }
+
+  // Velocidad reciente del dedo (px/ms). Sin eventos recientes = quieto.
+  function velRecienteDedo(ahora) {
+    const p = gesto.puntos;
+    const ult = p[p.length - 1];
+    if (ahora - ult.t > 60) return 0; // el dedo no genera eventos = detenido
+    let i = p.length - 1;
+    while (i > 0 && ult.t - p[i - 1].t <= 120) i--;
+    const a = p[i];
+    const dt = Math.max(ult.t - a.t, 1);
+    return Math.hypot(ult.x - a.x, ult.y - a.y) / dt;
+  }
 
   canvas.addEventListener('pointercancel', function () {
     gesto.activo = false;
@@ -141,6 +172,18 @@
   function cuadro(t) {
     const dt = Math.min(t - tPrev, 32); // techo: pestañas en segundo plano
     tPrev = t;
+
+    // Frenos anti-paseo de la hitball agarrada.
+    if (gesto.activo) {
+      const dedo = gesto.puntos[gesto.puntos.length - 1];
+      if (distEsquina(dedo.x, dedo.y) > CORREA_PX) {
+        soltarPorFreno();                         // correa de distancia
+      } else {
+        if (velRecienteDedo(t) >= QUIETUD_VEL) quietoDesde = t;
+        if (t - quietoDesde >= QUIETUD_MS) soltarPorFreno(); // freno por quietud
+      }
+    }
+
     const limites = { w: W, h: H };
     for (let i = bolitas.length - 1; i >= 0; i--) {
       const b = bolitas[i];

@@ -59,9 +59,10 @@ function grupo(origen, evalua) {
 
 console.log('=== Simulación de 60 lanzamientos (20 por grupo) ===');
 
-// Inferior y laterales: banda alcanzable 0.8–1.4s, ápice 20–80%, ninguno <0.5s.
+// Inferior y laterales: banda alcanzable con targets recortados −15%:
+// 0.6–1.4s (el máx físico de una parábola es ~1.39s), ápice 20–80%.
 const evalArco = function (r) {
-  return r.visible >= 0.8 && r.visible <= 1.4 && r.apexFrac >= 0.20 && r.apexFrac <= 0.80 && r.visible >= 0.5;
+  return r.visible >= 0.6 && r.visible <= 1.4 && r.apexFrac >= 0.20 && r.apexFrac <= 0.80;
 };
 const pInf = grupo('inferior', evalArco);
 const pLat = grupo('lateral', evalArco);

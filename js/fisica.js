@@ -39,6 +39,7 @@
     PESO_INFERIOR: 0.40,
     PESO_LATERAL: 0.45,
     PESO_SUPERIOR: 0.15,
+    FUERZA: 0.85,             // recorte global de velocidad inicial (−15%): targets más lentos
     MARGEN: 40,               // px fuera del borde donde nace el target
     SUP_MARGEN: 10,           // margen menor arriba: menos pre-aceleración → cruce ≥0.6s
     INF_X: [0.05, 0.70],      // fracción de ancho (70% izq, lejos del hitmaker)
@@ -163,7 +164,7 @@
     }
 
     return {
-      x: x, y: y, vx: vx, vy: vy,
+      x: x, y: y, vx: vx * LANZA.FUERZA, vy: vy * LANZA.FUERZA,
       rot: 0, velRot: rango(LANZA.VEL_ROT),
       radio: FISICA.RADIO_TARGET,
       haEntrado: false, edad: 0, viva: true, origen: origen,
