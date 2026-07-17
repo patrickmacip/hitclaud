@@ -25,7 +25,8 @@
   const RADIO_HITMAKER = 145; // hit-test RADIAL desde la esquina inf-der
   const RADIO_NUCLEO = 60;    // soltar de vuelta aquí = cancelar
   const UMBRAL_PX = 14;       // trazo menor = ignorar
-  const CADENCIA_MS = 100;    // separación mínima entre disparos (afinable)
+  const UMBRAL_SUELTA = 0.15; // px/ms: soltar más lento = la bolita CAE
+  const CADENCIA_MS = 100;    // separación mínima entre SUELTAS (afinable)
   const MAX_BOLITAS = 24;     // tope de bolitas vivas simultáneas (rendimiento)
   const LAG_ESTELA = 3;       // muestreo hacia atrás por fantasma (×1,2,3)
 
@@ -81,16 +82,24 @@
     const fin = puntos[puntos.length - 1];
     if (F.largoTrazo(puntos) < UMBRAL_PX) return;          // umbral
     if (distEsquina(fin.x, fin.y) <= RADIO_NUCLEO) return; // cancelación
-    // Cadencia: no dispares antes de CADENCIA_MS del anterior.
+    // Cadencia: no sueltes antes de CADENCIA_MS de la anterior.
     const ahora = performance.now();
     if (ahora - ultimoDisparo < CADENCIA_MS) return;
     if (bolitas.length >= MAX_BOLITAS) return;             // tope de rendimiento
     const disparo = F.crearDisparo(puntos, H);
     if (!disparo) return;
-    const r = reposo();
+    // Suelta DESDE LA POSICIÓN DEL DEDO (sin teletransporte al reposo).
+    // Dedo detenido (bajo umbral) = cae desde ahí (física honesta).
+    const detenido = disparo.velSuelta < UMBRAL_SUELTA;
     bolitas.push({
-      x: r.x, y: r.y, vx: disparo.vx, vy: disparo.vy,
-      spin: disparo.spin, edad: 0, viva: true, historia: [],
+      x: fin.x,
+      y: fin.y,
+      vx: detenido ? 0 : disparo.vx,
+      vy: detenido ? 0 : disparo.vy,
+      spin: detenido ? 0 : disparo.spin,
+      edad: 0,
+      viva: true,
+      historia: [],
     });
     ultimoDisparo = ahora;
     arrancarBucle();
@@ -132,25 +141,28 @@
   function dibujar() {
     ctx.clearRect(0, 0, W, H);
     dibujarTarget(W / 2 - 20, H * 0.3); // decoración, sin colisión
-    if (gesto.activo) dibujarAnillo();
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
       dibujarEstela(b);
       dibujarBolita(b.x, b.y);
     }
-    // Bolita en reposo = señal de "listo": aparece al cumplirse la cadencia.
-    if (!gesto.activo && performance.now() - ultimoDisparo >= CADENCIA_MS) {
+    if (gesto.activo) {
+      // La bolita AGARRADA sigue el dedo EXACTAMENTE (sin lag ni suavizado).
+      const dedo = gesto.puntos[gesto.puntos.length - 1];
+      const previa = F.crearDisparo(gesto.puntos, H);
+      dibujarAnillo(previa);
+      if (previa) dibujarChanfle(dedo.x, dedo.y, previa.spin);
+      dibujarBolita(dedo.x, dedo.y);
+    } else if (performance.now() - ultimoDisparo >= CADENCIA_MS) {
+      // Bolita en reposo = señal de "listo": aparece al cumplirse la cadencia.
       const r = reposo();
       dibujarBolita(r.x, r.y);
     }
   }
 
-  // Anillo de potencia del hitmaker: lectura de ENERGÍA (no de puntería).
-  // Sale de crearDisparo sobre el trazo parcial — nunca miente. Arco
-  // dibujado EN CANVAS (una sola superficie de pintura por cuadro).
-  // (La antigua guía de puntos de trayectoria fue eliminada a propósito.)
-  function dibujarAnillo() {
-    const previa = F.crearDisparo(gesto.puntos, H);
+  // Anillo de potencia del hitmaker: lectura de ENERGÍA instantánea (la que
+  // saldría si soltaras ahora), no de puntería. Arco en canvas.
+  function dibujarAnillo(previa) {
     if (!previa) return;
     ctx.beginPath();
     ctx.arc(W, H, 130, Math.PI, Math.PI + previa.potencia * (Math.PI / 2));
@@ -158,6 +170,26 @@
     ctx.lineWidth = 5;
     ctx.lineCap = 'round';
     ctx.stroke();
+  }
+
+  // Feedback de chanfle sobre la bolita agarrada: arco en --crema que crece
+  // con |spin|; el lado indica la dirección del efecto (spin>0 → derecha,
+  // spin<0 → izquierda). Técnica: arco stroked alrededor de la bolita, con
+  // barrido y alfa proporcionales al spin. Barato, una llamada por cuadro.
+  function dibujarChanfle(cx, cy, spin) {
+    const s = Math.abs(spin);
+    if (s < 0.05) return;
+    const centro = spin > 0 ? 0 : Math.PI; // lado derecho / izquierdo
+    const medio = s * (Math.PI * 0.9);     // hasta ~162° de barrido total
+    ctx.save();
+    ctx.globalAlpha = 0.35 + 0.5 * s;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 20, centro - medio, centro + medio);
+    ctx.strokeStyle = COLOR.crema;
+    ctx.lineWidth = 2 + 2 * s;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
   }
 
   // Estela propia de la bolita: 3 fantasmas al 30/20/10% de alfa.
