@@ -6,6 +6,9 @@
   'use strict';
 
   // ── Tokens de la física (afinar con el dueño jugando) ──────────────
+  // MUNDO: vista LATERAL con GRAVEDAD (no cenital). La bolita sube, alcanza
+  // ápice y cae, conservando su dirección horizontal. Sin paredes: vuela
+  // libre y muere al salir del viewport o al agotar la vida máxima.
   const FISICA = {
     PESO_VELOCIDAD: 0.7,      // peso de la componente velocidad en la potencia
     PESO_DISTANCIA: 0.3,      // peso de la componente distancia
@@ -19,8 +22,11 @@
     SPIN_ANGULO_TOPE: 1.2,    // rad de curvatura que dan spin = ±1
     FACTOR_MAGNUS: 0.0008,    // aceleración perpendicular = factor · spin · |v|
     DECAIMIENTO_SPIN: 0.0015, // tasa exponencial de decaimiento del spin, por ms
-    RESTITUCION: 0.82,        // atenuación de la componente normal al rebotar
-    REBOTE_SPIN: 0.7,         // el rebote conserva spin × 0.7
+    // Gravedad: a potencia máx (2.2 px/ms) y tiro vertical el ápice sube
+    // v²/(2g) = 2.2²/(2·0.0035) ≈ 691 px en v/g ≈ 629 ms (<1 s, ~borde sup).
+    GRAVEDAD: 0.0035,         // px/ms² de aceleración hacia abajo
+    VEL_CAIDA_MAX: 2.8,       // px/ms tope de velocidad vertical de caída
+    VIDA_MAX_MS: 6000,        // válvula de seguridad: muere a los 6 s
     RADIO_BOLITA: 14,         // px (bolita de 28)
   };
 
@@ -111,46 +117,42 @@
     return { vx: vx, vy: vy, spin: spin, potencia: potencia };
   }
 
-  // Integra un paso de dt ms. bolita: {x, y, vx, vy, spin, rebotes}.
-  // limites: {w, h}. Muta y devuelve la bolita.
+  // Integra un paso de dt ms. bolita: {x, y, vx, vy, spin, edad, viva}.
+  // limites: {w, h}. Muta y devuelve la bolita. Sin paredes: vuelo libre;
+  // marca viva=false al salir del viewport o al agotar la vida máxima.
   function paso(bolita, dt, limites) {
-    // Magnus simplificado: aceleración perpendicular a la velocidad,
-    // proporcional al spin, con decaimiento exponencial del spin.
+    // Magnus simplificado (chanfle): aceleración perpendicular a la
+    // velocidad, proporcional al spin, con decaimiento exponencial. Se
+    // SUMA a la gravedad → la curva se nota sobre la parábola.
     const v = Math.hypot(bolita.vx, bolita.vy);
     if (v > 0 && bolita.spin !== 0) {
       const a = FISICA.FACTOR_MAGNUS * bolita.spin * v;
-      bolita.vx += (-bolita.vy / v) * a * dt;
-      bolita.vy += (bolita.vx / v) * a * dt;
+      const nx = -bolita.vy / v;
+      const ny = bolita.vx / v;
+      bolita.vx += nx * a * dt;
+      bolita.vy += ny * a * dt;
     }
     bolita.spin *= Math.exp(-FISICA.DECAIMIENTO_SPIN * dt);
+
+    // Gravedad constante hacia abajo, con tope de velocidad de caída.
+    bolita.vy += FISICA.GRAVEDAD * dt;
+    if (bolita.vy > FISICA.VEL_CAIDA_MAX) bolita.vy = FISICA.VEL_CAIDA_MAX;
 
     bolita.x += bolita.vx * dt;
     bolita.y += bolita.vy * dt;
 
-    // Rebote en bordes del viewport: refleja la componente normal con
-    // restitución, conserva spin × REBOTE_SPIN y cuenta el rebote.
+    bolita.edad += dt;
+
+    // Muerte: fuera del viewport (cualquier borde) o vida agotada.
     const r = FISICA.RADIO_BOLITA;
-    if (bolita.x < r) {
-      bolita.x = r + (r - bolita.x);
-      bolita.vx = -bolita.vx * FISICA.RESTITUCION;
-      bolita.spin *= FISICA.REBOTE_SPIN;
-      bolita.rebotes++;
-    } else if (bolita.x > limites.w - r) {
-      bolita.x = 2 * (limites.w - r) - bolita.x;
-      bolita.vx = -bolita.vx * FISICA.RESTITUCION;
-      bolita.spin *= FISICA.REBOTE_SPIN;
-      bolita.rebotes++;
-    }
-    if (bolita.y < r) {
-      bolita.y = r + (r - bolita.y);
-      bolita.vy = -bolita.vy * FISICA.RESTITUCION;
-      bolita.spin *= FISICA.REBOTE_SPIN;
-      bolita.rebotes++;
-    } else if (bolita.y > limites.h - r) {
-      bolita.y = 2 * (limites.h - r) - bolita.y;
-      bolita.vy = -bolita.vy * FISICA.RESTITUCION;
-      bolita.spin *= FISICA.REBOTE_SPIN;
-      bolita.rebotes++;
+    if (
+      bolita.edad >= FISICA.VIDA_MAX_MS ||
+      bolita.x < -r ||
+      bolita.x > limites.w + r ||
+      bolita.y < -r ||
+      bolita.y > limites.h + r
+    ) {
+      bolita.viva = false;
     }
     return bolita;
   }

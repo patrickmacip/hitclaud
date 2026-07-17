@@ -1,11 +1,12 @@
 // hitclaud — test de fisica.js en node: node test/fisica.test.js
-// Simula 4 gestos y resume trayectorias (posición cada 100 ms).
+// Mundo LATERAL con gravedad. Simula 4 gestos e imprime ápice, tiempo a
+// ápice y punto de salida del viewport (390×844).
 
 const F = require('../js/fisica.js');
 
 const VIEWPORT = { w: 390, h: 844 };
+const ORIGEN = { x: 338, y: 792 }; // reposo en el hitmaker (esquina inf-der)
 
-// Gesto recto: n puntos repartidos uniformemente en espacio y tiempo.
 function gestoRecto(x0, y0, x1, y1, durMs, n) {
   const puntos = [];
   for (let i = 0; i < n; i++) {
@@ -15,7 +16,6 @@ function gestoRecto(x0, y0, x1, y1, durMs, n) {
   return puntos;
 }
 
-// Gesto curvo: arco de circunferencia (curvatura sostenida hasta el final).
 function gestoCurvo(cx, cy, radio, angulo0, angulo1, durMs, n) {
   const puntos = [];
   for (let i = 0; i < n; i++) {
@@ -32,22 +32,25 @@ function simular(nombre, puntos) {
     console.log(`\n${nombre}: sin disparo`);
     return;
   }
-  const bolita = { x: 350, y: 800, vx: d.vx, vy: d.vy, spin: d.spin, rebotes: 0 };
-  console.log(
-    `\n${nombre}\n  potencia=${d.potencia.toFixed(2)} |v|=${Math.hypot(d.vx, d.vy).toFixed(2)} px/ms spin=${d.spin.toFixed(2)}`
-  );
-  const linea = [];
-  for (let t = 0; t <= 1200 && bolita.rebotes < 2; t += 100) {
-    linea.push(`t=${t} (${Math.round(bolita.x)},${Math.round(bolita.y)})`);
-    for (let s = 0; s < 100 && bolita.rebotes < 2; s += 10) {
-      F.paso(bolita, 10, VIEWPORT);
-    }
+  const b = { x: ORIGEN.x, y: ORIGEN.y, vx: d.vx, vy: d.vy, spin: d.spin, edad: 0, viva: true };
+  let apiceY = b.y;
+  let tApice = 0;
+  let t = 0;
+  const DT = 5;
+  while (b.viva && t < 7000) {
+    F.paso(b, DT, VIEWPORT);
+    t += DT;
+    if (b.y < apiceY) { apiceY = b.y; tApice = t; }
   }
-  console.log('  ' + linea.join(' → '));
-  console.log(`  rebotes al terminar: ${bolita.rebotes}`);
+  const subida = Math.round(ORIGEN.y - apiceY);
+  console.log(
+    `\n${nombre}\n  potencia=${d.potencia.toFixed(2)} |v0|=${Math.hypot(d.vx, d.vy).toFixed(2)} spin=${d.spin.toFixed(2)}\n` +
+    `  ápice: subió ${subida}px (y=${Math.round(apiceY)}) en ${tApice}ms\n` +
+    `  salida: (${Math.round(b.x)},${Math.round(b.y)}) a los ${t}ms  [edad ${Math.round(b.edad)}ms]`
+  );
 }
 
-simular('1. Flick corto y RÁPIDO (134 px en 50 ms)', gestoRecto(360, 810, 300, 690, 50, 8));
-simular('2. Arrastre largo y LENTO (424 px en 900 ms)', gestoRecto(360, 810, 60, 510, 900, 40));
-simular('3. Largo y RÁPIDO (424 px en 180 ms)', gestoRecto(360, 810, 60, 510, 180, 20));
-simular('4. Curvo (arco 90°, radio 150, 300 ms)', gestoCurvo(200, 800, 150, 0, -Math.PI / 2, 300, 30));
+simular('a. Flick corto y RÁPIDO (arriba-izq, 134px/50ms)', gestoRecto(360, 810, 300, 690, 50, 8));
+simular('b. Largo y LENTO (424px/900ms) → arco corto', gestoRecto(360, 810, 60, 510, 900, 40));
+simular('c. Largo y RÁPIDO (424px/180ms) → arco alto', gestoRecto(360, 810, 60, 510, 180, 20));
+simular('d. Curvo (arco 90°, radio 150, 300ms) → chanfle', gestoCurvo(200, 800, 150, 0, -Math.PI / 2, 300, 30));
