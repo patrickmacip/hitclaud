@@ -444,7 +444,10 @@
     // enojado) = FALLO (castigo del tramo, rompe racha).
     for (let i = bolitas.length - 1; i >= 0; i--) {
       if (!bolitas[i].viva) {
-        if (!bolitas[i].tocado && !bolitas[i].neutro) { P.anotarFallo(marcador); actualizarMarcador(); }
+        if (!bolitas[i].tocado && !bolitas[i].neutro) {
+          P.anotarFallo(marcador, { debuff: t < debuffHasta }); // espiral: en debuff no escala
+          actualizarMarcador();
+        }
         bolitas.splice(i, 1);
       }
     }

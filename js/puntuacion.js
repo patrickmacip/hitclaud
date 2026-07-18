@@ -19,7 +19,16 @@
     { min: 50000, pen: 1000 },
     { min: 100000, pen: 2000 },
   ];
-  const FALLO_MULT_TOPE = 4;  // fallos consecutivos: 2º×2, 3º×3, 4º+×4
+  // Multiplicador de fallos consecutivos ESCALADO por tramo (abajo perdona,
+  // arriba no). El 1º fallo siempre ×1; la fila = multiplicadores del 2º/3º/4º+.
+  // Fronteras de tramo del multiplicador (4 niveles):
+  const MULT_LIM = [2000, 10000, 25000];
+  const MULT = [
+    [1, 1.2, 1.5],   // 0–1,999    → 2º×1, 3º×1.2, 4º+×1.5 (tope 1.5)
+    [1.5, 2, 2.5],   // 2,000–9,999
+    [2, 2.5, 3],     // 10,000–24,999
+    [2, 3, 4],       // 25,000+    → como hoy (2º/3º/4º = ×2/×3/×4)
+  ];
 
   // Ritmo progresivo: el retardo entre spawns interpola de BASE (0 pts) a
   // TOPE (SCORE_RITMO_MAX). "Más rápido salen" = más FRECUENCIA, no más
@@ -32,10 +41,34 @@
 
   const INACT_FRAC = 0.25;    // inactividad: 25% del castigo del tramo por segundo
 
+  // Castigo del tramo (plano). Usado por la inactividad.
   function penalTramo(score) {
     let p = TRAMOS[0].pen;
     for (let i = 0; i < TRAMOS.length; i++) if (score >= TRAMOS[i].min) p = TRAMOS[i].pen;
     return p;
+  }
+
+  // Castigo base INTERPOLADO dentro del tramo: lineal entre el castigo del
+  // tramo actual y el del siguiente según la posición → sin salto brusco al
+  // cruzar frontera (p.ej. 1,900 vs 2,100 difieren poco, no −50 vs −100).
+  function penalBase(score) {
+    for (let i = 0; i < TRAMOS.length - 1; i++) {
+      const cur = TRAMOS[i];
+      const sig = TRAMOS[i + 1];
+      if (score < sig.min) {
+        const pos = (score - cur.min) / (sig.min - cur.min);
+        return cur.pen + pos * (sig.pen - cur.pen);
+      }
+    }
+    return TRAMOS[TRAMOS.length - 1].pen; // último tramo: plano
+  }
+
+  // Multiplicador del fallo: 1º siempre ×1; 2º/3º/4º+ según el tramo del score.
+  function multFallo(score, cuenta) {
+    if (cuenta <= 1) return 1;
+    let idx = 0;
+    for (let i = 0; i < MULT_LIM.length; i++) if (score >= MULT_LIM[i]) idx = i + 1;
+    return MULT[idx][Math.min(cuenta, 4) - 2];
   }
 
   function crearMarcador() {
@@ -59,13 +92,17 @@
     return bono;
   }
 
-  // Fallo: castigo del tramo (score ANTES de restar) × multiplicador por
-  // fallos consecutivos (tope ×4). Piso en 0, rompe racha. Devuelve el castigo.
-  function anotarFallo(m) {
-    const base = penalTramo(m.puntos);
-    m.fallosSeguidos += 1;
-    const mult = Math.min(m.fallosSeguidos, FALLO_MULT_TOPE);
-    const pen = base * mult;
+  // Fallo: castigo base interpolado (score ANTES de restar) × multiplicador
+  // escalado por tramo, redondeado a entero. Piso en 0, rompe racha.
+  // ESPIRAL DEL DEBUFF: con opts.debuff, el fallo NO incrementa el contador de
+  // consecutivos (ya estás pagando con la bola chica; encadenar ambos es doble
+  // castigo). Devuelve el castigo aplicado.
+  function anotarFallo(m, opts) {
+    const debuff = !!(opts && opts.debuff);
+    const base = penalBase(m.puntos);
+    if (!debuff) m.fallosSeguidos += 1;
+    const cuenta = Math.max(m.fallosSeguidos, 1);
+    const pen = Math.round(base * multFallo(m.puntos, cuenta));
     m.puntos = Math.max(0, m.puntos - pen);
     m.racha = 0;
     return pen;
@@ -113,6 +150,8 @@
     anotarHit: anotarHit,
     anotarFallo: anotarFallo,
     penalTramo: penalTramo,
+    penalBase: penalBase,
+    multFallo: multFallo,
     rangoRetardo: rangoRetardo,
     crearRitmo: crearRitmo,
     quizasRespiro: quizasRespiro,
@@ -123,7 +162,6 @@
     HITOS: HITOS,
     TRAMOS: TRAMOS,
     PTS_CUBO: PTS_CUBO,
-    FALLO_MULT_TOPE: FALLO_MULT_TOPE,
     RETARDO_BASE: RETARDO_BASE,
     RETARDO_TOPE: RETARDO_TOPE,
     SCORE_RITMO_MAX: SCORE_RITMO_MAX,

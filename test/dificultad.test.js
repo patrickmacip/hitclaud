@@ -1,48 +1,9 @@
-// hitclaud — test de dificultad progresiva: node test/dificultad.test.js
+// hitclaud — test de ritmo/respiro: node test/dificultad.test.js
+// (El castigo escalado por tramo vive en castigo.test.js.)
 
 const P = require('../js/puntuacion.js');
 
-console.log('=== Castigo por tramos (un fallo, score ANTES de restar) ===');
-[[500, 50], [5000, 100], [30000, 500], [80000, 1000]].forEach(function (caso) {
-  const m = P.crearMarcador();
-  m.puntos = caso[0];
-  const antes = m.puntos;
-  const pen = P.anotarFallo(m);
-  console.log(`  score ${caso[0]} → −${pen}  (esperado −${caso[1]})  ${pen === caso[1] ? 'OK ✓' : 'NO ✗'}  puntos=${m.puntos}`);
-});
-
-console.log('\n=== Fallos consecutivos con 30,000 → −500/−1,000/−1,500 ===');
-{
-  const m = P.crearMarcador();
-  m.puntos = 30000;
-  const esp = [500, 1000, 1500];
-  for (let i = 0; i < 3; i++) {
-    const pen = P.anotarFallo(m);
-    console.log(`  fallo ${i + 1}: −${pen} (esperado −${esp[i]})  ${pen === esp[i] ? 'OK ✓' : 'NO ✗'}  puntos=${m.puntos}`);
-  }
-}
-
-console.log('\n=== Piso en 0: fallo con 30 → 0, otro fallo → 0 ===');
-{
-  const m = P.crearMarcador();
-  m.puntos = 30;
-  P.anotarFallo(m);
-  const a = m.puntos;
-  P.anotarFallo(m);
-  console.log(`  tras 1er fallo=${a}, tras 2º=${m.puntos}  ${a === 0 && m.puntos === 0 ? 'OK ✓' : 'NO ✗'}`);
-}
-
-console.log('\n=== Un hit resetea los fallos consecutivos ===');
-{
-  const m = P.crearMarcador();
-  m.puntos = 30000;
-  P.anotarFallo(m); P.anotarFallo(m); // fallosSeguidos=2
-  P.anotarHit(m);                      // reset
-  const pen = P.anotarFallo(m);        // debe volver a ×1 = 500
-  console.log(`  tras hit, fallo=−${pen} (esperado −500)  ${pen === 500 ? 'OK ✓' : 'NO ✗'}`);
-}
-
-console.log('\n=== Curva de retardo (rango vigente por score) ===');
+console.log('=== Curva de retardo (rango vigente por score) ===');
 [0, 10000, 30000, 60000].forEach(function (s) {
   const r = P.rangoRetardo(s);
   console.log(`  ${s} pts → ${r.min}-${r.max}ms`);
