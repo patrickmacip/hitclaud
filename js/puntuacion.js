@@ -41,6 +41,14 @@
 
   const INACT_FRAC = 0.25;    // inactividad: 25% del castigo del tramo por segundo
 
+  // Amortiguador de caída (NO es un tope: 0 siempre es alcanzable). Suelo de
+  // referencia = 60% del PICO DE LA PARTIDA (en vivo, se resetea cada partida;
+  // NO el récord histórico). Sobre el suelo el castigo es ×1; bajo el suelo el
+  // multiplicador decae lineal de ×1 (en el suelo) a AMORT_MIN (en 0). Con pico
+  // 0 → suelo 0 → sin amortiguación (todo ×1 como hoy).
+  const SUELO_PICO = 0.6;
+  const AMORT_MIN = 0.35;
+
   // Castigo del tramo (plano). Usado por la inactividad.
   function penalTramo(score) {
     let p = TRAMOS[0].pen;
@@ -72,13 +80,25 @@
   }
 
   function crearMarcador() {
-    return { puntos: 0, racha: 0, fallosSeguidos: 0 };
+    return { puntos: 0, racha: 0, fallosSeguidos: 0, pico: 0 };
+  }
+
+  // El pico de la partida sigue al score EN VIVO (sube en el mismo momento que
+  // el score lo supera). Suelo = SUELO_PICO · pico.
+  function subirPico(m) { if (m.puntos > m.pico) m.pico = m.puntos; }
+
+  // Multiplicador del amortiguador para un score/pico dados.
+  function amortiguar(score, pico) {
+    const suelo = SUELO_PICO * pico;
+    if (suelo <= 0 || score >= suelo) return 1;         // sobre el suelo o sin pico
+    return AMORT_MIN + (1 - AMORT_MIN) * (score / suelo); // ×1 en el suelo → AMORT_MIN en 0
   }
 
   // n cubos destruidos → +n·10. Devuelve los puntos ganados.
   function anotarDestruidos(m, n) {
     const g = n * PTS_CUBO;
     m.puntos += g;
+    subirPico(m);
     return g;
   }
 
@@ -89,6 +109,7 @@
     m.racha += 1;
     const bono = HITOS[m.racha] || 0;
     m.puntos += bono;
+    subirPico(m);
     return bono;
   }
 
@@ -102,7 +123,8 @@
     const base = penalBase(m.puntos);
     if (!debuff) m.fallosSeguidos += 1;
     const cuenta = Math.max(m.fallosSeguidos, 1);
-    const pen = Math.round(base * multFallo(m.puntos, cuenta));
+    // El amortiguador se aplica al castigo FINAL (tras tramo y consecutivos).
+    const pen = Math.round(base * multFallo(m.puntos, cuenta) * amortiguar(m.puntos, m.pico));
     m.puntos = Math.max(0, m.puntos - pen);
     m.racha = 0;
     return pen;
@@ -137,9 +159,11 @@
   }
 
   // ── Inactividad ────────────────────────────────────────────────────
-  function costoInactividad(score) { return Math.round(penalTramo(score) * INACT_FRAC); }
+  function costoInactividad(score) { return Math.round(penalTramo(score) * INACT_FRAC); } // sin amortiguar
   function anotarInactividadSegundo(m) {
-    const c = costoInactividad(m.puntos);
+    // El amortiguador TAMBIÉN aplica a la inactividad: quieto DEBE poder llegar
+    // a 0, solo que bajando más lento cerca del suelo.
+    const c = Math.round(penalTramo(m.puntos) * INACT_FRAC * amortiguar(m.puntos, m.pico));
     m.puntos = Math.max(0, m.puntos - c);
     return c;
   }
@@ -152,6 +176,9 @@
     penalTramo: penalTramo,
     penalBase: penalBase,
     multFallo: multFallo,
+    amortiguar: amortiguar,
+    SUELO_PICO: SUELO_PICO,
+    AMORT_MIN: AMORT_MIN,
     rangoRetardo: rangoRetardo,
     crearRitmo: crearRitmo,
     quizasRespiro: quizasRespiro,

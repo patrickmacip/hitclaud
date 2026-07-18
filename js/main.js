@@ -604,6 +604,23 @@
     }
     ctx.globalAlpha = 1;
 
+    // Amortiguador de caída: "cojín" de luz cálida (--coral-vivo) en el borde
+    // inferior cuando el score está bajo el suelo (60% del pico). Alfa según la
+    // profundidad → el jugador SIENTE que el fondo lo sostiene. Sin texto.
+    const suelo = P.SUELO_PICO * marcador.pico;
+    if (marcador.pico > 0 && marcador.puntos < suelo) {
+      const prof = 1 - marcador.puntos / suelo; // 0 en el suelo → 1 en 0
+      const alto = 90;
+      const g = ctx.createLinearGradient(0, H, 0, H - alto);
+      g.addColorStop(0, COLOR.coralVivo);
+      g.addColorStop(1, 'transparent');
+      ctx.save();
+      ctx.globalAlpha = 0.12 * prof;
+      ctx.fillStyle = g;
+      ctx.fillRect(0, H - alto, W, alto);
+      ctx.restore();
+    }
+
     // Entrada a la fiesta: lavado suave de --crema que se desvanece (~500ms).
     // Sin pantallazos agresivos (juego desestresante). Un fillRect por cuadro.
     const flash = fiestaFlashHasta - performance.now();
