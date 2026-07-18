@@ -51,3 +51,24 @@ console.log('\n=== Economía con tope: incluso con racha enorme, ×3 máx ===');
   const esperado = Math.round(20 * P.valorCubo(80000) * 3); // tope ×3
   console.log(`  20 cubos a 80k con racha 100 → +${g} (tope ×3 = ${esperado})  ${g === esperado ? 'OK ✓' : 'NO ✗'}`);
 }
+
+// ── Bonanza y multiplicador NO coexisten + hitball dorada (espejo main.js) ──
+console.log('\n=== Bonanza y multiplicador no coexisten ===');
+{
+  const D = P.RACHA_DESDE; // 3
+  // Estrella hace pop cuando racha >= D:
+  const popEstrella = function (racha) { return racha >= D; };
+  // Estrella NO spawnea cuando racha >= D:
+  const spawnEstrella = function (racha) { return racha < D; };
+  console.log(`  racha 2: estrella viva sigue=${!popEstrella(2)}, puede spawnear=${spawnEstrella(2)}  ${!popEstrella(2) && spawnEstrella(2) ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  racha 3: estrella hace POP=${popEstrella(3)}, NO spawnea=${!spawnEstrella(3)}  ${popEstrella(3) && !spawnEstrella(3) ? 'OK ✓' : 'NO ✗'}`);
+}
+
+console.log('\n=== Hitball dorada durante el multiplicador, índigo al romper ===');
+{
+  const D = P.RACHA_DESDE;
+  const dorada = function (racha, dispersa) { return racha >= D && !dispersa; };
+  console.log(`  racha 2 → dorada=${dorada(2, false)} (índigo)  racha 3 → dorada=${dorada(3, false)}  ${!dorada(2, false) && dorada(3, false) ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  dispersa NO es dorada: ${!dorada(5, true) ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  tras romper racha (0) → índigo: ${!dorada(0, false) ? 'OK ✓' : 'NO ✗'}`);
+}

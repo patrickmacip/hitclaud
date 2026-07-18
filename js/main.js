@@ -253,8 +253,9 @@
     ultimoOrigen = t.origen;
     const enFiesta = ahora < fiestaHasta;
     const hayBonanza = targets.some(function (x) { return x.bonanza; });
+    // Con el multiplicador de racha activo NO aparecen estrellas (no coexisten).
     const probEstrella = Math.min(ESTRELLA_TOPE, ESTRELLA_BASE + ESTRELLA_PITY * pityEstrella);
-    if (!enFiesta && !hayBonanza && !ultimaBonanza && Math.random() < probEstrella) {
+    if (!enFiesta && !hayBonanza && !ultimaBonanza && marcador.racha < P.RACHA_DESDE && Math.random() < probEstrella) {
       t.bonanza = true; // target normal que BRILLA dorado
       t.enojado = false;
       ultimaBonanza = true;
@@ -625,6 +626,17 @@
       generarCloud();
       cloudProximo = t + rnd(CLOUD_MIN, CLOUD_MAX);
     }
+    // Bonanza y multiplicador NO coexisten: con el multiplicador activo, toda
+    // estrella viva hace POP (breve estallido dorado) y se va, sin premio.
+    if (marcador.racha >= P.RACHA_DESDE) {
+      for (let i = targets.length - 1; i >= 0; i--) {
+        if (targets[i].bonanza) {
+          explotarCubos(cubos8Mundo(targets[i]), targets[i].x, targets[i].y, 0.8, targets[i].vx, targets[i].vy, COLOR.dorado, 8);
+          targets.splice(i, 1);
+          proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t));
+        }
+      }
+    }
     // Récord EN VIVO: si el score superó el récord, sube ya (y escribe con throttle).
     if (record.considerar(marcador.puntos, t)) actualizarRecord();
     // Fin del latido del marcador.
@@ -700,21 +712,22 @@
     const remDebuff = debuffHasta - performance.now();
     const debil = remDebuff > 0;                 // debuff activo → hitball chica
     const radioAhora = debil ? RADIO_DEBIL : RADIO_NORMAL;
+    const conMult = marcador.racha >= P.RACHA_DESDE; // multiplicador activo → dorada
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
       const rB = b.radio || RADIO_NORMAL;
       dibujarEstela(b, rB);
-      dibujarBolita(b.x, b.y, rB, rB < RADIO_NORMAL);
+      dibujarBolita(b.x, b.y, rB, rB < RADIO_NORMAL, false, conMult && !b.dispersa);
     }
     const conPower = performance.now() < powerupHasta; // glow cian = tiros potenciados
     if (gesto.activo) {
       // La bolita AGARRADA sigue el dedo EXACTAMENTE (sin lag ni suavizado).
       const dedo = gesto.puntos[gesto.puntos.length - 1];
-      dibujarBolita(dedo.x, dedo.y, radioAhora, debil, conPower);
+      dibujarBolita(dedo.x, dedo.y, radioAhora, debil, conPower, conMult);
     } else if (performance.now() - ultimoDisparo >= CADENCIA_MS) {
       // Bolita en reposo = señal de "listo": aparece al cumplirse la cadencia.
       const r = reposo();
-      dibujarBolita(r.x, r.y, radioAhora, debil, conPower);
+      dibujarBolita(r.x, r.y, radioAhora, debil, conPower, conMult);
     }
 
     // Indicador de debuff: barra en el BORDE SUPERIOR que se DESCARGA (se
@@ -903,19 +916,28 @@
     if (t.celdas[8]) ctx.fillRect(x + 3 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
   }
 
-  // Bolita: --indigo con borde --indigo-vivo. Bajo debuff se dibuja chica
-  // (radio 7) y en --morado. Con power-up (glow=true) lleva un glow --cian
-  // sutil (tiros potenciados). Técnica barata: shadowBlur en 1 bolita (reposo).
-  function dibujarBolita(cx, cy, radio, debil, glow) {
+  // Bolita: --indigo con borde --indigo-vivo. Debuff → chica --morado. Con
+  // MULTIPLICADOR de racha (dorada=true) → --dorado PARPADEANTE. Con power-up
+  // (glow=true) → glow --cian. Precedencia del RELLENO: debuff (morado) > racha
+  // (dorado) > índigo; el glow cian del power-up es aparte y se superpone.
+  function dibujarBolita(cx, cy, radio, debil, glow, dorada) {
     const RADIO = radio || 14;
+    let relleno = COLOR.indigo;
+    let borde = COLOR.indigoVivo;
+    if (debil) { relleno = COLOR.morado; borde = COLOR.morado; }
+    else if (dorada) {
+      const on = Math.sin(performance.now() / 120) > 0;
+      relleno = on ? COLOR.dorado : COLOR.indigo; // parpadeo dorado↔índigo
+      borde = COLOR.dorado;
+    }
     ctx.save();
     if (glow) { ctx.shadowColor = COLOR.cian; ctx.shadowBlur = 10; }
     ctx.beginPath();
     ctx.arc(cx, cy, RADIO - 1.5, 0, Math.PI * 2);
-    ctx.fillStyle = debil ? COLOR.morado : COLOR.indigo;
+    ctx.fillStyle = relleno;
     ctx.fill();
     ctx.lineWidth = debil ? 2 : 3;
-    ctx.strokeStyle = debil ? COLOR.morado : COLOR.indigoVivo;
+    ctx.strokeStyle = borde;
     ctx.stroke();
     ctx.restore();
   }
