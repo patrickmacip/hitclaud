@@ -94,6 +94,31 @@ console.log('\n=== Tras la fiesta, los 16 sobrantes mueren solos (no se borran) 
   console.log(`  16 targets sin respawn: quedan ${targets.length} tras ${(t / 1000).toFixed(1)}s  ${targets.length === 0 ? 'OK ✓ (mueren por vuelo natural)' : 'NO ✗'}`);
 }
 
+// ── (5b) La estrella: máscara 10×10 + costo de la explosión ─────────
+console.log('\n=== La estrella (Bonanza con forma): máscara 10×10 de cubitos 4px ===');
+{
+  const ESTRELLA = [ // espejo de main.js
+    '0000110000', '0001111000', '0011111100', '1111111111', '0111111110',
+    '0011111100', '0011111100', '0111001110', '1110000111', '1100000011',
+  ];
+  let n = 0;
+  for (let f = 0; f < 10; f++) {
+    let l = '  ';
+    for (let c = 0; c < 10; c++) { const on = ESTRELLA[f][c] === '1'; l += on ? '█' : '·'; if (on) n++; }
+    console.log(l);
+  }
+  console.log(`  cubitos de 4px por estrella: ${n}`);
+  // Costo: la explosión son N fillRects simples (sin sombra/gradiente). Mide el
+  // update de MAX_CUBOS=160 cubos por cuadro (peor caso ~2 estrellas + normales).
+  const cubos = [];
+  for (let i = 0; i < 160; i++) cubos.push({ x: 0, y: 0, vx: 1, vy: 1, rot: 0, velRot: 0.01, edad: 0, vida: 1000, tam: 4, color: '#FFD400' });
+  const FR = 600, G = 0.0021;
+  const t0 = process.hrtime.bigint();
+  for (let f = 0; f < FR; f++) for (let i = 0; i < cubos.length; i++) { const q = cubos[i]; q.vy += G * 16.7; q.x += q.vx * 16.7; q.y += q.vy * 16.7; q.rot += q.velRot * 16.7; q.edad += 16.7; }
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6 / FR;
+  console.log(`  update de 160 cubos: ${ms.toFixed(4)} ms/cuadro → dibujo = fillRects simples; MAX_CUBOS=160 acota. Sin límite extra ${ms < 16.67 ? '✓' : '✗'}`);
+}
+
 // ── (5) Válvula de rendimiento: peor caso (16 targets + 24 bolitas) ─
 console.log('\n=== Rendimiento: 16 targets + 24 bolitas + colisión ===');
 {

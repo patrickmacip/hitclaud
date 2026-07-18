@@ -27,6 +27,7 @@
     indigo: tk('--indigo', '#5C5CC8'),
     indigoVivo: tk('--indigo-vivo', '#7C7CFF'),
     morado: tk('--morado', '#8B5CF6'),
+    amarillo: tk('--amarillo', '#FFD400'),
     textoApagado: tk('--texto-apagado', '#8989B1'),
     fuente: tk('--fuente', "'Inter', system-ui, -apple-system, sans-serif"),
   };
@@ -102,8 +103,23 @@
   // ── Inactividad ────────────────────────────────────────────────────
   const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
 
+  // Máscara 10×10 de la ESTRELLA (la Bonanza con forma): cubitos de 4px en
+  // 40×40px, pixelada estilo Lego. Sin ojos (es una estrella, no una criatura).
+  const ESTRELLA = [
+    '0000110000',
+    '0001111000',
+    '0011111100',
+    '1111111111',
+    '0111111110',
+    '0011111100',
+    '0011111100',
+    '0111001110',
+    '1110000111',
+    '1100000011',
+  ];
+
   // ── Constantes de la explosión de cubos (animación pura) ───────────
-  const MAX_CUBOS = 120;      // tope de cubos vivos = 6 explosiones simultáneas
+  const MAX_CUBOS = 160;      // tope de cubos vivos (una estrella son ~58 cubitos)
   const CUBO_VIDA_MIN = 800;  // ms de vida (se desvanecen)
   const CUBO_VIDA_MAX = 1200;
   const CUBO_FUERZA = 0.5;    // escala del impulso radial por rapidez de impacto
@@ -153,7 +169,7 @@
   // Anima una lista de cubos liberados (arrancados o de destrucción total).
   // Cada cubo: velocidad del target + impulso radial desde el impacto (mayor
   // cuanto más cerca) + jitter. Sistema ÚNICO: lo usan golpe suave y fuerte.
-  function explotarCubos(centros, px, py, vImpact, tvx, tvy, color) {
+  function explotarCubos(centros, px, py, vImpact, tvx, tvy, color, tam) {
     for (let k = 0; k < centros.length; k++) {
       const wc = centros[k];
       const dx = wc.x - px;
@@ -169,10 +185,26 @@
         vy: tvy + diry * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
         rot: rnd(0, Math.PI * 2), velRot: rnd(-0.01, 0.01),
         edad: 0, vida: rnd(CUBO_VIDA_MIN, CUBO_VIDA_MAX),
-        color: color || COLOR.coral,
+        color: color || COLOR.coral, tam: tam || 8,
       });
     }
     while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
+  }
+
+  // Centros de mundo de los CUBITOS de 4px de la estrella (para su explosión).
+  function cubitosEstrellaMundo(tg) {
+    const out = [];
+    const cw = Math.cos(tg.rot);
+    const sw = Math.sin(tg.rot);
+    for (let f = 0; f < 10; f++) {
+      for (let c = 0; c < 10; c++) {
+        if (ESTRELLA[f][c] !== '1') continue;
+        const lx = -18 + c * 4; // centro del cubito (sprite 40×40, centrado)
+        const ly = -18 + f * 4;
+        out.push({ x: tg.x + lx * cw - ly * sw, y: tg.y + lx * sw + ly * cw });
+      }
+    }
+    return out;
   }
 
   // Lanza un target respetando el ritmo (origen distinto al anterior).
@@ -205,19 +237,6 @@
   // Retardo del próximo spawn: en fiesta = ráfaga; si no, el ritmo del score.
   function retardoActual(ahora) {
     return ahora < fiestaHasta ? rnd(FIESTA_RET_MIN, FIESTA_RET_MAX) : retardoSpawn(ahora);
-  }
-
-  // Centros de mundo de los cubos vivos de un target (para explosión directa).
-  function cubosMundo(tg) {
-    const out = [];
-    const cw = Math.cos(tg.rot);
-    const sw = Math.sin(tg.rot);
-    for (let i = 0; i < 20; i++) {
-      if (!tg.celdas[i]) continue;
-      const l = F.celdaLocal(i);
-      out.push({ x: tg.x + l.x * cw - l.y * sw, y: tg.y + l.x * sw + l.y * cw });
-    }
-    return out;
   }
 
   function reposo() {
@@ -403,7 +422,8 @@
           fiestaHasta = t + FIESTA_MS;
           fiestaFlashHasta = t + FIESTA_FLASH_MS;
           b.neutro = true;
-          explotarCubos(cubosMundo(tg), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.coral); // celebración
+          // Celebración: la estrella estalla en sus cubitos de 4px --amarillo.
+          explotarCubos(cubitosEstrellaMundo(tg), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.amarillo, 4);
           sacudidaHasta = t + SACUDIDA_MS;
           targets.splice(ti, 1);
           proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t)); // arranca la ráfaga
@@ -547,8 +567,9 @@
       ctx.translate(q.x, q.y);
       ctx.rotate(q.rot);
       ctx.fillStyle = q.color;
+      const h = q.tam / 2;
       ctx.beginPath();
-      ctx.roundRect(-4, -4, 8, 8, 1.5);
+      ctx.roundRect(-h, -h, q.tam, q.tam, q.tam >= 8 ? 1.5 : 0.8);
       ctx.fill();
       ctx.restore();
     }
@@ -662,17 +683,28 @@
   // Cubos esquineros con la esquina exterior a 4px; ojos (celdas 6 y 8) en
   // --negro, cada uno solo si su celda sigue viva.
   function dibujarSpriteTarget(t, destella) {
+    // ESTRELLA (Bonanza con forma): máscara 10×10 de cubitos de 4px en
+    // --amarillo, PARPADEANDO a --crema (premio = LUZ). Sin ojos.
+    if (t.bonanza) {
+      let colE = Math.sin(performance.now() / 110) > 0 ? COLOR.crema : COLOR.amarillo;
+      if (destella) colE = COLOR.crema;
+      ctx.fillStyle = colE;
+      for (let f = 0; f < 10; f++) {
+        for (let c = 0; c < 10; c++) {
+          if (ESTRELLA[f][c] === '1') ctx.fillRect(-20 + c * 4, -20 + f * 4, 4, 4);
+        }
+      }
+      return;
+    }
     const CUBO = 8;
     const COLS = 5;
     const FILAS = 4;
     const RADIO_ESQ = 4;
     const x = -20;
     const y = -16;
-    // Color como SEÑAL: coral = normal, --morado = enojado (castigo). La
-    // BONANZA es coral pero PARPADEA a --crema (identidad por LUZ, no color).
-    // La cara es idéntica en todos. El destello de contacto pinta --crema.
+    // Color como SEÑAL: coral = normal, --morado = enojado (castigo).
+    // El destello de contacto pinta --crema. La cara es idéntica en todos.
     let col = t.enojado ? COLOR.morado : COLOR.coral;
-    if (t.bonanza && Math.sin(performance.now() / 110) > 0) col = COLOR.crema;
     if (destella) col = COLOR.crema;
     ctx.fillStyle = col;
     for (let f = 0; f < FILAS; f++) {
