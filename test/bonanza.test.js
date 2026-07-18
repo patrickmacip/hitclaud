@@ -6,7 +6,7 @@ const P = require('../js/puntuacion.js');
 const VP = { w: 390, h: 844 };
 
 const MAX_DURO = 12, FIESTA_MAX = 16, FIESTA_MS = 5000;
-const BONANZA_PROB = 0.03;
+const BONANZA_PROB = 0.05;
 const ENOJADO_BASE = 0.08, ENOJADO_EXTRA = 0.02, ENOJADO_TOPE = 0.25;
 
 function rnd(a, b) { return a + Math.random() * (b - a); }
@@ -46,7 +46,7 @@ console.log('=== Probabilidad de Bonanza (200 spawns permitidos) ===');
     // retirar la bonanza para permitir otra en el próximo spawn
     if (t.bonanza) m.targets.pop();
   }
-  console.log(`  bonanzas: ${bon}/200 = ${(bon / 200 * 100).toFixed(1)}% (nominal 3%)`);
+  console.log(`  bonanzas: ${bon}/200 = ${(bon / 200 * 100).toFixed(1)}% (nominal 5% base; el pity lo sube)`);
   console.log(`  dos seguidas: ${dosSeguidas}  ${dosSeguidas === 0 ? 'OK ✓' : 'NO ✗'}`);
   // nunca si ya hay una viva:
   const m2 = crearMundo();
@@ -95,19 +95,19 @@ console.log('\n=== Tras la fiesta, los 16 sobrantes mueren solos (no se borran) 
 }
 
 // ── (5b) La estrella: máscara 10×10 + costo de la explosión ─────────
-console.log('\n=== La estrella (Bonanza con forma): máscara 10×10 de cubitos 4px ===');
+console.log('\n=== La estrella (destello 9×9): máscara real de cubitos 4px ===');
 {
-  const ESTRELLA = [ // espejo de main.js
-    '0000110000', '0001111000', '0011111100', '1111111111', '0111111110',
-    '0011111100', '0011111100', '0111001110', '1110000111', '1100000011',
+  const ESTRELLA = [ // espejo de main.js (export de Figma del dueño)
+    '000010000', '010010010', '001010100', '000111000', '111111111',
+    '000111000', '001010100', '010010010', '000010000',
   ];
   let n = 0;
-  for (let f = 0; f < 10; f++) {
+  for (let f = 0; f < 9; f++) {
     let l = '  ';
-    for (let c = 0; c < 10; c++) { const on = ESTRELLA[f][c] === '1'; l += on ? '█' : '·'; if (on) n++; }
+    for (let c = 0; c < 9; c++) { const on = ESTRELLA[f][c] === '1'; l += on ? '█' : '·'; if (on) n++; }
     console.log(l);
   }
-  console.log(`  cubitos de 4px por estrella: ${n}`);
+  console.log(`  cubitos de 4px por estrella: ${n} (esperado 29: ${n === 29 ? 'OK ✓' : 'NO ✗'})`);
   // Costo: la explosión son N fillRects simples (sin sombra/gradiente). Mide el
   // update de MAX_CUBOS=160 cubos por cuadro (peor caso ~2 estrellas + normales).
   const cubos = [];
@@ -145,3 +145,32 @@ console.log('\n=== Rendimiento: 16 targets + 24 bolitas + colisión ===');
   console.log(`  ${msPorCuadro.toFixed(3)} ms/cuadro (presupuesto 16.67ms para 60fps)`);
   console.log(`  → ${msPorCuadro < 16.67 ? 'SOSTIENE 60fps ✓ (tope 16 aguanta como diseño)' : 'NO llega: proponer tope técnico menor ✗'}`);
 }
+
+// ── (6) Frecuencia de estrella con PITY TIMER (500 spawns) ──────────
+console.log('\n=== Frecuencia de estrella: base 5% + pity 1%/spawn (tope 15%) ===');
+function simFrecuencia(conPity) {
+  const BASE = 0.05, PITY = 0.01, TOPE = 0.15;
+  let pity = 0, estrellas = 0, ultima = -1, maxIntervaloVacio = 0, ultimaBonanza = false;
+  const vivas = [];
+  for (let i = 0; i < 500; i++) {
+    // liberar la estrella viva del spawn anterior (para poder salir otra)
+    if (vivas.length) vivas.pop();
+    const prob = conPity ? Math.min(TOPE, BASE + PITY * pity) : BASE;
+    const hay = vivas.length > 0;
+    const sale = !hay && !ultimaBonanza && Math.random() < prob;
+    if (sale) {
+      estrellas++;
+      if (ultima >= 0) maxIntervaloVacio = Math.max(maxIntervaloVacio, i - ultima);
+      ultima = i;
+      pity = 0; ultimaBonanza = true; vivas.push(1);
+    } else {
+      pity += 1; ultimaBonanza = false;
+    }
+  }
+  return { pct: (estrellas / 500 * 100), maxInt: maxIntervaloVacio };
+}
+const conP = simFrecuencia(true);
+const sinP = simFrecuencia(false);
+console.log(`  con pity: ${conP.pct.toFixed(1)}% de spawns, intervalo máx entre estrellas = ${conP.maxInt} spawns`);
+console.log(`  sin pity (5% fijo): ${sinP.pct.toFixed(1)}%, intervalo máx = ${sinP.maxInt} spawns`);
+console.log(`  el pity acorta el peor intervalo: ${conP.maxInt < sinP.maxInt ? 'OK ✓' : '≈'}  (más recompensa, sin volverla predecible)`);

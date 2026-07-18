@@ -27,7 +27,7 @@
     indigo: tk('--indigo', '#5C5CC8'),
     indigoVivo: tk('--indigo-vivo', '#7C7CFF'),
     morado: tk('--morado', '#8B5CF6'),
-    amarillo: tk('--amarillo', '#FFD400'),
+    amarillo: tk('--amarillo', '#FBBF24'),
     textoApagado: tk('--texto-apagado', '#8989B1'),
     fuente: tk('--fuente', "'Inter', system-ui, -apple-system, sans-serif"),
   };
@@ -92,8 +92,13 @@
   const RADIO_DEBIL = 7;          // radio bajo debuff (mitad → poder mitad)
   const DEBUFF_MS = 5000;         // duración del debuff por tocar un enojado
 
-  // ── Bonanza (target de la fiesta) ──────────────────────────────────
-  const BONANZA_PROB = 0.03;      // 3% de los spawns (al azar, no por racha)
+  // ── Bonanza / estrella (target de la fiesta) ───────────────────────
+  // Frecuencia con PITY TIMER: base 5% + 1% por cada spawn sin estrella (tope
+  // 15%), se resetea al salir una. Garantiza recompensa sin volverla predecible.
+  const ESTRELLA_BASE = 0.05;
+  const ESTRELLA_PITY = 0.01;
+  const ESTRELLA_TOPE = 0.15;
+  const CAJA_ESPECIAL = { cx: 0, cy: 0, hw: 18, hh: 18 }; // caja 36×36 (estrella/moneda)
   const FIESTA_MS = 5000;         // duración de la fiesta
   const FIESTA_MAX = 16;          // tope de targets vivos durante la fiesta
   const FIESTA_RET_MIN = 80;      // ráfaga de spawn en fiesta (ms)
@@ -103,20 +108,21 @@
   // ── Inactividad ────────────────────────────────────────────────────
   const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
 
-  // Máscara 10×10 de la ESTRELLA (la Bonanza con forma): cubitos de 4px en
-  // 40×40px, pixelada estilo Lego. Sin ojos (es una estrella, no una criatura).
+  // Máscara EXACTA de la ESTRELLA (export de Figma del dueño): DESTELLO de 8
+  // puntas (cruz + 4 diagonales), 9×9 cubitos de 4px en 36×36px, 29 cubitos.
+  // Simétrico en ambos ejes. Sin ojos. NO reinterpretar.
   const ESTRELLA = [
-    '0000110000',
-    '0001111000',
-    '0011111100',
-    '1111111111',
-    '0111111110',
-    '0011111100',
-    '0011111100',
-    '0111001110',
-    '1110000111',
-    '1100000011',
+    '000010000',
+    '010010010',
+    '001010100',
+    '000111000',
+    '111111111',
+    '000111000',
+    '001010100',
+    '010010010',
+    '000010000',
   ];
+  const SPRITE_ESP = 36; // px del sprite de estrella/moneda (9×9 de 4px)
 
   // ── Constantes de la explosión de cubos (animación pura) ───────────
   const MAX_CUBOS = 160;      // tope de cubos vivos (una estrella son ~58 cubitos)
@@ -140,7 +146,8 @@
   const targets = [];
   let ultimoOrigen = null;    // ritmo: no dos seguidos del mismo origen
   let ultimoEnojado = false;  // nunca dos enojados seguidos
-  let ultimaBonanza = false;  // nunca dos bonanzas seguidas
+  let ultimaBonanza = false;  // nunca dos estrellas seguidas
+  let pityEstrella = 0;       // spawns sin estrella (sube la probabilidad)
   let debuffHasta = 0;        // timestamp fin del debuff (radio a la mitad)
   let fiestaHasta = 0;        // timestamp fin de la fiesta (tope y ritmo altos)
   let fiestaFlashHasta = 0;   // lavado suave al entrar a la fiesta
@@ -191,16 +198,17 @@
     while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
   }
 
-  // Centros de mundo de los CUBITOS de 4px de la estrella (para su explosión).
-  function cubitosEstrellaMundo(tg) {
+  // Centros de mundo de los CUBITOS de 4px de una máscara 9×9 (para su
+  // explosión). Sprite 36×36 centrado en (tg.x, tg.y).
+  function cubitosMascaraMundo(tg, mascara) {
     const out = [];
     const cw = Math.cos(tg.rot);
     const sw = Math.sin(tg.rot);
-    for (let f = 0; f < 10; f++) {
-      for (let c = 0; c < 10; c++) {
-        if (ESTRELLA[f][c] !== '1') continue;
-        const lx = -18 + c * 4; // centro del cubito (sprite 40×40, centrado)
-        const ly = -18 + f * 4;
+    for (let f = 0; f < 9; f++) {
+      for (let c = 0; c < 9; c++) {
+        if (mascara[f][c] !== '1') continue;
+        const lx = c * 4 - 16; // centro del cubito (sprite 36×36 centrado)
+        const ly = f * 4 - 16;
         out.push({ x: tg.x + lx * cw - ly * sw, y: tg.y + lx * sw + ly * cw });
       }
     }
@@ -220,13 +228,17 @@
     ultimoOrigen = t.origen;
     const enFiesta = ahora < fiestaHasta;
     const hayBonanza = targets.some(function (x) { return x.bonanza; });
-    if (!enFiesta && !hayBonanza && !ultimaBonanza && Math.random() < BONANZA_PROB) {
+    const probEstrella = Math.min(ESTRELLA_TOPE, ESTRELLA_BASE + ESTRELLA_PITY * pityEstrella);
+    if (!enFiesta && !hayBonanza && !ultimaBonanza && Math.random() < probEstrella) {
       t.bonanza = true;
+      t.caja = CAJA_ESPECIAL; // caja 36×36 real de los cubitos
       t.enojado = false;
       ultimaBonanza = true;
       ultimoEnojado = false;
+      pityEstrella = 0; // salió una estrella → resetea el pity
     } else {
       ultimaBonanza = false;
+      pityEstrella += 1; // spawn sin estrella → sube la probabilidad
       const prob = Math.min(ENOJADO_TOPE, ENOJADO_BASE + ENOJADO_POR_EXTRA * Math.max(0, targets.length - 3));
       t.enojado = !enFiesta && !ultimoEnojado && Math.random() < prob;
       ultimoEnojado = t.enojado;
@@ -423,7 +435,7 @@
           fiestaFlashHasta = t + FIESTA_FLASH_MS;
           b.neutro = true;
           // Celebración: la estrella estalla en sus cubitos de 4px --amarillo.
-          explotarCubos(cubitosEstrellaMundo(tg), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.amarillo, 4);
+          explotarCubos(cubitosMascaraMundo(tg, ESTRELLA), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.amarillo, 4);
           sacudidaHasta = t + SACUDIDA_MS;
           targets.splice(ti, 1);
           proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t)); // arranca la ráfaga
@@ -683,15 +695,15 @@
   // Cubos esquineros con la esquina exterior a 4px; ojos (celdas 6 y 8) en
   // --negro, cada uno solo si su celda sigue viva.
   function dibujarSpriteTarget(t, destella) {
-    // ESTRELLA (Bonanza con forma): máscara 10×10 de cubitos de 4px en
-    // --amarillo, PARPADEANDO a --crema (premio = LUZ). Sin ojos.
+    // ESTRELLA (destello 9×9): cubitos de 4px en --amarillo, PARPADEANDO a
+    // --crema (premio = LUZ). Sprite 36×36. Sin ojos.
     if (t.bonanza) {
       let colE = Math.sin(performance.now() / 110) > 0 ? COLOR.crema : COLOR.amarillo;
       if (destella) colE = COLOR.crema;
       ctx.fillStyle = colE;
-      for (let f = 0; f < 10; f++) {
-        for (let c = 0; c < 10; c++) {
-          if (ESTRELLA[f][c] === '1') ctx.fillRect(-20 + c * 4, -20 + f * 4, 4, 4);
+      for (let f = 0; f < 9; f++) {
+        for (let c = 0; c < 9; c++) {
+          if (ESTRELLA[f][c] === '1') ctx.fillRect(-18 + c * 4, -18 + f * 4, 4, 4);
         }
       }
       return;

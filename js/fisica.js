@@ -292,7 +292,9 @@
   // prueba círculo vs rect eje-alineado (centrado en la caja de celdas vivas),
   // y devuelve normal y punto de contacto en mundo (rotación +rot).
   function colisionCirculoRect(bolita, t) {
-    const caja = cajaLocal(t);
+    // t.caja: caja fija en espacio local (estrella/moneda, sprite 36×36); si no,
+    // el bounding box de las celdas vivas (targets normales/enojados).
+    const caja = t.caja || cajaLocal(t);
     if (!caja) return null;
     const R = bolita.radio || FISICA.RADIO_BOLITA; // radio actual (debuff = 7)
     const dx = bolita.x - t.x;
