@@ -1,10 +1,11 @@
 // hitclaud — service worker: cache-first del shell
-const CACHE = 'hitclaud-shell-v7';
+const CACHE = 'hitclaud-shell-v8';
 const SHELL = [
   '.',
   'index.html',
   'css/tokens.css',
   'css/main.css',
+  'js/util.js',
   'js/main.js',
   'js/fisica.js',
   'js/puntuacion.js',
@@ -15,8 +16,13 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
+  // CACHE HONESTO: cachea con cache:'reload' → cada asset se pide a la red
+  // SALTÁNDOSE el HTTP-cache del navegador. Sin esto, addAll puede guardar
+  // copias viejas y el código nuevo se ve viejo aunque el SW diga versión nueva.
   e.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(SHELL))
+    caches.open(CACHE).then((cache) =>
+      cache.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))
+    )
   );
   self.skipWaiting();
 });

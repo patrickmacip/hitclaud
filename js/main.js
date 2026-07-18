@@ -12,18 +12,23 @@
   const ctx = canvas.getContext('2d');
   const F = window.Fisica;
   const P = window.Puntuacion;
+  const U = window.Util;
 
+  // Lectura de tokens A PRUEBA DE FALLOS: si el CSS no está aplicado o el SW
+  // sirvió un tokens.css viejo, el respaldo literal evita el '' que rompe el
+  // canvas (fillStyle mudo / addColorStop que lanza). Respaldos = tokens.css.
   const tokens = getComputedStyle(document.documentElement);
+  function tk(nombre, respaldo) { return U.leerToken(nombre, respaldo, tokens.getPropertyValue(nombre)); }
   const COLOR = {
-    coral: tokens.getPropertyValue('--coral').trim(),
-    coralVivo: tokens.getPropertyValue('--coral-vivo').trim(),
-    crema: tokens.getPropertyValue('--crema').trim(),
-    negro: tokens.getPropertyValue('--negro').trim(),
-    indigo: tokens.getPropertyValue('--indigo').trim(),
-    indigoVivo: tokens.getPropertyValue('--indigo-vivo').trim(),
-    morado: tokens.getPropertyValue('--morado').trim(),
-    textoApagado: tokens.getPropertyValue('--texto-apagado').trim(),
-    fuente: tokens.getPropertyValue('--fuente').trim(),
+    coral: tk('--coral', '#E8704E'),
+    coralVivo: tk('--coral-vivo', '#FF8764'),
+    crema: tk('--crema', '#FFD9CE'),
+    negro: tk('--negro', '#000'),
+    indigo: tk('--indigo', '#5C5CC8'),
+    indigoVivo: tk('--indigo-vivo', '#7C7CFF'),
+    morado: tk('--morado', '#8B5CF6'),
+    textoApagado: tk('--texto-apagado', '#8989B1'),
+    fuente: tk('--fuente', "'Inter', system-ui, -apple-system, sans-serif"),
   };
 
   // Marcador (puntuación por demolición) + su celda en la barra superior.
@@ -326,13 +331,17 @@
     }
   }
 
+  // BLINDAJE: todo el cuerpo va en try/catch y el re-agendado del rAF vive en
+  // el finally → una excepción degrada ESE cuadro, jamás mata el bucle (antes,
+  // un throw en dibujar() saltaba el requestAnimationFrame y congelaba el juego).
   function cuadro(t) {
+   try {
     const dt = Math.min(t - tPrev, 32); // techo: pestañas en segundo plano
     tPrev = t;
 
     // Pausado: congela toda actualización (física, spawn, colisión, cobro);
-    // solo re-dibuja el estado y mantiene vivo el bucle.
-    if (pausado) { cobrando = false; dibujar(); rafId = requestAnimationFrame(cuadro); return; }
+    // solo re-dibuja el estado y mantiene vivo el bucle (rAF en el finally).
+    if (pausado) { cobrando = false; dibujar(); return; }
 
     // Costo de INACTIVIDAD: tras la gracia, cada segundo quieto cuesta el 25%
     // del castigo del tramo actual. El reloj NO corre si el documento está
@@ -463,8 +472,14 @@
       proximoSpawn = t + retardoActual(t);
     }
     dibujar();
-    // El juego lanza targets de continuo → el bucle sigue vivo.
+   } catch (e) {
+    if (typeof console !== 'undefined' && console.error) {
+      console.error('[hitclaud] error en un cuadro (degradado; el bucle sigue vivo):', e);
+    }
+   } finally {
+    // Re-agendar SIEMPRE: un cuadro malo degrada ese cuadro, nunca el juego.
     rafId = requestAnimationFrame(cuadro);
+   }
   }
 
   // ── Pintura ────────────────────────────────────────────────────────
