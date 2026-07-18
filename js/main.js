@@ -485,10 +485,9 @@
           debuffHasta = t + DEBUFF_MS;
           b.neutro = true;
         } else {
-          if (!b.tocado) {                     // primer toque de esta bolita = hit
+          if (!b.tocado) {                     // primer toque = hit (sube la racha continua)
             b.tocado = true;
-            const bono = P.anotarHit(marcador);
-            if (bono > 0) flotanteBono(bono);
+            P.anotarHit(marcador);
             P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, t); // respiro al 10º hit en dif. máx
           }
           if (r.destruidos > 0) {              // 10 pts por cubo demolido

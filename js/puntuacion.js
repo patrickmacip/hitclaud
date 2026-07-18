@@ -11,8 +11,14 @@
   // es constante en todos los tramos (a score 0: penalBase 50 → 10/cubo, como
   // antes). Interpolado dentro del tramo → sin salto en fronteras.
   const VALOR_DIV = 5;
-  // Bonos de racha (una vez, al alcanzar el hito exacto).
-  const HITOS = { 5: 500, 10: 1000, 50: 5000, 100: 20000 };
+  // Multiplicador de RACHA CONTINUA: un hit = hitball que toca ≥1 target; se
+  // rompe con el fallo de la hitball principal (no con dispersas ni contacto
+  // neutro). Desde el 3er hit, ×1.2, 4º ×1.4… +0.2/hit, tope ×3 (racha 12).
+  // REEMPLAZA los bonos de hito (dos sistemas de racha inflan la economía; la
+  // racha ahora se siente en CADA hit, no solo en hitos).
+  const RACHA_DESDE = 3;
+  const RACHA_PASO = 0.2;
+  const RACHA_TOPE = 3.0;
 
   // Castigo por TRAMOS (el tramo se calcula con el score ANTES de restar).
   const TRAMOS = [
@@ -101,24 +107,29 @@
   // Valor de un cubo según el tramo (proporcional al castigo, interpolado).
   function valorCubo(score) { return penalBase(score) / VALOR_DIV; }
 
-  // n cubos destruidos → +round(n·valorCubo(tramo)). El valor por cubo escala
-  // con el tramo (equilibrio con el castigo). Devuelve los puntos ganados.
+  // Multiplicador de racha continua para una racha dada (tope RACHA_TOPE).
+  function multRacha(racha) {
+    if (racha < RACHA_DESDE) return 1;
+    return Math.min(RACHA_TOPE, 1 + (racha - (RACHA_DESDE - 1)) * RACHA_PASO);
+  }
+
+  // n cubos destruidos → +round(n·valorCubo(tramo)·multRacha(racha)). El valor
+  // por cubo lo fija el TRAMO (equilibrio con el castigo); la racha lo amplifica
+  // DESPUÉS (premia el flujo sin distorsionar el ratio tramo↔castigo). Devuelve
+  // los puntos ganados.
   function anotarDestruidos(m, n) {
-    const g = Math.round(n * valorCubo(m.puntos));
+    const g = Math.round(n * valorCubo(m.puntos) * multRacha(m.racha));
     m.puntos += g;
     subirPico(m);
     return g;
   }
 
-  // Un hit (bolita que tocó ≥1 target): resetea fallos, sube la racha y paga el
-  // bono de hito si corresponde. Devuelve el bono (0 si no hay).
+  // Un hit (bolita que tocó ≥1 target): resetea fallos y sube la racha continua.
+  // Ya NO paga bonos de hito (el multiplicador continuo los reemplaza).
   function anotarHit(m) {
     m.fallosSeguidos = 0;
     m.racha += 1;
-    const bono = HITOS[m.racha] || 0;
-    m.puntos += bono;
-    subirPico(m);
-    return bono;
+    return m.racha;
   }
 
   // Fallo: castigo base interpolado (score ANTES de restar) × multiplicador
@@ -185,6 +196,7 @@
     penalBase: penalBase,
     multFallo: multFallo,
     valorCubo: valorCubo,
+    multRacha: multRacha,
     amortiguar: amortiguar,
     SUELO_PICO: SUELO_PICO,
     AMORT_MIN: AMORT_MIN,
@@ -195,9 +207,10 @@
     rangoVigente: rangoVigente,
     costoInactividad: costoInactividad,
     anotarInactividadSegundo: anotarInactividadSegundo,
-    HITOS: HITOS,
     TRAMOS: TRAMOS,
     VALOR_DIV: VALOR_DIV,
+    RACHA_DESDE: RACHA_DESDE,
+    RACHA_TOPE: RACHA_TOPE,
     RETARDO_BASE: RETARDO_BASE,
     RETARDO_TOPE: RETARDO_TOPE,
     SCORE_RITMO_MAX: SCORE_RITMO_MAX,
