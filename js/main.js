@@ -54,7 +54,11 @@
   const LAG_ESTELA = 3;       // muestreo hacia atrás por fantasma (×1,2,3)
 
   // ── Constantes del spawner de targets ──────────────────────────────
-  const MAX_TARGETS = 3;      // tope de targets vivos
+  // Tope 6 (sube de 3 para dar variedad sin tapizar la pantalla → evita
+  // acertar a ciegas). Si está lleno, el spawner ESPERA al próximo hueco:
+  // solo lanza cuando muere uno y su retardo se cumple. Retardo máx 1200ms
+  // (nunca una pausa larga y aburrida).
+  const MAX_TARGETS = 6;      // tope de targets vivos
   const SPAWN_MIN = 400;      // retardo mín tras una muerte (ms)
   const SPAWN_MAX = 1200;     // retardo máx (ms)
 
@@ -248,7 +252,7 @@
       F.paso(targets[i], dt, limites);
       if (!targets[i].viva) {
         targets.splice(i, 1);
-        proximoSpawn = Math.max(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX));
+        proximoSpawn = Math.min(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX)); // la muerte acelera el refill (nunca lo retrasa); hueco max = SPAWN_MAX
       }
     }
 
@@ -276,7 +280,7 @@
         if (r.muerto) {
           sacudidaHasta = t + SACUDIDA_MS;     // micro-sacudida solo en muerte
           targets.splice(ti, 1);
-          proximoSpawn = Math.max(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX));
+          proximoSpawn = Math.min(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX)); // la muerte acelera el refill (nunca lo retrasa); hueco max = SPAWN_MAX
         }
       }
     }
