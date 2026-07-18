@@ -78,6 +78,14 @@
   const RADIO_DEBIL = 7;          // radio bajo debuff (mitad → poder mitad)
   const DEBUFF_MS = 5000;         // duración del debuff por tocar un enojado
 
+  // ── Bonanza (target de la fiesta) ──────────────────────────────────
+  const BONANZA_PROB = 0.03;      // 3% de los spawns (al azar, no por racha)
+  const FIESTA_MS = 5000;         // duración de la fiesta
+  const FIESTA_MAX = 16;          // tope de targets vivos durante la fiesta
+  const FIESTA_RET_MIN = 80;      // ráfaga de spawn en fiesta (ms)
+  const FIESTA_RET_MAX = 220;
+  const FIESTA_FLASH_MS = 500;    // lavado suave de --crema al entrar
+
   // ── Inactividad ────────────────────────────────────────────────────
   const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
 
@@ -103,7 +111,10 @@
   const targets = [];
   let ultimoOrigen = null;    // ritmo: no dos seguidos del mismo origen
   let ultimoEnojado = false;  // nunca dos enojados seguidos
+  let ultimaBonanza = false;  // nunca dos bonanzas seguidas
   let debuffHasta = 0;        // timestamp fin del debuff (radio a la mitad)
+  let fiestaHasta = 0;        // timestamp fin de la fiesta (tope y ritmo altos)
+  let fiestaFlashHasta = 0;   // lavado suave al entrar a la fiesta
   let proximoSpawn = 0;       // timestamp mínimo del próximo lanzamiento
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
@@ -151,20 +162,49 @@
     while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
   }
 
-  // Lanza un target respetando el ritmo (origen distinto al anterior). La
-  // probabilidad de ENOJADO escala con la multitud (más targets no es ventaja):
-  // base 8% + 2% por cada vivo sobre 3, tope 25%; nunca dos enojados seguidos.
-  function generarTarget() {
+  // Lanza un target respetando el ritmo (origen distinto al anterior).
+  // BONANZA: 3% al azar, nunca dos seguidas, nunca si ya hay una viva, nunca en
+  // fiesta. ENOJADO (si no es bonanza): 8% + 2%/vivo>3, tope 25%, nunca dos
+  // seguidos, nunca en fiesta (la fiesta es alegría pura).
+  function generarTarget(ahora) {
     let t;
     for (let i = 0; i < 12; i++) {
       t = F.crearTarget({ w: W, h: H });
       if (t.origen !== ultimoOrigen) break;
     }
     ultimoOrigen = t.origen;
-    const prob = Math.min(ENOJADO_TOPE, ENOJADO_BASE + ENOJADO_POR_EXTRA * Math.max(0, targets.length - 3));
-    t.enojado = !ultimoEnojado && Math.random() < prob;
-    ultimoEnojado = t.enojado;
+    const enFiesta = ahora < fiestaHasta;
+    const hayBonanza = targets.some(function (x) { return x.bonanza; });
+    if (!enFiesta && !hayBonanza && !ultimaBonanza && Math.random() < BONANZA_PROB) {
+      t.bonanza = true;
+      t.enojado = false;
+      ultimaBonanza = true;
+      ultimoEnojado = false;
+    } else {
+      ultimaBonanza = false;
+      const prob = Math.min(ENOJADO_TOPE, ENOJADO_BASE + ENOJADO_POR_EXTRA * Math.max(0, targets.length - 3));
+      t.enojado = !enFiesta && !ultimoEnojado && Math.random() < prob;
+      ultimoEnojado = t.enojado;
+    }
     targets.push(t);
+  }
+
+  // Retardo del próximo spawn: en fiesta = ráfaga; si no, el ritmo del score.
+  function retardoActual(ahora) {
+    return ahora < fiestaHasta ? rnd(FIESTA_RET_MIN, FIESTA_RET_MAX) : retardoSpawn(ahora);
+  }
+
+  // Centros de mundo de los cubos vivos de un target (para explosión directa).
+  function cubosMundo(tg) {
+    const out = [];
+    const cw = Math.cos(tg.rot);
+    const sw = Math.sin(tg.rot);
+    for (let i = 0; i < 20; i++) {
+      if (!tg.celdas[i]) continue;
+      const l = F.celdaLocal(i);
+      out.push({ x: tg.x + l.x * cw - l.y * sw, y: tg.y + l.x * sw + l.y * cw });
+    }
+    return out;
   }
 
   function reposo() {
@@ -327,7 +367,7 @@
       F.paso(targets[i], dt, limites);
       if (!targets[i].viva) {
         targets.splice(i, 1);
-        proximoSpawn = Math.min(proximoSpawn, t + retardoSpawn(t)); // la muerte acelera el refill (nunca lo retrasa); hueco max = SPAWN_MAX
+        proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t)); // la muerte acelera el refill (nunca lo retrasa); hueco max = SPAWN_MAX
       }
     }
 
@@ -336,6 +376,19 @@
     function colisionar(b) {
       for (let ti = targets.length - 1; ti >= 0; ti--) {
         const tg = targets[ti];
+        if (tg.bonanza) {
+          // Bonanza: TODO O NADA. Cualquier contacto la activa (no se muerde).
+          // No puntúa; el premio es la fiesta. El contacto es neutro (no fallo).
+          if (!F.colisionCirculoRect(b, tg)) continue;
+          fiestaHasta = t + FIESTA_MS;
+          fiestaFlashHasta = t + FIESTA_FLASH_MS;
+          b.neutro = true;
+          explotarCubos(cubosMundo(tg), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.coral); // celebración
+          sacudidaHasta = t + SACUDIDA_MS;
+          targets.splice(ti, 1);
+          proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t)); // arranca la ráfaga
+          continue;
+        }
         const r = F.resolverImpacto(b, tg);
         if (!r) continue;
         tg.destelloHasta = t + DESTELLO_MS;    // destello en CUALQUIER contacto
@@ -363,7 +416,7 @@
         if (r.muerto) {
           sacudidaHasta = t + SACUDIDA_MS;     // micro-sacudida solo en muerte
           targets.splice(ti, 1);
-          proximoSpawn = Math.min(proximoSpawn, t + retardoSpawn(t)); // la muerte acelera el refill; hueco máx = 1200ms
+          proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t)); // la muerte acelera el refill; hueco máx = 1200ms
         }
       }
     }
@@ -401,10 +454,13 @@
       q.edad += dt;
       if (q.edad >= q.vida) cubos.splice(i, 1);
     }
-    // Flujo continuo: lanza en cuanto vence el retardo (tope duro = válvula).
-    if (targets.length < MAX_TARGETS_DURO && t >= proximoSpawn) {
-      generarTarget();
-      proximoSpawn = t + retardoSpawn(t);
+    // Flujo continuo: lanza en cuanto vence el retardo. En fiesta el tope sube
+    // a 16; al terminar vuelve a 12 y los sobrantes mueren por su vuelo (no se
+    // borran). Tope = válvula de rendimiento, no de diseño.
+    const capActual = t < fiestaHasta ? FIESTA_MAX : MAX_TARGETS_DURO;
+    if (targets.length < capActual && t >= proximoSpawn) {
+      generarTarget(t);
+      proximoSpawn = t + retardoActual(t);
     }
     dibujar();
     // El juego lanza targets de continuo → el bucle sigue vivo.
@@ -431,6 +487,21 @@
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
       const destella = t.destelloHasta && performance.now() < t.destelloHasta;
+      // Halo pulsante de la Bonanza (se lee desde la periferia). Un arco con
+      // glow por cuadro (a lo sumo 1 bonanza viva): costo despreciable.
+      if (t.bonanza) {
+        const now = performance.now();
+        ctx.save();
+        ctx.globalAlpha = 0.25 + 0.2 * Math.sin(now / 200);
+        ctx.strokeStyle = COLOR.crema;
+        ctx.lineWidth = 3;
+        ctx.shadowColor = COLOR.crema;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, 26 + 4 * Math.sin(now / 200), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.rotate(t.rot);
@@ -502,6 +573,17 @@
     }
     ctx.globalAlpha = 1;
 
+    // Entrada a la fiesta: lavado suave de --crema que se desvanece (~500ms).
+    // Sin pantallazos agresivos (juego desestresante). Un fillRect por cuadro.
+    const flash = fiestaFlashHasta - performance.now();
+    if (flash > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.18 * (flash / FIESTA_FLASH_MS);
+      ctx.fillStyle = COLOR.crema;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+
     // Aviso sutil de inactividad (cobrando): puntos "· · ·" tenues y pulsantes
     // abajo-centro en --texto-apagado. Sin alarmas (juego desestresante).
     if (cobrando) {
@@ -538,9 +620,11 @@
     const RADIO_ESQ = 4;
     const x = -20;
     const y = -16;
-    // Color como SEÑAL: coral = normal, --morado = enojado (castigo). La cara
-    // es idéntica al normal (mismos ojos, mismo patrón). El destello pinta --crema.
+    // Color como SEÑAL: coral = normal, --morado = enojado (castigo). La
+    // BONANZA es coral pero PARPADEA a --crema (identidad por LUZ, no color).
+    // La cara es idéntica en todos. El destello de contacto pinta --crema.
     let col = t.enojado ? COLOR.morado : COLOR.coral;
+    if (t.bonanza && Math.sin(performance.now() / 110) > 0) col = COLOR.crema;
     if (destella) col = COLOR.crema;
     ctx.fillStyle = col;
     for (let f = 0; f < FILAS; f++) {
