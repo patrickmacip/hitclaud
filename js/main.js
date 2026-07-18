@@ -30,7 +30,6 @@
     dorado: tk('--dorado', '#FFC300'),
     cian: tk('--cian', '#22D3EE'),
     disperso: tk('--disperso', '#6FFF2C'), // dispersión de moneda (verde)
-    amenaza: tk('--amenaza', '#08080E'),
     cloudoverA: tk('--cloudover-a', '#B1003B'),
     cloudoverB: tk('--cloudover-b', '#FF0055'),
     textoApagado: tk('--texto-apagado', '#8989B1'),
@@ -203,6 +202,7 @@
   const CLOUD_MAX = 25000;
   const CLOUD_LENTO = 0.5;    // 50% más lento (reduce la velocidad de lanzamiento)
   const CLOUD_ESCALA = 1.3;   // 1.3× el target normal (más visible, más ominoso)
+  const CLOUD_PARPADEO_MS = 100; // parpadeo entre cloudover-a/b (loop, afinable)
 
   // ── Inactividad ────────────────────────────────────────────────────
   const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
@@ -958,10 +958,10 @@
     const y = -16;
     // Color como SEÑAL: coral = normal, --azul = enojado. Los PREMIOS son el
     // target normal (coral) PARPADEANDO hacia su brillo: --dorado la estrella,
-    // --cian la moneda. El CLOUDOVER es --amenaza (oscuro) con LATIDO ROJO
-    // interno lento (como brasa), SIN brillo → peligro, no premio.
+    // --cian la moneda. El CLOUDOVER PARPADEA entre --cloudover-a y --cloudover-b
+    // cada 100ms (rojos oscuros, SIN brillo → peligro, no premio).
     let col = t.enojado ? COLOR.azul : COLOR.coral;
-    if (t.cloud) col = COLOR.amenaza;
+    if (t.cloud) col = Math.floor(performance.now() / CLOUD_PARPADEO_MS) % 2 ? COLOR.cloudoverA : COLOR.cloudoverB;
     if (t.bonanza && Math.sin(performance.now() / 110) > 0) col = COLOR.dorado;
     if (t.moneda && Math.sin(performance.now() / 110) > 0) col = COLOR.cian;
     if (destella) col = COLOR.crema;
@@ -981,15 +981,6 @@
         ctx.roundRect(cx, cy, CUBO, CUBO, radios);
         ctx.fill();
       }
-    }
-    // CLOUDOVER: latido rojo interno (brasa) — overlay pulsante lento sobre los
-    // cubos oscuros. SIN halo/glow (eso es de los premios). Un fillRect/cuadro.
-    if (t.cloud) {
-      ctx.save();
-      ctx.globalAlpha = 0.12 + 0.55 * (0.5 + 0.5 * Math.sin(performance.now() / 620)); // latido más marcado
-      ctx.fillStyle = COLOR.cloudoverB;
-      ctx.fillRect(x, y, COLS * CUBO, FILAS * CUBO);
-      ctx.restore();
     }
     // Ojos: celdas 6 (f1,c1) y 8 (f1,c3), cada una si sigue viva.
     ctx.fillStyle = COLOR.negro;

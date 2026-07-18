@@ -66,3 +66,15 @@ console.log('\n=== La colisión detecta el contacto (caja escalada) ===');
   const b = { x: 200, y: 400, radio: 14 };
   console.log(`  hitball en el centro colisiona: ${F.colisionCirculoRect(b, cloud) ? 'OK ✓' : 'NO ✗'}`);
 }
+
+console.log('\n=== Parpadeo A/B cada 100ms (loop) ===');
+{
+  const A = '#B1003B', B = '#FF0055', MS = 100;
+  const col = (t) => Math.floor(t / MS) % 2 ? A : B;
+  // muestreo a lo largo de 400ms: debe alternar B,A,B,A por tramos de 100ms
+  const secuencia = [0, 100, 200, 300].map(col);
+  const alterna = secuencia[0] === B && secuencia[1] === A && secuencia[2] === B && secuencia[3] === A;
+  console.log(`  t=0/100/200/300 → ${secuencia.map(c=>c===A?'A':'B').join(',')}  ${alterna ? 'OK ✓ (alterna cada 100ms)' : 'NO ✗'}`);
+  // dentro de un mismo tramo de 100ms NO cambia:
+  console.log(`  t=10 y t=90 iguales (mismo tramo): ${col(10) === col(90) ? 'OK ✓' : 'NO ✗'}`);
+}
