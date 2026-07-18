@@ -13,6 +13,11 @@ Registro de aprendizajes del proyecto. Una entrada por lección, con fecha.
 - **Un mismo dato inválido produce síntomas distintos según la API del canvas:** `fillStyle = ''` se **ignora en silencio** (bug visual mudo: pinta con el color anterior); `addColorStop('')` **lanza** (bug ruidoso: congela). Por eso el enojado se veía negro Y el juego se congelaba, del mismo `COLOR.morado = ''`.
 - **Nunca dejar que un token caiga a `''`:** leer siempre con respaldo literal (`leerToken`) y avisar por consola con el nombre → diagnóstico futuro sin misterio.
 
+## 2026-07-18 — Especificidad: una clase utilitaria no anula un ID
+
+- **Una clase utilitaria (`.oculto`, 0-0-1-0) NO puede anular una regla de ID (`#gameover { display: flex }`, 0-1-0-0) por especificidad** → el elemento no se oculta aunque tenga la clase. Fix: `#id.clase { display: none }` (0-1-1-0, gana), o mantener el overlay SIN estilos de `display` en el selector de ID.
+- **Síntoma engañoso:** el elemento no se oculta y el botón "no responde", **aunque el handler SÍ corre** (verificado con estilo computado: `handlerCorrio=true`, `errores=[]`, pero `display` seguía en `flex`). El bug estaba en el CSS, no en el JS. Ante "el botón no hace nada", medir el estilo computado antes de tocar la lógica.
+
 ## 2026-07-17 — Excepción de gravedad para los targets
 
 - `paso()` es la fuente única de física, PERO acepta gravedad por objeto (`o.gravedad`). Las bolitas usan `GRAVEDAD = 0.0035` (validada por el dueño; alterarla cambiaría sus tiros). Los targets usan `G_TARGET = 0.0021` (0.6×): "flote lunar".

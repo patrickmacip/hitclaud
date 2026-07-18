@@ -129,6 +129,9 @@ body {
 /* ── Overlay de game-over (CloudOver) ────────────────────────── */
 
 .oculto { display: none; }
+/* Una clase utilitaria (0-0-1-0) NO puede anular #gameover{display:flex}
+   (ID, 0-1-0-0). Regla ID+clase (0-1-1-0) para que ocultar gane. */
+#gameover.oculto { display: none; }
 
 #gameover {
   position: fixed;
