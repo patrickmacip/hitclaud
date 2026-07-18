@@ -34,7 +34,7 @@ console.log('\n=== Toque mínimo → 1 cubo (10 pts) ===');
   console.log(`  arrancados=${r.destruidos} (≥1) = ${r.destruidos * 10} pts  ${r.destruidos >= 1 ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('\n=== PRESUPUESTO peor caso: fiesta con explosiones + cubos cayendo ===');
+console.log('\n=== PRESUPUESTO peor caso: POWER-UP + fiesta 16 targets + explosiones ===');
 {
   const MAX_CUBOS = 240;
   const cubos = [];
@@ -43,19 +43,25 @@ console.log('\n=== PRESUPUESTO peor caso: fiesta con explosiones + cubos cayendo
       const a = Math.random() * Math.PI * 2, v = 0.3 + Math.random() * 0.5;
       cubos.push({ x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.6, viva: true });
     }
-    while (cubos.length > MAX_CUBOS) cubos.shift(); // recicla los MÁS VIEJOS
+    while (cubos.length > MAX_CUBOS) cubos.shift(); // recicla los MÁS VIEJOS (ya saliendo)
   }
-  let pico = 0;
-  const FRAMES = 1200; // 20s
+  // Peor caso: power-up activo → cada impacto de la hitball (y de las 6 dispersas
+  // que impactan) arranca cubos. Modelo: ~1 impacto cada 2 cuadros (24 bolitas
+  // en fiesta), ~4 cubos por impacto; + una estrella/moneda (20) cada ~2.5s.
+  let pico = 0, reciclados = 0;
+  const FRAMES = 1800; // 30s
   const t0 = process.hrtime.bigint();
   for (let f = 0; f < FRAMES; f++) {
-    // fiesta: una destrucción (20 cubos) cada ~200ms, una estrella (58) cada ~3s
-    if (f % 12 === 0) explotar(20, Math.random() * VP.w, Math.random() * VP.h * 0.6);
-    if (f % 180 === 0) explotar(58, Math.random() * VP.w, Math.random() * VP.h * 0.5);
+    if (f % 2 === 0) explotar(4, Math.random() * VP.w, Math.random() * VP.h * 0.7);   // impactos frecuentes
+    if (f % 6 === 0) explotar(4, Math.random() * VP.w, Math.random() * VP.h * 0.7);   // dispersas que impactan
+    if (f % 150 === 0) explotar(20, Math.random() * VP.w, Math.random() * VP.h * 0.5); // premio/destrucción total
+    const antes = cubos.length;
     for (let i = cubos.length - 1; i >= 0; i--) { pasoCubo(cubos[i]); if (!cubos[i].viva) cubos.splice(i, 1); }
+    if (cubos.length === MAX_CUBOS) reciclados++;
     pico = Math.max(pico, cubos.length);
   }
   const ms = Number(process.hrtime.bigint() - t0) / 1e6 / FRAMES;
-  console.log(`  pico de cubos vivos: ${pico} (tope ${MAX_CUBOS})  ${pico <= MAX_CUBOS ? 'dentro del tope ✓' : 'recicla los más viejos'}`);
-  console.log(`  update: ${ms.toFixed(4)} ms/cuadro (presupuesto 16.67) → ${ms < 16.67 ? '60fps ✓' : 'NO ✗'}  (dibujo = fillRects simples)`);
+  console.log(`  pico de cubos vivos: ${pico} (tope ${MAX_CUBOS})  cuadros en el tope (reciclando viejos): ${reciclados}`);
+  console.log(`  update: ${ms.toFixed(4)} ms/cuadro (presupuesto 16.67) → ${ms < 16.67 ? '60fps ✓' : 'NO ✗'}`);
+  console.log(`  dibujo = fillRects simples (${MAX_CUBOS} máx). MAX_CUBOS ${pico >= MAX_CUBOS ? 'se alcanza: recicla los más viejos (aceptable, ya salen por abajo)' : 'holgado, sin reciclar'}.`);
 }
