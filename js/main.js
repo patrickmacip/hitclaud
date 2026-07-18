@@ -99,6 +99,11 @@
   const ESTRELLA_PITY = 0.01;
   const ESTRELLA_TOPE = 0.15;
   const CAJA_ESPECIAL = { cx: 0, cy: 0, hw: 18, hh: 18 }; // caja 36×36 (estrella/moneda)
+
+  // ── Moneda (premio de dispersión: 6 hitballs) ──────────────────────
+  const MONEDA_PROB = 0.05;    // 5% de los spawns; independiente de la estrella
+  const MONEDA_BOLAS = 6;      // hitballs que nacen al activarla
+  const MONEDA_VEL = [0.8, 1.3]; // rango de velocidad del "puff" (px/ms)
   const FIESTA_MS = 5000;         // duración de la fiesta
   const FIESTA_MAX = 16;          // tope de targets vivos durante la fiesta
   const FIESTA_RET_MIN = 80;      // ráfaga de spawn en fiesta (ms)
@@ -124,6 +129,21 @@
   ];
   const SPRITE_ESP = 36; // px del sprite de estrella/moneda (9×9 de 4px)
 
+  // Máscara de la MONEDA (premio de dispersión): CÍRCULO de cubitos de 4px,
+  // 9×9 en 36×36. La FORMA distingue el tipo (destello=estrella, círculo=moneda);
+  // el color (--amarillo) es el mismo (idioma: amarillo = premio). Sin ojos.
+  const MONEDA = [
+    '000111000',
+    '011111110',
+    '011111110',
+    '111111111',
+    '111111111',
+    '111111111',
+    '011111110',
+    '011111110',
+    '000111000',
+  ];
+
   // ── Constantes de la explosión de cubos (animación pura) ───────────
   const MAX_CUBOS = 160;      // tope de cubos vivos (una estrella son ~58 cubitos)
   const CUBO_VIDA_MIN = 800;  // ms de vida (se desvanecen)
@@ -147,6 +167,7 @@
   let ultimoOrigen = null;    // ritmo: no dos seguidos del mismo origen
   let ultimoEnojado = false;  // nunca dos enojados seguidos
   let ultimaBonanza = false;  // nunca dos estrellas seguidas
+  let ultimaMoneda = false;   // nunca dos monedas seguidas
   let pityEstrella = 0;       // spawns sin estrella (sube la probabilidad)
   let debuffHasta = 0;        // timestamp fin del debuff (radio a la mitad)
   let fiestaHasta = 0;        // timestamp fin de la fiesta (tope y ritmo altos)
@@ -239,11 +260,41 @@
     } else {
       ultimaBonanza = false;
       pityEstrella += 1; // spawn sin estrella → sube la probabilidad
-      const prob = Math.min(ENOJADO_TOPE, ENOJADO_BASE + ENOJADO_POR_EXTRA * Math.max(0, targets.length - 3));
-      t.enojado = !enFiesta && !ultimoEnojado && Math.random() < prob;
-      ultimoEnojado = t.enojado;
+      const hayMoneda = targets.some(function (x) { return x.moneda; });
+      if (!enFiesta && !hayMoneda && !ultimaMoneda && Math.random() < MONEDA_PROB) {
+        // Moneda: independiente de la estrella (pueden coexistir en pantalla).
+        t.moneda = true;
+        t.caja = CAJA_ESPECIAL;
+        t.enojado = false;
+        ultimaMoneda = true;
+        ultimoEnojado = false;
+      } else {
+        ultimaMoneda = false;
+        const prob = Math.min(ENOJADO_TOPE, ENOJADO_BASE + ENOJADO_POR_EXTRA * Math.max(0, targets.length - 3));
+        t.enojado = !enFiesta && !ultimoEnojado && Math.random() < prob;
+        ultimoEnojado = t.enojado;
+      }
     }
     targets.push(t);
+  }
+
+  // La moneda se disuelve en 6 hitballs PEQUEÑAS (radio 7, poder reducido =
+  // misma ruta que el debuff) desde (px,py), en abanico hacia arriba ("puff").
+  // Marcadas `moneda` (NO penalizan al morir). Si el tope de 24 está lleno,
+  // nacen las que quepan (el premio no rompe el límite de rendimiento).
+  function dispersarMoneda(px, py) {
+    const n = Math.min(MONEDA_BOLAS, Math.max(0, MAX_BOLITAS - bolitas.length));
+    for (let i = 0; i < n; i++) {
+      const ang = -Math.PI / 2 + ((i + 0.5) / MONEDA_BOLAS - 0.5) * (Math.PI * 1.1);
+      const vel = rnd(MONEDA_VEL[0], MONEDA_VEL[1]);
+      bolitas.push({
+        x: px, y: py,
+        vx: Math.cos(ang) * vel, vy: Math.sin(ang) * vel,
+        radio: RADIO_DEBIL, chica: true, moneda: true,
+        edad: 0, viva: true, tocado: false, neutro: false, historia: [],
+      });
+    }
+    return n;
   }
 
   // Retardo del próximo spawn: en fiesta = ráfaga; si no, el ritmo del score.
@@ -441,6 +492,18 @@
           proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t)); // arranca la ráfaga
           continue;
         }
+        if (tg.moneda) {
+          // Moneda: TODO O NADA. Cualquier contacto la disuelve en 6 hitballs.
+          // No puntúa; contacto neutro (ni hit ni fallo).
+          if (!F.colisionCirculoRect(b, tg)) continue;
+          b.neutro = true;
+          dispersarMoneda(tg.x, tg.y);
+          explotarCubos(cubitosMascaraMundo(tg, MONEDA), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.amarillo, 4);
+          sacudidaHasta = t + SACUDIDA_MS;
+          targets.splice(ti, 1);
+          proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t));
+          continue;
+        }
         const r = F.resolverImpacto(b, tg);
         if (!r) continue;
         tg.destelloHasta = t + DESTELLO_MS;    // destello en CUALQUIER contacto
@@ -478,7 +541,7 @@
     const debuffActivo = t < debuffHasta;
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
-      b.radio = debuffActivo ? RADIO_DEBIL : RADIO_NORMAL; // debuff afecta a TODAS
+      b.radio = (debuffActivo || b.chica) ? RADIO_DEBIL : RADIO_NORMAL; // debuff o bolita de moneda
       F.paso(b, dt, limites, function () { colisionar(b); });
       b.historia.unshift({ x: b.x, y: b.y }); // estela propia (3 fantasmas)
       if (b.historia.length > LAG_ESTELA * 3 + 1) b.historia.pop();
@@ -486,8 +549,11 @@
     // Retira las bolitas muertas: si no tocó nada (y no fue neutro por tocar un
     // enojado) = FALLO (castigo del tramo, rompe racha).
     for (let i = bolitas.length - 1; i >= 0; i--) {
-      if (!bolitas[i].viva) {
-        if (!bolitas[i].tocado && !bolitas[i].neutro) {
+      const b = bolitas[i];
+      if (!b.viva) {
+        // FALLO si murió sin tocar nada; PERO las bolitas de moneda NO penalizan
+        // (regla del dueño: el premio no puede volverse desventaja).
+        if (!b.tocado && !b.neutro && !b.moneda) {
           P.anotarFallo(marcador, { debuff: t < debuffHasta }); // espiral: en debuff no escala
           actualizarMarcador();
         }
@@ -550,18 +616,20 @@
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
       const destella = t.destelloHasta && performance.now() < t.destelloHasta;
-      // Halo pulsante de la Bonanza (se lee desde la periferia). Un arco con
-      // glow por cuadro (a lo sumo 1 bonanza viva): costo despreciable.
-      if (t.bonanza) {
+      // Halo pulsante de los premios (se lee desde la periferia). Un arco con
+      // glow por cuadro. La estrella lo lleva fuerte; la moneda, suave (premio
+      // menor). Costo despreciable.
+      if (t.bonanza || t.moneda) {
         const now = performance.now();
+        const fuerte = t.bonanza;
         ctx.save();
-        ctx.globalAlpha = 0.25 + 0.2 * Math.sin(now / 200);
-        ctx.strokeStyle = COLOR.crema;
-        ctx.lineWidth = 3;
-        ctx.shadowColor = COLOR.crema;
-        ctx.shadowBlur = 10;
+        ctx.globalAlpha = (fuerte ? 0.25 : 0.14) + (fuerte ? 0.2 : 0.1) * Math.sin(now / 200);
+        ctx.strokeStyle = fuerte ? COLOR.crema : COLOR.amarillo;
+        ctx.lineWidth = fuerte ? 3 : 2;
+        ctx.shadowColor = fuerte ? COLOR.crema : COLOR.amarillo;
+        ctx.shadowBlur = fuerte ? 10 : 6;
         ctx.beginPath();
-        ctx.arc(t.x, t.y, 26 + 4 * Math.sin(now / 200), 0, Math.PI * 2);
+        ctx.arc(t.x, t.y, 24 + (fuerte ? 4 : 2) * Math.sin(now / 200), 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
@@ -695,15 +763,18 @@
   // Cubos esquineros con la esquina exterior a 4px; ojos (celdas 6 y 8) en
   // --negro, cada uno solo si su celda sigue viva.
   function dibujarSpriteTarget(t, destella) {
-    // ESTRELLA (destello 9×9): cubitos de 4px en --amarillo, PARPADEANDO a
-    // --crema (premio = LUZ). Sprite 36×36. Sin ojos.
-    if (t.bonanza) {
-      let colE = Math.sin(performance.now() / 110) > 0 ? COLOR.crema : COLOR.amarillo;
+    // ESTRELLA / MONEDA: máscara 9×9 de cubitos de 4px en --amarillo, sprite
+    // 36×36, sin ojos. La estrella PARPADEA a --crema (más luz); la moneda es
+    // sólida (premio menor). La forma (destello vs círculo) distingue el tipo.
+    if (t.bonanza || t.moneda) {
+      const mascara = t.bonanza ? ESTRELLA : MONEDA;
+      let colE = COLOR.amarillo;
+      if (t.bonanza && Math.sin(performance.now() / 110) > 0) colE = COLOR.crema;
       if (destella) colE = COLOR.crema;
       ctx.fillStyle = colE;
       for (let f = 0; f < 9; f++) {
         for (let c = 0; c < 9; c++) {
-          if (ESTRELLA[f][c] === '1') ctx.fillRect(-18 + c * 4, -18 + f * 4, 4, 4);
+          if (mascara[f][c] === '1') ctx.fillRect(-18 + c * 4, -18 + f * 4, 4, 4);
         }
       }
       return;
