@@ -29,6 +29,8 @@
     morado: tk('--morado', '#8B5CF6'),
     dorado: tk('--dorado', '#FBBF24'),
     cian: tk('--cian', '#22D3EE'),
+    amenaza: tk('--amenaza', '#08080E'),
+    rojoBrasa: tk('--rojo-brasa', '#EF4444'),
     textoApagado: tk('--texto-apagado', '#8989B1'),
     fuente: tk('--fuente', "'Inter', system-ui, -apple-system, sans-serif"),
   };
@@ -46,6 +48,22 @@
   const record = U.crearRecord(almacen, 'hitclaud.record', 500);
   const elRecord = document.querySelector('.marcador--record .valor');
   function actualizarRecord() { elRecord.textContent = record.valor; }
+
+  // Game over (CloudOver): congela la partida y muestra el overlay mínimo con
+  // score final, marca de récord si aplica, y REINICIAR (recarga la página =
+  // reset total; sin construir el ciclo de partida completo).
+  const elGameOver = document.getElementById('gameover');
+  function terminarPartida() {
+    if (gameOver) return;
+    gameOver = true;
+    record.flush(performance.now()); // asegura la marca guardada
+    const esRecord = marcador.puntos >= record.valor && marcador.puntos > 0;
+    elGameOver.querySelector('.go-score .valor').textContent = marcador.puntos;
+    elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
+    elGameOver.classList.remove('oculto');
+  }
+  const elReiniciar = document.getElementById('reiniciar');
+  if (elReiniciar) elReiniciar.addEventListener('click', function () { window.location.reload(); });
 
   // Retardo del próximo spawn: rango vigente (escala con el score; base en
   // respiro) sorteado → tiempos variables. Hueco máx absoluto = 1200ms (base).
@@ -116,6 +134,11 @@
   const FIESTA_RET_MAX = 220;
   const FIESTA_FLASH_MS = 500;    // lavado suave de --crema al entrar
 
+  // ── CloudOver (game over) ──────────────────────────────────────────
+  const CLOUD_MIN = 5000;     // aparece cada 5–25s (aleatorio)
+  const CLOUD_MAX = 25000;
+  const CLOUD_LENTO = 0.5;    // 50% más lento (reduce la velocidad de lanzamiento)
+
   // ── Inactividad ────────────────────────────────────────────────────
   const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
 
@@ -151,6 +174,8 @@
   let pityEstrella = 0;       // spawns sin estrella (sube la probabilidad)
   let debuffHasta = 0;        // timestamp fin del debuff (radio a la mitad)
   let powerupHasta = 0;       // timestamp fin del power-up de moneda (dispersión)
+  let cloudProximo = 0;       // timestamp del próximo CloudOver
+  let gameOver = false;       // partida terminada por CloudOver
   let fiestaHasta = 0;        // timestamp fin de la fiesta (tope y ritmo altos)
   let fiestaFlashHasta = 0;   // lavado suave al entrar a la fiesta
   let powerFlashHasta = 0;    // destello cian al activar el power-up
@@ -271,6 +296,17 @@
       });
     }
     return n;
+  }
+
+  // CloudOver: target normal marcado `cloud`, sin premios/enojado, 50% más
+  // lento (reduzco su velocidad de lanzamiento; la gravedad global NO se toca).
+  function generarCloud() {
+    const t = F.crearTarget({ w: W, h: H });
+    t.cloud = true;
+    t.enojado = false;
+    t.vx *= CLOUD_LENTO;
+    t.vy *= CLOUD_LENTO;
+    targets.push(t);
   }
 
   // Retardo del próximo spawn: en fiesta = ráfaga; si no, el ritmo del score.
@@ -408,9 +444,9 @@
     const dt = Math.min(t - tPrev, 32); // techo: pestañas en segundo plano
     tPrev = t;
 
-    // Pausado: congela toda actualización (física, spawn, colisión, cobro);
-    // solo re-dibuja el estado y mantiene vivo el bucle (rAF en el finally).
-    if (pausado) { cobrando = false; dibujar(); return; }
+    // Pausado o GAME OVER: congela toda actualización (física, spawn, colisión,
+    // cobro); solo re-dibuja el estado (rAF en el finally mantiene vivo el bucle).
+    if (pausado || gameOver) { cobrando = false; dibujar(); return; }
 
     // Costo de INACTIVIDAD: tras la gracia, cada segundo quieto cuesta el 25%
     // del castigo del tramo actual. El reloj NO corre si el documento está
@@ -469,6 +505,13 @@
           targets.splice(ti, 1);
           proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t)); // arranca la ráfaga
           continue;
+        }
+        if (tg.cloud) {
+          // CloudOver: CUALQUIER contacto (tu hitball O una dispersa/pequeña)
+          // TERMINA LA PARTIDA. Es peligro para todo.
+          if (!F.colisionCirculoRect(b, tg)) continue;
+          terminarPartida();
+          return; // corta el cuadro; el bucle se congela
         }
         if (tg.moneda) {
           // Moneda: TODO O NADA. Activa el POWER-UP explosivo por 10s (no
@@ -563,10 +606,17 @@
     // Flujo continuo: lanza en cuanto vence el retardo. En fiesta el tope sube
     // a 16; al terminar vuelve a 12 y los sobrantes mueren por su vuelo (no se
     // borran). Tope = válvula de rendimiento, no de diseño.
-    const capActual = t < fiestaHasta ? FIESTA_MAX : MAX_TARGETS_DURO;
+    const enFiesta = t < fiestaHasta;
+    const capActual = enFiesta ? FIESTA_MAX : MAX_TARGETS_DURO;
     if (targets.length < capActual && t >= proximoSpawn) {
       generarTarget(t);
       proximoSpawn = t + retardoActual(t);
+    }
+    // CloudOver: cada 5–25s, nunca dos vivos, NUNCA durante la fiesta de premio
+    // (decisión del director: no arruinar el momento de premio).
+    if (t >= cloudProximo && !enFiesta && !targets.some(function (x) { return x.cloud; })) {
+      generarCloud();
+      cloudProximo = t + rnd(CLOUD_MIN, CLOUD_MAX);
     }
     // Récord EN VIVO: si el score superó el récord, sube ya (y escribe con throttle).
     if (record.considerar(marcador.puntos, t)) actualizarRecord();
@@ -806,9 +856,10 @@
     const y = -16;
     // Color como SEÑAL: coral = normal, --morado = enojado. Los PREMIOS son el
     // target normal (coral) PARPADEANDO hacia su brillo: --dorado la estrella,
-    // --cian la moneda (el color del brillo distingue, no la forma). El
-    // destello de contacto pinta --crema.
+    // --cian la moneda. El CLOUDOVER es --amenaza (oscuro) con LATIDO ROJO
+    // interno lento (como brasa), SIN brillo → peligro, no premio.
     let col = t.enojado ? COLOR.morado : COLOR.coral;
+    if (t.cloud) col = COLOR.amenaza;
     if (t.bonanza && Math.sin(performance.now() / 110) > 0) col = COLOR.dorado;
     if (t.moneda && Math.sin(performance.now() / 110) > 0) col = COLOR.cian;
     if (destella) col = COLOR.crema;
@@ -829,8 +880,16 @@
         ctx.fill();
       }
     }
-    // Ojos: celdas 6 (f1,c1) y 8 (f1,c3), cada una si sigue viva. Iguales en
-    // normal y enojado (la señal es el COLOR, no la cara).
+    // CLOUDOVER: latido rojo interno (brasa) — overlay pulsante lento sobre los
+    // cubos oscuros. SIN halo/glow (eso es de los premios). Un fillRect/cuadro.
+    if (t.cloud) {
+      ctx.save();
+      ctx.globalAlpha = 0.18 + 0.32 * (0.5 + 0.5 * Math.sin(performance.now() / 700));
+      ctx.fillStyle = COLOR.rojoBrasa;
+      ctx.fillRect(x, y, COLS * CUBO, FILAS * CUBO);
+      ctx.restore();
+    }
+    // Ojos: celdas 6 (f1,c1) y 8 (f1,c3), cada una si sigue viva.
     ctx.fillStyle = COLOR.negro;
     if (t.celdas[6]) ctx.fillRect(x + 1 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
     if (t.celdas[8]) ctx.fillRect(x + 3 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
@@ -858,6 +917,7 @@
   actualizarMarcador();  // arranca en 0 (no el placeholder del HTML)
   actualizarRecord();    // muestra el récord persistido (o 0)
   marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
+  cloudProximo = performance.now() + rnd(CLOUD_MIN, CLOUD_MAX); // primer CloudOver
   arrancarBucle();       // el spawner de targets corre desde el arranque
 
   if ('serviceWorker' in navigator) {

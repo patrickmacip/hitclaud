@@ -125,3 +125,66 @@ body {
   0%, 100% { transform: scale(1); opacity: 0.9; }
   50% { transform: scale(1.06); opacity: 0.5; }
 }
+
+/* ── Overlay de game-over (CloudOver) ────────────────────────── */
+
+.oculto { display: none; }
+
+#gameover {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 8, 14, 0.82); /* --amenaza translúcido */
+  padding: env(safe-area-inset-top) 24px 24px;
+}
+
+.go-panel {
+  background: var(--superficie);
+  border-radius: 16px;
+  padding: 32px 28px;
+  text-align: center;
+  max-width: 320px;
+  width: 100%;
+}
+
+.go-titulo {
+  font: var(--texto-xl);
+  color: var(--rojo-brasa);
+  margin-bottom: 16px;
+}
+
+.go-score {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.go-score .etiqueta {
+  font: var(--texto-s);
+  color: var(--texto-apagado);
+}
+.go-score .valor {
+  font: var(--texto-xl);
+  color: var(--coral-vivo);
+}
+
+.go-record {
+  font: var(--texto-m);
+  color: var(--dorado);
+  margin-bottom: 8px;
+}
+
+.go-reiniciar {
+  margin-top: 20px;
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: var(--radio);
+  background: var(--coral);
+  color: var(--negro);
+  font: var(--texto-m);
+  cursor: pointer;
+}

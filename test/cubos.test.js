@@ -34,7 +34,9 @@ console.log('\n=== Toque mínimo → 1 cubo (10 pts) ===');
   console.log(`  arrancados=${r.destruidos} (≥1) = ${r.destruidos * 10} pts  ${r.destruidos >= 1 ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('\n=== PRESUPUESTO peor caso: POWER-UP + fiesta 16 targets + explosiones ===');
+console.log('\n=== PRESUPUESTO peor caso: POWER-UP + fiesta 16 + CloudOver + explosiones ===');
+// El CloudOver es 1 target más (coste despreciable); el peor caso lo domina el
+// flujo de cubos. Modelo por debajo (impactos frecuentes + premio/destrucción).
 {
   const MAX_CUBOS = 240;
   const cubos = [];

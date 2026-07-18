@@ -14,6 +14,8 @@
 | `--morado` | `#8B5CF6` | Castigo: enojado, hitball bajo debuff, barra de debuff |
 | `--dorado` | `#FBBF24` | Brillo de la estrella (fiesta). Contraste ~11:1 sobre `--bg` |
 | `--cian` | `#22D3EE` | Brillo de la moneda (power-up). Contraste ~10.5:1 sobre `--bg` |
+| `--amenaza` | `#08080E` | CloudOver: masa oscura (más negra que el fondo) |
+| `--rojo-brasa` | `#EF4444` | Latido interno del CloudOver (rojo, NO el morado del castigo) |
 | `--texto-apagado` | `#8989B1` | Etiquetas secundarias |
 | `--texto-apagado-fuerte` | `#B9B9DC` | Números secundarios |
 | `--negro` | `#000` | Ojos del target |
@@ -27,6 +29,7 @@
 - **índigo** = la hitball del jugador.
 - **--dorado** = estrella / fiesta.
 - **--cian** = moneda / power-up.
+- **--amenaza + --rojo-brasa** = CloudOver (game over): masa oscura con latido rojo, **SIN brillo** → peligro, no premio. A 40px se distingue inequívocamente: es la única DARK con rojo pulsante; estrella/moneda brillan (dorado/cian), enojado es morado mate, normal coral mate.
 
 **Los premios NO tienen forma propia:** la estrella y la moneda son el TARGET NORMAL (retícula 5×4, ojos) que BRILLA. Los distingue el COLOR del brillo (dorado vs cian), no la silueta. Eje de lectura a 40px en movimiento: **mate vs brillo** + matiz — normal (coral mate), enojado (morado mate), estrella (coral + glow dorado + parpadeo), moneda (coral + glow cian + parpadeo). La **luz** (halo/glow/parpadeo) sigue significando recompensa.
 

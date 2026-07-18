@@ -12,6 +12,8 @@
   --morado: #8B5CF6;
   --dorado: #FBBF24;
   --cian: #22D3EE;
+  --amenaza: #08080E;   /* CloudOver: masa oscura (más negra que el fondo) */
+  --rojo-brasa: #EF4444; /* latido interno del CloudOver (rojo, NO el morado del castigo) */
   --texto-apagado: #8989B1;
   --texto-apagado-fuerte: #B9B9DC;
   --negro: #000;
