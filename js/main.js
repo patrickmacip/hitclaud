@@ -62,8 +62,27 @@
     elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
     elGameOver.classList.remove('oculto');
   }
+  // Reinicio EN SITIO (no recarga → inmune al cache del SW; el toque llega
+  // porque el overlay es HTML encima del canvas (z-index 3) y el freeze solo
+  // detiene el rAF del canvas, no los eventos del DOM). Resetea TODO el estado
+  // de la partida (el récord persistente NO se toca) y reanuda el juego.
+  function reiniciarPartida() {
+    marcador.puntos = 0; marcador.racha = 0; marcador.fallosSeguidos = 0; marcador.pico = 0;
+    targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
+    debuffHasta = 0; powerupHasta = 0; fiestaHasta = 0; fiestaFlashHasta = 0; powerFlashHasta = 0;
+    ultimoEnojado = false; ultimaBonanza = false; ultimaMoneda = false; pityEstrella = 0;
+    ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0;
+    if (elActual) elActual.style.transform = 'scale(1)';
+    const ahora = performance.now();
+    proximoSpawn = ahora;
+    cloudProximo = ahora + rnd(CLOUD_MIN, CLOUD_MAX);
+    gameOver = false;
+    elGameOver.classList.add('oculto');
+    actualizarMarcador();
+    marcarActividad();
+  }
   const elReiniciar = document.getElementById('reiniciar');
-  if (elReiniciar) elReiniciar.addEventListener('click', function () { window.location.reload(); });
+  if (elReiniciar) elReiniciar.addEventListener('click', reiniciarPartida);
 
   // Retardo del próximo spawn: rango vigente (escala con el score; base en
   // respiro) sorteado → tiempos variables. Hueco máx absoluto = 1200ms (base).
