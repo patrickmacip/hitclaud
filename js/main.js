@@ -37,6 +37,24 @@
     fuente: tk('--fuente', "'Inter', system-ui, -apple-system, sans-serif"),
   };
 
+  // La hitball toma el color de su MODO y PARPADEA hacia un tono más oscuro
+  // (como los targets). El tono oscuro es 0.75× el claro → mantiene legibilidad
+  // (el frame claro domina la percepción). Periodo del parpadeo: ~880ms.
+  const PARPADEO_MS = 140;
+  function oscurecer(hex, f) {
+    if (hex[0] !== '#') return hex;
+    const r = Math.round(parseInt(hex.slice(1, 3), 16) * f);
+    const g = Math.round(parseInt(hex.slice(3, 5), 16) * f);
+    const b = Math.round(parseInt(hex.slice(5, 7), 16) * f);
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
+  const OSC = {
+    coralVivo: oscurecer(COLOR.coralVivo, 0.75), // normal:      #FF8764 ↔ ~#BF6549
+    azul: oscurecer(COLOR.azul, 0.78),           // castigo:     #1F55C9 ↔ ~#18429D (azul menos oscuro por contraste)
+    dorado: oscurecer(COLOR.dorado, 0.75),       // multiplic.:  #FFC300 ↔ ~#BF9200
+    disperso: oscurecer(COLOR.disperso, 0.75),   // dispersión:  #6FFF2C ↔ ~#53BF21
+  };
+
   // Marcador (puntuación por demolición) + su celda en la barra superior.
   const marcador = P.crearMarcador();
   const ritmo = P.crearRitmo();
@@ -758,22 +776,24 @@
     const remDebuff = debuffHasta - performance.now();
     const debil = remDebuff > 0;                 // debuff activo → hitball chica
     const radioAhora = debil ? RADIO_DEBIL : RADIO_NORMAL;
-    const conMult = marcador.racha >= P.RACHA_DESDE; // multiplicador activo → dorada
+    const conMult = marcador.racha >= P.RACHA_DESDE; // multiplicador activo
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
       const rB = b.radio || RADIO_NORMAL;
-      dibujarEstela(b, rB);
-      dibujarBolita(b.x, b.y, rB, rB < RADIO_NORMAL, false, conMult && !b.dispersa);
+      const tono = tonosBola(b, debil, conMult);
+      dibujarEstela(b, rB, tono[0]);             // estela de luz en el color de modo
+      dibujarBolita(b.x, b.y, rB, tono[0], tono[1], false);
     }
-    const conPower = performance.now() < powerupHasta; // glow cian = tiros potenciados
+    // Bolita principal (reposo/agarrada): tonos por modo + glow suave = luz viva.
+    const tonoMain = tonosBola({ dispersa: false, radio: radioAhora }, debil, conMult);
+    // El marcador Actual entra al color del modo (transición CSS).
+    if (elActual) elActual.style.color = tonoMain[0];
     if (gesto.activo) {
-      // La bolita AGARRADA sigue el dedo EXACTAMENTE (sin lag ni suavizado).
       const dedo = gesto.puntos[gesto.puntos.length - 1];
-      dibujarBolita(dedo.x, dedo.y, radioAhora, debil, conPower, conMult);
+      dibujarBolita(dedo.x, dedo.y, radioAhora, tonoMain[0], tonoMain[1], true);
     } else if (performance.now() - ultimoDisparo >= CADENCIA_MS) {
-      // Bolita en reposo = señal de "listo": aparece al cumplirse la cadencia.
       const r = reposo();
-      dibujarBolita(r.x, r.y, radioAhora, debil, conPower, conMult);
+      dibujarBolita(r.x, r.y, radioAhora, tonoMain[0], tonoMain[1], true);
     }
 
     // Indicador de debuff: barra en el BORDE SUPERIOR que se DESCARGA (se
@@ -898,14 +918,29 @@
     ctx.restore();
   }
 
-  // Estela propia de la bolita: 3 fantasmas al 30/20/10% de alfa.
-  function dibujarEstela(b, radio) {
+  // Tonos [claro, oscuro] del MODO de una bolita. Precedencia (main ball):
+  // castigo (debuff) > multiplicador > normal. Las dispersas son verde.
+  function tonosBola(b, debuffActivo, conMult) {
+    if (b.dispersa) return [COLOR.disperso, OSC.disperso];
+    const chica = (b.radio || RADIO_NORMAL) < RADIO_NORMAL;
+    if (chica || debuffActivo) return [COLOR.azul, OSC.azul];      // castigo
+    if (conMult) return [COLOR.dorado, OSC.dorado];                // multiplicador
+    return [COLOR.coralVivo, OSC.coralVivo];                       // normal
+  }
+
+  // Estela de LUZ VIVA: 3 fantasmas en el color de modo (30/20/10% alfa). Los
+  // colores vivos ya leen como luz; sin shadowBlur por fantasma (presupuesto).
+  function dibujarEstela(b, radio, claro) {
     const alfas = [0.3, 0.2, 0.1];
+    const R = (radio || 14) - 1.5;
+    ctx.fillStyle = claro;
     for (let i = 0; i < alfas.length; i++) {
       const p = b.historia[(i + 1) * LAG_ESTELA];
       if (!p) continue;
       ctx.globalAlpha = alfas[i];
-      dibujarBolita(p.x, p.y, radio, radio < RADIO_NORMAL);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, R, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
   }
@@ -962,28 +997,20 @@
     if (t.celdas[8]) ctx.fillRect(x + 3 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
   }
 
-  // Bolita: --indigo con borde --indigo-vivo. Debuff → chica --azul. Con
-  // MULTIPLICADOR de racha (dorada=true) → --dorado PARPADEANTE. Con power-up
-  // (glow=true) → glow --cian. Precedencia del RELLENO: debuff (azul) > racha
-  // (dorado) > índigo; el glow cian del power-up es aparte y se superpone.
-  function dibujarBolita(cx, cy, radio, debil, glow, dorada) {
+  // Bolita: PARPADEA entre `claro` (color de modo) y `oscuro` (su tono más
+  // oscuro), como los targets. `glow` añade un shadowBlur en el color claro =
+  // luz viva (solo en la bolita principal/reposo, por presupuesto).
+  function dibujarBolita(cx, cy, radio, claro, oscuro, glow) {
     const RADIO = radio || 14;
-    let relleno = COLOR.indigo;
-    let borde = COLOR.indigoVivo;
-    if (debil) { relleno = COLOR.azul; borde = COLOR.azul; }
-    else if (dorada) {
-      const on = Math.sin(performance.now() / 120) > 0;
-      relleno = on ? COLOR.dorado : COLOR.indigo; // parpadeo dorado↔índigo
-      borde = COLOR.dorado;
-    }
+    const col = Math.sin(performance.now() / PARPADEO_MS) > 0 ? claro : oscuro;
     ctx.save();
-    if (glow) { ctx.shadowColor = COLOR.cian; ctx.shadowBlur = 10; }
+    if (glow) { ctx.shadowColor = claro; ctx.shadowBlur = 10; }
     ctx.beginPath();
     ctx.arc(cx, cy, RADIO - 1.5, 0, Math.PI * 2);
-    ctx.fillStyle = relleno;
+    ctx.fillStyle = col;
     ctx.fill();
-    ctx.lineWidth = debil ? 2 : 3;
-    ctx.strokeStyle = borde;
+    ctx.lineWidth = RADIO < 14 ? 2 : 3;
+    ctx.strokeStyle = claro;
     ctx.stroke();
     ctx.restore();
   }
