@@ -3,7 +3,8 @@
 
 const COL = { coralVivo: '--coral-vivo', morado: '--morado', apagado: '--texto-apagado' };
 
-// Muerte de una bolita: fallo (morado), moneda sin impacto (0 apagado), o nada.
+// Muerte de una bolita: fallo de la hitball principal (−N morado), dispersa del
+// power-up sin impacto (0 apagado), o nada. (Las dispersas llevan flag `moneda`.)
 function floatMuerte(b, pen) {
   if (b.moneda) { return !b.tocado ? { texto: '0', color: COL.apagado } : null; }
   if (!b.tocado && !b.neutro) return { texto: '−' + pen, color: COL.morado };
@@ -29,10 +30,10 @@ chk('bolita normal muere sin tocar (pen 250)', floatMuerte({ moneda: false, toca
 console.log('\n=== INACTIVIDAD: cobro por segundo en --morado, junto al marcador ===');
 chk('cobro de −125/s', floatInactividad(125), '−125', COL.morado);
 
-console.log('\n=== MONEDA sin impacto: "0" en --texto-apagado (SIN signo menos) ===');
-chk('bolita de moneda muere sin tocar', floatMuerte({ moneda: true, tocado: false }, 0), '0', COL.apagado);
+console.log('\n=== DISPERSA del power-up sin impacto: "0" en --texto-apagado (SIN −) ===');
+chk('dispersa muere sin tocar', floatMuerte({ moneda: true, tocado: false }, 0), '0', COL.apagado);
 const sinFlot = floatMuerte({ moneda: true, tocado: true }, 0);
-console.log(`  bolita de moneda que SÍ tocó: ${sinFlot === null ? 'sin "0" (ya mostró +N) OK ✓' : 'NO ✗'}`);
+console.log(`  dispersa que SÍ tocó: ${sinFlot === null ? 'sin "0" (ya mostró +N) OK ✓' : 'NO ✗'}`);
 
 console.log('\n=== POSITIVOS: intactos en --coral-vivo ===');
 chk('demolición +30', floatPositivo(30), '+30', COL.coralVivo);
