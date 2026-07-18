@@ -65,10 +65,9 @@ console.log('\n=== (e) partida nueva con récord histórico 10,000 → pico 0, s
 console.log('\n=== (f) el pico (y el suelo) suben en el mismo cuadro que el score ===');
 {
   const m = P.crearMarcador();
-  P.anotarDestruidos(m, 20); // +200
-  const picoTras200 = m.pico;
-  P.anotarHit(m); P.anotarHit(m); P.anotarHit(m); P.anotarHit(m);
-  const b = P.anotarHit(m); // 5º hit = bono +500
-  console.log(`  tras +200: pico=${picoTras200}  tras bono +${b}: pico=${m.pico} suelo=${(P.SUELO_PICO * m.pico)}`);
-  console.log(`  pico sigue al score en vivo: ${picoTras200 === 200 && m.pico === m.puntos ? 'OK ✓' : 'NO ✗'}`);
+  const g1 = P.anotarDestruidos(m, 20); // target intacto a score 0
+  const picoTras1 = m.pico;
+  const g2 = P.anotarDestruidos(m, 20); // otro golpe → sube más
+  console.log(`  tras +${g1}: pico=${picoTras1}  tras +${g2}: pico=${m.pico} suelo=${(P.SUELO_PICO * m.pico)}`);
+  console.log(`  pico sigue al score en vivo: ${picoTras1 === g1 && m.pico === m.puntos ? 'OK ✓' : 'NO ✗'}`);
 }

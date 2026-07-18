@@ -2,14 +2,14 @@
 
 const P = require('../js/puntuacion.js');
 
-console.log('=== Ganancia (a score 0: 10/cubo, ancla histórica) ===');
+console.log('=== Ganancia (a score 0: 5/cubo, ganancia al 50%) ===');
 {
   const m = P.crearMarcador();
   const g = P.anotarDestruidos(m, 3);
-  console.log(`  3 cubos → +${g}  ${m.puntos === 30 ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  3 cubos → +${g}  ${m.puntos === 15 ? 'OK ✓' : 'NO ✗'}`);
   const m2 = P.crearMarcador();
   P.anotarDestruidos(m2, 20);
-  console.log(`  20 cubos (target intacto) → +${m2.puntos}  ${m2.puntos === 200 ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  20 cubos (target intacto) → +${m2.puntos}  ${m2.puntos === 100 ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== Piso en 0 ===');

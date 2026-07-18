@@ -10,7 +10,7 @@
   // castigo (valorCubo = penalBase / VALOR_DIV). Así el ratio ganancia/castigo
   // es constante en todos los tramos (a score 0: penalBase 50 → 10/cubo, como
   // antes). Interpolado dentro del tramo → sin salto en fronteras.
-  const VALOR_DIV = 5;
+  const VALOR_DIV = 10; // ganancia al 50% del castigo (ratio 0.10): fallar pesa el doble que acertar
   // Multiplicador de RACHA CONTINUA: un hit = hitball que toca ≥1 target; se
   // rompe con el fallo de la hitball principal (no con dispersas ni contacto
   // neutro). Desde el 3er hit, ×1.2, 4º ×1.4… +0.2/hit, tope ×3 (racha 12).
@@ -43,8 +43,9 @@
   // Ritmo progresivo: el retardo entre spawns interpola de BASE (0 pts) a
   // TOPE (SCORE_RITMO_MAX). "Más rápido salen" = más FRECUENCIA, no más
   // velocidad de vuelo (gravedad y fuerza de lanzamiento NO se tocan).
-  const RETARDO_BASE = { min: 400, max: 1200 };
-  const RETARDO_TOPE = { min: 150, max: 500 };
+  // Ritmo −50% (aparecen la mitad de seguido): retardo duplicado en toda la curva.
+  const RETARDO_BASE = { min: 800, max: 2400 };
+  const RETARDO_TOPE = { min: 300, max: 1000 };
   const SCORE_RITMO_MAX = 30000;
   const RESPIRO_MS = 5000;    // el respiro dura 5 s
   const RESPIRO_HITS = 10;    // cada 10 hits en dificultad máxima → respiro

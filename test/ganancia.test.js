@@ -2,7 +2,7 @@
 
 const P = require('../js/puntuacion.js');
 
-console.log(`Valor por cubo = penalBase / ${P.VALOR_DIV} (proporcional al castigo).`);
+console.log(`Valor por cubo = penalBase / ${P.VALOR_DIV} (ganancia al 50%, ratio ~0.10).`);
 
 console.log('\n=== Valor de 1 cubo por tramo + ratio ganancia/castigo (debe ser constante) ===');
 const scores = [500, 5000, 30000, 80000];
@@ -29,11 +29,11 @@ console.log('\n=== Sin salto al cruzar la frontera 2,000 ===');
   console.log(`  mayor salto entre vecinos: ${salto.toFixed(2)}  [sin salto brusco (<2): ${salto < 2 ? 'OK ✓' : 'NO ✗'}]`);
 }
 
-console.log('\n=== A score 0 sigue siendo 10/cubo (ancla histórica) ===');
+console.log('\n=== A score 0: 5/cubo (ganancia al 50%; target intacto = 100) ===');
 {
   const m = P.crearMarcador(); // puntos 0
   const g = P.anotarDestruidos(m, 20);
-  console.log(`  20 cubos a score 0 = +${g}  ${g === 200 ? 'OK ✓ (target intacto = 200)' : 'NO ✗'}`);
+  console.log(`  20 cubos a score 0 = +${g}  ${g === 100 ? 'OK ✓ (target intacto = 100)' : 'NO ✗'}`);
 }
 
 console.log('\n=== Aplica también a dispersas de moneda (mismo anotarDestruidos) ===');

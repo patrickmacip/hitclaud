@@ -61,8 +61,9 @@ console.log('\n=== Pérdida: dispersa falla → cero castigo; principal falla �
 console.log('\n=== Dispersa que SÍ toca → puntúa y cuenta hit ===');
 {
   const m = P.crearMarcador(); m.puntos = 1000; m.racha = 4;
-  P.anotarHit(m); const g = P.anotarDestruidos(m, 3);
-  console.log(`  racha=${m.racha} (4→5) puntos=${m.puntos} (+${g}+bono)  ${m.racha === 5 && m.puntos === 1530 ? 'OK ✓' : 'NO ✗'}`);
+  P.anotarHit(m); const g = P.anotarDestruidos(m, 3); // racha 5 (×1.6), sin bonos
+  const esperado = 1000 + Math.round(3 * P.valorCubo(1000) * P.multRacha(5));
+  console.log(`  racha=${m.racha} (4→5) puntos=${m.puntos} (+${g})  ${m.racha === 5 && m.puntos === esperado ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== Coexistencia power-up + debuff (declarada) ===');

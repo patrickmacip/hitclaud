@@ -7,7 +7,7 @@ const P = require('../js/puntuacion.js');
 const VP = { w: 390, h: 844 };
 
 // Constantes espejo de main.js
-const MAX_DURO = 12;
+const MAX_DURO = 4; // maximo 4 (fuera de fiesta)
 const ENOJADO_BASE = 0.08, ENOJADO_EXTRA = 0.02, ENOJADO_TOPE = 0.25;
 const DEBUFF_MS = 5000, RADIO_DEBIL = 7, RADIO_NORMAL = 14;
 
@@ -48,13 +48,13 @@ function simula(score) {
       proximo = t + retardo();
     }
     maxVivos = Math.max(maxVivos, targets.length); sumVivos += targets.length; frames++;
-    if (targets.length >= 5) framesGe5++;
+    if (targets.length >= 3) framesGe5++;
   }
   intervalos.shift();
   const imin = Math.min.apply(null, intervalos), imax = Math.max.apply(null, intervalos);
   const iprom = intervalos.reduce(function (a, b) { return a + b; }, 0) / intervalos.length;
   console.log(`\n--- score ${score} (rango ${rg.min}-${rg.max}ms) ---`);
-  console.log(`  vivos: máximo=${maxVivos} (tope duro ${MAX_DURO})  promedio=${(sumVivos / frames).toFixed(2)}  % del tiempo ≥5: ${(framesGe5 / frames * 100).toFixed(1)}%`);
+  console.log(`  vivos: máximo=${maxVivos} (tope duro ${MAX_DURO})  promedio=${(sumVivos / frames).toFixed(2)}  % del tiempo ≥3: ${(framesGe5 / frames * 100).toFixed(1)}%`);
   console.log(`  intervalos: mín=${Math.round(imin)} prom=${Math.round(iprom)} máx=${Math.round(imax)}ms`);
   console.log(`  enojados observados: solo(≤3)=${spawnsSolo ? (enoSolo / spawnsSolo * 100).toFixed(1) : '0'}%  multitud(≥5)=${spawnsCrowd ? (enoCrowd / spawnsCrowd * 100).toFixed(1) : 'n/a'}%  (nominal 8% / ${(Math.min(0.25, 0.08 + 0.02 * 2) * 100).toFixed(0)}%; menos por "nunca dos seguidos")  dos seguidos=${dosSeguidos} ${dosSeguidos === 0 ? '✓' : '✗'}`);
 }

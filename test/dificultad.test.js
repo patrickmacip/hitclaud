@@ -11,8 +11,8 @@ console.log('=== Curva de retardo (rango vigente por score) ===');
 {
   const r30 = P.rangoRetardo(30000);
   const r60 = P.rangoRetardo(60000);
-  const tope = r30.min === 150 && r30.max === 500 && r60.min === 150 && r60.max === 500;
-  console.log(`  tope no se pasa (30k == 60k == 150-500): ${tope ? 'OK ✓' : 'NO ✗'}`);
+  const tope = r30.min === 300 && r30.max === 1000 && r60.min === 300 && r60.max === 1000;
+  console.log(`  tope no se pasa (30k == 60k == 300-1000): ${tope ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== Respiro: entra / dura / sale (dificultad máxima) ===');
@@ -23,9 +23,9 @@ console.log('\n=== Respiro: entra / dura / sale (dificultad máxima) ===');
   const rEntra = P.rangoVigente(ritmo, 30000, now);
   const rDura = P.rangoVigente(ritmo, 30000, now + 4000);  // dentro de 5s
   const rSale = P.rangoVigente(ritmo, 30000, now + 5001);  // tras 5s
-  console.log(`  activa=${entra}  durante: ${rEntra.min}-${rEntra.max} → ${rDura.min}-${rDura.max} (base 400-1200)`);
-  console.log(`  tras 5s: ${rSale.min}-${rSale.max} (vuelve al tope 150-500)`);
-  const ok = entra && rEntra.min === 400 && rDura.min === 400 && rSale.min === 150;
+  console.log(`  activa=${entra}  durante: ${rEntra.min}-${rEntra.max} → ${rDura.min}-${rDura.max} (base 800-2400)`);
+  console.log(`  tras 5s: ${rSale.min}-${rSale.max} (vuelve al tope 300-1000)`);
+  const ok = entra && rEntra.min === 800 && rDura.min === 800 && rSale.min === 300;
   console.log(`  ${ok ? 'OK ✓' : 'NO ✗'}`);
   // No entra si no es dificultad máxima:
   const r2 = P.crearRitmo();

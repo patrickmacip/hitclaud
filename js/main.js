@@ -150,7 +150,7 @@
   // (ritmo progresivo de puntuacion.js). Hueco máx absoluto = 1200ms. El
   // único límite es un tope DURO de rendimiento (válvula), no de diseño;
   // con la vida y salida naturales no debería alcanzarse.
-  const MAX_TARGETS_DURO = 12; // válvula de rendimiento (no de diseño)
+  const MAX_TARGETS_DURO = 4;  // máximo 4 targets vivos (tiro preciso, no tapiz); NO aplica en fiesta
 
   // ── Enojado y debuff ───────────────────────────────────────────────
   const ENOJADO_BASE = 0.08;      // prob. base del spawn
@@ -173,9 +173,9 @@
   const MONEDA_BOLAS = 6;      // dispersas que nacen por CADA impacto durante el power-up
   const MONEDA_VEL = [0.8, 1.3]; // rango de velocidad del "puff" (px/ms)
   const FIESTA_MS = 5000;         // duración de la fiesta
-  const FIESTA_MAX = 16;          // tope de targets vivos durante la fiesta
-  const FIESTA_RET_MIN = 80;      // ráfaga de spawn en fiesta (ms)
-  const FIESTA_RET_MAX = 220;
+  const FIESTA_MAX = 6;           // tope en fiesta −60% (16→6): la suerte también se modera
+  const FIESTA_RET_MIN = 200;     // ráfaga de fiesta, ajustada proporcional (era 80–220)
+  const FIESTA_RET_MAX = 550;
   const FIESTA_FLASH_MS = 500;    // lavado suave de --crema al entrar
 
   // ── CloudOver (game over) ──────────────────────────────────────────
