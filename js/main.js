@@ -100,9 +100,10 @@
   const ESTRELLA_PITY = 0.01;
   const ESTRELLA_TOPE = 0.15;
 
-  // ── Moneda (premio de dispersión: 6 hitballs) ──────────────────────
+  // ── Moneda (power-up de disparo explosivo) ─────────────────────────
   const MONEDA_PROB = 0.05;    // 5% de los spawns; independiente de la estrella
-  const MONEDA_BOLAS = 6;      // hitballs que nacen al activarla
+  const POWERUP_MS = 10000;    // duración del power-up al tocar la moneda
+  const MONEDA_BOLAS = 6;      // dispersas que nacen por CADA impacto durante el power-up
   const MONEDA_VEL = [0.8, 1.3]; // rango de velocidad del "puff" (px/ms)
   const FIESTA_MS = 5000;         // duración de la fiesta
   const FIESTA_MAX = 16;          // tope de targets vivos durante la fiesta
@@ -144,6 +145,7 @@
   let ultimaMoneda = false;   // nunca dos monedas seguidas
   let pityEstrella = 0;       // spawns sin estrella (sube la probabilidad)
   let debuffHasta = 0;        // timestamp fin del debuff (radio a la mitad)
+  let powerupHasta = 0;       // timestamp fin del power-up de moneda (dispersión)
   let fiestaHasta = 0;        // timestamp fin de la fiesta (tope y ritmo altos)
   let fiestaFlashHasta = 0;   // lavado suave al entrar a la fiesta
   let proximoSpawn = 0;       // timestamp mínimo del próximo lanzamiento
@@ -246,10 +248,10 @@
     targets.push(t);
   }
 
-  // La moneda se disuelve en 6 hitballs PEQUEÑAS (radio 7, poder reducido =
-  // misma ruta que el debuff) desde (px,py), en abanico hacia arriba ("puff").
-  // Marcadas `moneda` (NO penalizan al morir). Si el tope de 24 está lleno,
-  // nacen las que quepan (el premio no rompe el límite de rendimiento).
+  // Al IMPACTAR un target durante el power-up nacen 6 hitballs PEQUEÑAS (radio
+  // 7, poder reducido = misma ruta que el debuff) desde (px,py), en abanico
+  // ("puff"). Marcadas `moneda` (NO penalizan) y `dispersa` (no re-disparan →
+  // sin cascada). Si el tope de 24 está lleno, nacen las que quepan.
   function dispersarMoneda(px, py) {
     const n = Math.min(MONEDA_BOLAS, Math.max(0, MAX_BOLITAS - bolitas.length));
     for (let i = 0; i < n; i++) {
@@ -258,7 +260,7 @@
       bolitas.push({
         x: px, y: py,
         vx: Math.cos(ang) * vel, vy: Math.sin(ang) * vel,
-        radio: RADIO_DEBIL, chica: true, moneda: true,
+        radio: RADIO_DEBIL, chica: true, moneda: true, dispersa: true,
         edad: 0, viva: true, tocado: false, neutro: false, historia: [],
       });
     }
@@ -463,10 +465,11 @@
           continue;
         }
         if (tg.moneda) {
-          // Moneda: TODO O NADA. Contacto neutro (ni hit ni fallo), no puntúa.
+          // Moneda: TODO O NADA. Activa el POWER-UP explosivo por 10s (no
+          // dispersa al tocarla). Contacto neutro (ni hit ni fallo), no puntúa.
           if (!F.colisionCirculoRect(b, tg)) continue;
           b.neutro = true;
-          dispersarMoneda(tg.x, tg.y);
+          powerupHasta = t + POWERUP_MS;
           explotarCubos(cubos8Mundo(tg), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.cian, 8);
           sacudidaHasta = t + SACUDIDA_MS;
           targets.splice(ti, 1);
@@ -493,6 +496,9 @@
             flotante(r.px, r.py, '+' + g);
           }
           actualizarMarcador();
+          // POWER-UP: al impactar un target normal (y no siendo ya una dispersa)
+          // nacen 6 dispersas desde el punto de impacto (bono, sin cascada).
+          if (t < powerupHasta && !b.dispersa) dispersarMoneda(r.px, r.py);
         }
         if (r.cubosLiberados.length > 0) {
           explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy, tg.enojado ? COLOR.morado : COLOR.coral);
@@ -635,14 +641,15 @@
       dibujarEstela(b, rB);
       dibujarBolita(b.x, b.y, rB, rB < RADIO_NORMAL);
     }
+    const conPower = performance.now() < powerupHasta; // glow cian = tiros potenciados
     if (gesto.activo) {
       // La bolita AGARRADA sigue el dedo EXACTAMENTE (sin lag ni suavizado).
       const dedo = gesto.puntos[gesto.puntos.length - 1];
-      dibujarBolita(dedo.x, dedo.y, radioAhora, debil);
+      dibujarBolita(dedo.x, dedo.y, radioAhora, debil, conPower);
     } else if (performance.now() - ultimoDisparo >= CADENCIA_MS) {
       // Bolita en reposo = señal de "listo": aparece al cumplirse la cadencia.
       const r = reposo();
-      dibujarBolita(r.x, r.y, radioAhora, debil);
+      dibujarBolita(r.x, r.y, radioAhora, debil, conPower);
     }
 
     // Indicador de debuff: barra en el BORDE SUPERIOR que se DESCARGA (se
@@ -660,6 +667,19 @@
       ctx.shadowBlur = 8;
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, 4);
+      ctx.restore();
+    }
+
+    // Indicador de POWER-UP (moneda): barra --cian en el BORDE INFERIOR que se
+    // encoge con el tiempo restante (separada de la de debuff, que va arriba).
+    const remPower = powerupHasta - performance.now();
+    if (remPower > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.shadowColor = COLOR.cian;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = COLOR.cian;
+      ctx.fillRect(0, H - 4, W * (remPower / POWERUP_MS), 4);
       ctx.restore();
     }
 
@@ -774,9 +794,12 @@
   }
 
   // Bolita: --indigo con borde --indigo-vivo. Bajo debuff se dibuja chica
-  // (radio 7) y en --morado (idioma: morado = castigo).
-  function dibujarBolita(cx, cy, radio, debil) {
+  // (radio 7) y en --morado. Con power-up (glow=true) lleva un glow --cian
+  // sutil (tiros potenciados). Técnica barata: shadowBlur en 1 bolita (reposo).
+  function dibujarBolita(cx, cy, radio, debil, glow) {
     const RADIO = radio || 14;
+    ctx.save();
+    if (glow) { ctx.shadowColor = COLOR.cian; ctx.shadowBlur = 10; }
     ctx.beginPath();
     ctx.arc(cx, cy, RADIO - 1.5, 0, Math.PI * 2);
     ctx.fillStyle = debil ? COLOR.morado : COLOR.indigo;
@@ -784,6 +807,7 @@
     ctx.lineWidth = debil ? 2 : 3;
     ctx.strokeStyle = debil ? COLOR.morado : COLOR.indigoVivo;
     ctx.stroke();
+    ctx.restore();
   }
 
   window.addEventListener('resize', redimensionar);
