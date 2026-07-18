@@ -57,8 +57,8 @@
   const flotantes = [];
   const FLOTANTE_VIDA = 700;   // ms del +N en el punto de impacto
   const FLOTANTE_BONO_VIDA = 900;
-  function flotante(x, y, texto) {
-    flotantes.push({ x: x, y: y, texto: texto, edad: 0, vida: FLOTANTE_VIDA, grande: false });
+  function flotante(x, y, texto, color) {
+    flotantes.push({ x: x, y: y, texto: texto, edad: 0, vida: FLOTANTE_VIDA, grande: false, color: color });
   }
   function flotanteBono(bono) {
     flotantes.push({ x: W / 2, y: H * 0.42, texto: '+' + bono, edad: 0, vida: FLOTANTE_BONO_VIDA, grande: true });
@@ -445,8 +445,10 @@
       if (idle > GRACIA_MS) {
         const debidos = Math.floor((idle - GRACIA_MS) / 1000);
         while (segundosCobrados < debidos) {
-          P.anotarInactividadSegundo(marcador);
+          const c = P.anotarInactividadSegundo(marcador);
           segundosCobrados++;
+          // El cobro por segundo SE VE, junto al marcador Actual (arriba-centro).
+          if (c > 0) flotante(W / 2, 96, '−' + c, COLOR.morado);
         }
         if (debidos > 0) { cobrando = true; actualizarMarcador(); }
       }
@@ -551,11 +553,16 @@
     for (let i = bolitas.length - 1; i >= 0; i--) {
       const b = bolitas[i];
       if (!b.viva) {
-        // FALLO si murió sin tocar nada; PERO las bolitas de moneda NO penalizan
-        // (regla del dueño: el premio no puede volverse desventaja).
-        if (!b.tocado && !b.neutro && !b.moneda) {
-          P.anotarFallo(marcador, { debuff: t < debuffHasta }); // espiral: en debuff no escala
+        if (b.moneda) {
+          // La moneda no penaliza: "0" apagado (sin signo −) = sin costo, para
+          // que el premio no se sienta desventaja.
+          if (!b.tocado) flotante(b.x, b.y, '0', COLOR.textoApagado);
+        } else if (!b.tocado && !b.neutro) {
+          // FALLO: la pérdida SE VE (número negativo en --morado en el punto
+          // donde murió).
+          const pen = P.anotarFallo(marcador, { debuff: t < debuffHasta }); // espiral: en debuff no escala
           actualizarMarcador();
+          flotante(b.x, b.y, '−' + pen, COLOR.morado);
         }
         bolitas.splice(i, 1);
       }
@@ -695,11 +702,11 @@
     // racha más grandes en el centro. --coral-vivo.
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = COLOR.coralVivo;
     for (let i = 0; i < flotantes.length; i++) {
       const fl = flotantes[i];
       const p = fl.edad / fl.vida;
       ctx.globalAlpha = Math.max(0, 1 - p);
+      ctx.fillStyle = fl.color || COLOR.coralVivo; // +N coral, −N morado, 0 apagado
       ctx.font = (fl.grande ? '600 34px ' : '600 20px ') + COLOR.fuente;
       ctx.fillText(fl.texto, fl.x, fl.y - p * 30); // sube 30px en su vida
     }
