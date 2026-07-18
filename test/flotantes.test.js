@@ -61,3 +61,35 @@ console.log('\n=== Badge de multiplicador refleja la racha (×N, sin emoji) ==='
   console.log(`  oculto <3, ×1.2 al 3º, ×3 tope: ${ok ? 'OK ✓' : 'NO ✗'}`);
 }
 console.log('\n  Todo canvas puro (fillText/fillRect/shadowBlur/scale) — sin librerías. OK ✓');
+
+// ── Agregación + fusión anti-solapamiento + tope estricto (espejo main.js) ──
+console.log('\n=== Agregación: un impacto = un flotante (suma), fusión de cercanos ===');
+{
+  const MAX = 8, DIST = 40;
+  const fl = [];
+  function num(t) { return t === '0' ? 0 : t[0] === '+' ? parseInt(t.slice(1), 10) : t[0] === '−' ? -parseInt(t.slice(1), 10) : null; }
+  function txt(n) { return n > 0 ? '+' + n : n < 0 ? '−' + (-n) : '0'; }
+  function emitir(x, y, texto, color) {
+    const n = num(texto);
+    if (n !== null) for (let i = fl.length - 1; i >= 0; i--) {
+      if (fl[i].color === color && Math.hypot(fl[i].x - x, fl[i].y - y) < DIST) { fl[i].texto = txt(num(fl[i].texto) + n); return; }
+    }
+    fl.push({ x: x, y: y, texto: texto, color: color });
+    if (fl.length > MAX) fl.shift();
+  }
+  // dos impactos casi encima → se fusionan en +240
+  emitir(100, 100, '+120', 'coral');
+  emitir(110, 105, '+120', 'coral');
+  console.log(`  +120 y +120 cercanos → ${fl[0].texto} (1 flotante)  ${fl.length === 1 && fl[0].texto === '+240' ? 'OK ✓' : 'NO ✗'}`);
+  // lejano → nuevo flotante
+  emitir(300, 300, '+50', 'coral');
+  console.log(`  lejano → ${fl.length} flotantes  ${fl.length === 2 ? 'OK ✓' : 'NO ✗'}`);
+}
+
+console.log('\n=== Tope estricto: nunca más de 8 vivos (fiesta+power-up) ===');
+{
+  const MAX = 8;
+  const fl = [];
+  for (let i = 0; i < 30; i++) { fl.push({ x: i * 13, y: i * 29 }); if (fl.length > MAX) fl.shift(); } // esparcidos, sin fusión
+  console.log(`  30 impactos esparcidos → ${fl.length} vivos  ${fl.length === MAX ? 'OK ✓ (retira los más viejos)' : 'NO ✗'}`);
+}

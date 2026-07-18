@@ -72,12 +72,37 @@
     return rnd(rg.min, rg.max);
   }
 
-  // Números flotantes de feedback (canvas puro): pop de escala al aparecer +
-  // subida + desvanecimiento. Tope MAX_FLOTANTES (recicla el más viejo).
+  // Números flotantes de feedback (canvas puro): pop de escala + subida + fade.
+  // AGREGACIÓN: un impacto = UN flotante con la suma. ANTI-SOLAPAMIENTO: si un
+  // nuevo flotante nace cerca de otro del MISMO color, se FUSIONAN sumando (y
+  // re-pop). Tope estricto MAX_FLOTANTES (retira el más viejo) + vida corta →
+  // legible incluso en el peor caso (fiesta + power-up).
   const flotantes = [];
-  const FLOTANTE_VIDA = 750;
-  const MAX_FLOTANTES = 40;
+  const FLOTANTE_VIDA = 550;
+  const MAX_FLOTANTES = 8;
+  const FUSION_DIST = 40;
+  function numDe(txt) {
+    if (txt === '0') return 0;
+    if (txt[0] === '+') return parseInt(txt.slice(1), 10);
+    if (txt[0] === '−') return -parseInt(txt.slice(1), 10); // −
+    return null;
+  }
+  function textoDe(n) { return n > 0 ? '+' + n : n < 0 ? '−' + (-n) : '0'; }
   function flotante(x, y, texto, color, tam, glow) {
+    const n = numDe(texto);
+    if (n !== null) {
+      for (let i = flotantes.length - 1; i >= 0; i--) {
+        const fl = flotantes[i];
+        if (fl.color === color && Math.hypot(fl.x - x, fl.y - y) < FUSION_DIST) {
+          const suma = numDe(fl.texto) + n;
+          fl.texto = textoDe(suma);
+          fl.tam = suma > 0 ? tamGanancia(suma) : Math.max(fl.tam, tam || 20);
+          fl.glow = fl.glow || !!glow || suma >= 300;
+          fl.edad = 0; // re-pop
+          return;
+        }
+      }
+    }
     flotantes.push({ x: x, y: y, texto: texto, edad: 0, vida: FLOTANTE_VIDA, color: color, tam: tam || 20, glow: !!glow });
     if (flotantes.length > MAX_FLOTANTES) flotantes.shift();
   }
