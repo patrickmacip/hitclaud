@@ -77,6 +77,9 @@
   const RADIO_DEBIL = 7;          // radio bajo debuff (mitad → poder mitad)
   const DEBUFF_MS = 5000;         // duración del debuff por tocar un enojado
 
+  // ── Inactividad ────────────────────────────────────────────────────
+  const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
+
   // ── Constantes de la explosión de cubos (animación pura) ───────────
   const MAX_CUBOS = 120;      // tope de cubos vivos = 6 explosiones simultáneas
   const CUBO_VIDA_MIN = 800;  // ms de vida (se desvanecen)
@@ -104,10 +107,23 @@
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
   let sacudidaHasta = 0;      // timestamp fin de la micro-sacudida de pantalla
+  // Inactividad: cobra tras la gracia si el jugador no hace gestos.
+  let ultimoGesto = 0;        // timestamp del último gesto (o reset por visibilidad)
+  let segundosCobrados = 0;   // segundos ya cobrados desde ultimoGesto
+  let cobrando = false;       // feedback: ¿se está cobrando ahora?
+  let pausado = false;        // pausa manual (botón)
   let rafId = null;
   let tPrev = 0;
 
   function rnd(a, b) { return a + Math.random() * (b - a); }
+
+  // Marca actividad: resetea el reloj de inactividad (cualquier gesto y el
+  // retorno desde pantalla oculta). Sin cobro retroactivo.
+  function marcarActividad() {
+    ultimoGesto = performance.now();
+    segundosCobrados = 0;
+    cobrando = false;
+  }
 
   // Anima una lista de cubos liberados (arrancados o de destrucción total).
   // Cada cubo: velocidad del target + impulso radial desde el impacto (mayor
@@ -175,6 +191,7 @@
     gesto.activo = true;
     gesto.puntos = [{ x: e.clientX, y: e.clientY, t: performance.now() }];
     quietoDesde = performance.now();
+    marcarActividad(); // el gesto resetea el reloj de inactividad
     canvas.setPointerCapture(e.pointerId);
     arrancarBucle();
   });
@@ -188,6 +205,7 @@
     if (!gesto.activo) return;
     gesto.activo = false;
     gesto.puntos.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+    marcarActividad(); // fin del gesto: reinicia la gracia
     ejecutarSuelta(gesto.puntos, false); // suelta normal: aplica umbral/cancelación
   });
 
@@ -244,6 +262,20 @@
     gesto.activo = false;
   });
 
+  // Botón de pausa: congela el juego (y el reloj de inactividad).
+  const botonPausa = document.querySelector('.boton-pausa');
+  if (botonPausa) botonPausa.addEventListener('click', function () {
+    pausado = !pausado;
+    if (!pausado) marcarActividad(); // al reanudar, gracia fresca (no cobra la pausa)
+  });
+
+  // FUNDACIONAL: "puedes bloquear sin temor a perder tu progreso". Al ocultarse
+  // el documento (bloqueo, segundo plano, cambio de pestaña) el reloj no corre;
+  // al volver, gracia fresca sin cobro retroactivo.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) marcarActividad();
+  });
+
   // ── Bucle de animación ─────────────────────────────────────────────
   function arrancarBucle() {
     if (rafId === null) {
@@ -255,6 +287,26 @@
   function cuadro(t) {
     const dt = Math.min(t - tPrev, 32); // techo: pestañas en segundo plano
     tPrev = t;
+
+    // Pausado: congela toda actualización (física, spawn, colisión, cobro);
+    // solo re-dibuja el estado y mantiene vivo el bucle.
+    if (pausado) { cobrando = false; dibujar(); rafId = requestAnimationFrame(cuadro); return; }
+
+    // Costo de INACTIVIDAD: tras la gracia, cada segundo quieto cuesta el 25%
+    // del castigo del tramo actual. El reloj NO corre si el documento está
+    // oculto (ya gateado) ni mientras hay un gesto activo. Piso en 0.
+    cobrando = false;
+    if (!document.hidden && !gesto.activo) {
+      const idle = t - ultimoGesto;
+      if (idle > GRACIA_MS) {
+        const debidos = Math.floor((idle - GRACIA_MS) / 1000);
+        while (segundosCobrados < debidos) {
+          P.anotarInactividadSegundo(marcador);
+          segundosCobrados++;
+        }
+        if (debidos > 0) { cobrando = true; actualizarMarcador(); }
+      }
+    }
 
     // Frenos anti-paseo de la hitball agarrada.
     if (gesto.activo) {
@@ -437,6 +489,16 @@
     }
     ctx.globalAlpha = 1;
 
+    // Aviso sutil de inactividad (cobrando): puntos "· · ·" tenues y pulsantes
+    // abajo-centro en --texto-apagado. Sin alarmas (juego desestresante).
+    if (cobrando) {
+      ctx.globalAlpha = 0.22 + 0.13 * Math.sin(performance.now() / 300);
+      ctx.fillStyle = COLOR.textoApagado;
+      ctx.font = '400 15px ' + COLOR.fuente;
+      ctx.fillText('· · ·', W / 2, H - 64);
+      ctx.globalAlpha = 1;
+    }
+
     ctx.restore();
   }
 
@@ -513,6 +575,7 @@
   window.addEventListener('resize', redimensionar);
   redimensionar();
   actualizarMarcador();  // arranca en 0 (no el placeholder del HTML)
+  marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
   arrancarBucle();       // el spawner de targets corre desde el arranque
 
   if ('serviceWorker' in navigator) {
