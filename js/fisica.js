@@ -294,7 +294,7 @@
   function colisionCirculoRect(bolita, t) {
     const caja = cajaLocal(t);
     if (!caja) return null;
-    const R = FISICA.RADIO_BOLITA;
+    const R = bolita.radio || FISICA.RADIO_BOLITA; // radio actual (debuff = 7)
     const dx = bolita.x - t.x;
     const dy = bolita.y - t.y;
     const c = Math.cos(-t.rot);
@@ -362,7 +362,12 @@
     const vImpact = -vn;
     const base = { px: col.px, py: col.py, nx: nx, ny: ny, vImpact: vImpact };
 
-    if (vImpact >= FISICA.UMBRAL_DESTRUCCION) {
+    // PODER de destrucción escalado por el radio: poder = vImpact · radio/14.
+    // Con radio 7 (debuff) el poder cae a la mitad → casi nunca ≥ el umbral.
+    const R = bolita.radio || FISICA.RADIO_BOLITA;
+    const poder = vImpact * (R / FISICA.RADIO_BOLITA);
+
+    if (poder >= FISICA.UMBRAL_DESTRUCCION) {
       // Golpe fuerte: destrucción total. Rebote con restitución y frenado por
       // la masa actual: la bolita conserva M/(1+M).
       const e = FISICA.RESTITUCION_GOLPE;
@@ -381,13 +386,13 @@
     transferirMomento(bolita, t, nx, ny, vn);
     t.golpeado = true;
 
-    if (vImpact < FISICA.UMBRAL_MINIMO_DANO) {
+    if (poder < FISICA.UMBRAL_MINIMO_DANO) {
       // Roce: solo empuje, sin daño. Cuenta como toque (hit).
       return Object.assign(base, { tipo: 'empuje', cubosLiberados: [], destruidos: 0, muerto: false });
     }
 
     // Daño parcial: arranca las n celdas vivas más cercanas al impacto.
-    const rango01 = (vImpact - FISICA.UMBRAL_MINIMO_DANO) /
+    const rango01 = (poder - FISICA.UMBRAL_MINIMO_DANO) /
       (FISICA.UMBRAL_DESTRUCCION - FISICA.UMBRAL_MINIMO_DANO);
     let n = Math.round(FISICA.DANO_CUBOS_MIN + rango01 * (FISICA.DANO_CUBOS_MAX - FISICA.DANO_CUBOS_MIN));
     n = Math.min(n, t.vivos);

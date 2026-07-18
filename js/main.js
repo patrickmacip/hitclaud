@@ -1,8 +1,8 @@
 // hitclaud — main.js
-// Shell + input táctil + vuelo de bolitas y targets en canvas.
-// La física vive en fisica.js (módulo puro); aquí solo captura y pintura.
-// Los targets son LANZADOS (spawner, tope 3). SIN colisión con las bolitas:
-// se atraviesan (la colisión es la fase 3b).
+// Shell + input táctil + bucle rAF + render en canvas.
+// Física en fisica.js y reglas (puntuación, dificultad) en puntuacion.js (puros).
+// Targets lanzados en flujo continuo (tope duro de rendimiento), con daño por
+// celdas, explosión de cubos, castigo escalado, ritmo progresivo, enojado+debuff.
 // Todo se dibuja en canvas dentro de un solo rAF — cero layout thrashing.
 
 (function () {
@@ -21,6 +21,7 @@
     negro: tokens.getPropertyValue('--negro').trim(),
     indigo: tokens.getPropertyValue('--indigo').trim(),
     indigoVivo: tokens.getPropertyValue('--indigo-vivo').trim(),
+    textoApagado: tokens.getPropertyValue('--texto-apagado').trim(),
     fuente: tokens.getPropertyValue('--fuente').trim(),
   };
 
@@ -62,10 +63,19 @@
   const LAG_ESTELA = 3;       // muestreo hacia atrás por fantasma (×1,2,3)
 
   // ── Constantes del spawner de targets ──────────────────────────────
-  // Tope 6 (sube de 3 para dar variedad sin tapizar). El retardo entre spawns
-  // lo da el ritmo progresivo (puntuacion.js): escala con el score y usa el
-  // rango base en respiro. Hueco máx absoluto = 1200ms (nunca pausa larga).
-  const MAX_TARGETS = 6;      // tope de targets vivos
+  // Flujo CONTINUO sin tope de diseño: se lanza en cuanto vence el retardo
+  // (ritmo progresivo de puntuacion.js). Hueco máx absoluto = 1200ms. El
+  // único límite es un tope DURO de rendimiento (válvula), no de diseño;
+  // con la vida y salida naturales no debería alcanzarse.
+  const MAX_TARGETS_DURO = 12; // válvula de rendimiento (no de diseño)
+
+  // ── Enojado y debuff ───────────────────────────────────────────────
+  const ENOJADO_BASE = 0.08;      // prob. base del spawn
+  const ENOJADO_POR_EXTRA = 0.02; // +2% por cada target vivo por encima de 3
+  const ENOJADO_TOPE = 0.25;      // tope de probabilidad
+  const RADIO_NORMAL = 14;        // radio de la hitball
+  const RADIO_DEBIL = 7;          // radio bajo debuff (mitad → poder mitad)
+  const DEBUFF_MS = 5000;         // duración del debuff por tocar un enojado
 
   // ── Constantes de la explosión de cubos (animación pura) ───────────
   const MAX_CUBOS = 120;      // tope de cubos vivos = 6 explosiones simultáneas
@@ -88,6 +98,8 @@
   // Targets lanzados (tope 3). SIN colisión con las bolitas: se atraviesan.
   const targets = [];
   let ultimoOrigen = null;    // ritmo: no dos seguidos del mismo origen
+  let ultimoEnojado = false;  // nunca dos enojados seguidos
+  let debuffHasta = 0;        // timestamp fin del debuff (radio a la mitad)
   let proximoSpawn = 0;       // timestamp mínimo del próximo lanzamiento
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
@@ -121,8 +133,9 @@
     while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
   }
 
-  // Lanza un target respetando el ritmo (origen distinto al anterior; como
-  // 'superior' es un origen, "no dos seguidos" ya prohíbe dos superiores).
+  // Lanza un target respetando el ritmo (origen distinto al anterior). La
+  // probabilidad de ENOJADO escala con la multitud (más targets no es ventaja):
+  // base 8% + 2% por cada vivo sobre 3, tope 25%; nunca dos enojados seguidos.
   function generarTarget() {
     let t;
     for (let i = 0; i < 12; i++) {
@@ -130,6 +143,9 @@
       if (t.origen !== ultimoOrigen) break;
     }
     ultimoOrigen = t.origen;
+    const prob = Math.min(ENOJADO_TOPE, ENOJADO_BASE + ENOJADO_POR_EXTRA * Math.max(0, targets.length - 3));
+    t.enojado = !ultimoEnojado && Math.random() < prob;
+    ultimoEnojado = t.enojado;
     targets.push(t);
   }
 
@@ -269,40 +285,50 @@
         const r = F.resolverImpacto(b, tg);
         if (!r) continue;
         tg.destelloHasta = t + DESTELLO_MS;    // destello en CUALQUIER contacto
-        if (!b.tocado) {                       // primer toque de esta bolita = hit
-          b.tocado = true;
-          const bono = P.anotarHit(marcador);
-          if (bono > 0) flotanteBono(bono);
-          P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, t); // respiro al 10º hit en dif. máx
-        }
-        if (r.destruidos > 0) {                // 10 pts por cubo demolido
-          const g = P.anotarDestruidos(marcador, r.destruidos);
-          flotante(r.px, r.py, '+' + g);
+        if (tg.enojado) {
+          // Enojado: CUALQUIER contacto activa el debuff. NO es hit, NO puntúa,
+          // NO cuenta como fallo (neutro). Se muerde/destruye igual (visual).
+          debuffHasta = t + DEBUFF_MS;
+          b.neutro = true;
+        } else {
+          if (!b.tocado) {                     // primer toque de esta bolita = hit
+            b.tocado = true;
+            const bono = P.anotarHit(marcador);
+            if (bono > 0) flotanteBono(bono);
+            P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, t); // respiro al 10º hit en dif. máx
+          }
+          if (r.destruidos > 0) {              // 10 pts por cubo demolido
+            const g = P.anotarDestruidos(marcador, r.destruidos);
+            flotante(r.px, r.py, '+' + g);
+          }
+          actualizarMarcador();
         }
         if (r.cubosLiberados.length > 0) {
           explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy);
         }
-        actualizarMarcador();
         if (r.muerto) {
           sacudidaHasta = t + SACUDIDA_MS;     // micro-sacudida solo en muerte
           targets.splice(ti, 1);
-          proximoSpawn = Math.min(proximoSpawn, t + retardoSpawn(t)); // la muerte acelera el refill (nunca lo retrasa); hueco max = SPAWN_MAX
+          proximoSpawn = Math.min(proximoSpawn, t + retardoSpawn(t)); // la muerte acelera el refill; hueco máx = 1200ms
         }
       }
     }
 
     // Avanza cada bolita en SUBPASOS, probando colisión en cada uno (fin del
     // túnel). No se retiran aún: la colisión debe verlas vivas (para el fallo).
+    const debuffActivo = t < debuffHasta;
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
+      b.radio = debuffActivo ? RADIO_DEBIL : RADIO_NORMAL; // debuff afecta a TODAS
       F.paso(b, dt, limites, function () { colisionar(b); });
       b.historia.unshift({ x: b.x, y: b.y }); // estela propia (3 fantasmas)
       if (b.historia.length > LAG_ESTELA * 3 + 1) b.historia.pop();
     }
-    // Retira las bolitas muertas: si no tocó nada = FALLO (−50, rompe racha).
+    // Retira las bolitas muertas: si no tocó nada (y no fue neutro por tocar un
+    // enojado) = FALLO (castigo del tramo, rompe racha).
     for (let i = bolitas.length - 1; i >= 0; i--) {
       if (!bolitas[i].viva) {
-        if (!bolitas[i].tocado) { P.anotarFallo(marcador); actualizarMarcador(); }
+        if (!bolitas[i].tocado && !bolitas[i].neutro) { P.anotarFallo(marcador); actualizarMarcador(); }
         bolitas.splice(i, 1);
       }
     }
@@ -321,7 +347,8 @@
       q.edad += dt;
       if (q.edad >= q.vida) cubos.splice(i, 1);
     }
-    if (targets.length < MAX_TARGETS && t >= proximoSpawn) {
+    // Flujo continuo: lanza en cuanto vence el retardo (tope duro = válvula).
+    if (targets.length < MAX_TARGETS_DURO && t >= proximoSpawn) {
       generarTarget();
       proximoSpawn = t + retardoSpawn(t);
     }
@@ -370,19 +397,30 @@
       ctx.restore();
     }
     ctx.globalAlpha = 1;
+    const remDebuff = debuffHasta - performance.now();
+    const debil = remDebuff > 0;                 // debuff activo → hitball chica
+    const radioAhora = debil ? RADIO_DEBIL : RADIO_NORMAL;
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
-      dibujarEstela(b);
-      dibujarBolita(b.x, b.y);
+      const rB = b.radio || RADIO_NORMAL;
+      dibujarEstela(b, rB);
+      dibujarBolita(b.x, b.y, rB, rB < RADIO_NORMAL);
     }
     if (gesto.activo) {
       // La bolita AGARRADA sigue el dedo EXACTAMENTE (sin lag ni suavizado).
       const dedo = gesto.puntos[gesto.puntos.length - 1];
-      dibujarBolita(dedo.x, dedo.y);
+      dibujarBolita(dedo.x, dedo.y, radioAhora, debil);
     } else if (performance.now() - ultimoDisparo >= CADENCIA_MS) {
       // Bolita en reposo = señal de "listo": aparece al cumplirse la cadencia.
       const r = reposo();
-      dibujarBolita(r.x, r.y);
+      dibujarBolita(r.x, r.y, radioAhora, debil);
+    }
+
+    // Indicador de debuff: barra fina en el BORDE SUPERIOR del canvas que se
+    // encoge con el tiempo restante (--texto-apagado). Técnica barata.
+    if (debil) {
+      ctx.fillStyle = COLOR.textoApagado;
+      ctx.fillRect(0, 0, W * (remDebuff / DEBUFF_MS), 3);
     }
 
     // Números flotantes: +N en el impacto (sube y se desvanece); bonos de
@@ -403,13 +441,13 @@
   }
 
   // Estela propia de la bolita: 3 fantasmas al 30/20/10% de alfa.
-  function dibujarEstela(b) {
+  function dibujarEstela(b, radio) {
     const alfas = [0.3, 0.2, 0.1];
     for (let i = 0; i < alfas.length; i++) {
       const p = b.historia[(i + 1) * LAG_ESTELA];
       if (!p) continue;
       ctx.globalAlpha = alfas[i];
-      dibujarBolita(p.x, p.y);
+      dibujarBolita(p.x, p.y, radio, radio < RADIO_NORMAL);
     }
     ctx.globalAlpha = 1;
   }
@@ -446,17 +484,29 @@
     ctx.fillStyle = COLOR.negro;
     if (t.celdas[6]) ctx.fillRect(x + 1 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
     if (t.celdas[8]) ctx.fillRect(x + 3 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
+    // ENOJADO: cejas = celdas de la fila 0 (idx 0,1,3,4) pintadas en --negro
+    // sobre cada ojo (deja libre la celda 2 central). Mismo sistema de máscara.
+    if (t.enojado) {
+      const cejas = [0, 1, 3, 4];
+      for (let k = 0; k < cejas.length; k++) {
+        const idx = cejas[k];
+        if (!t.celdas[idx]) continue;
+        const c = idx % 5;
+        ctx.fillRect(x + c * CUBO, y, CUBO, CUBO);
+      }
+    }
   }
 
-  // Bolita: 28px --indigo con borde 3px --indigo-vivo.
-  function dibujarBolita(cx, cy) {
-    const RADIO = 14; // diámetro 28px
+  // Bolita: --indigo con borde --indigo-vivo. Bajo debuff se dibuja chica
+  // (radio 7) y con borde --texto-apagado (se ve "apagada"/débil).
+  function dibujarBolita(cx, cy, radio, debil) {
+    const RADIO = radio || 14;
     ctx.beginPath();
     ctx.arc(cx, cy, RADIO - 1.5, 0, Math.PI * 2);
     ctx.fillStyle = COLOR.indigo;
     ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = COLOR.indigoVivo;
+    ctx.lineWidth = debil ? 2 : 3;
+    ctx.strokeStyle = debil ? COLOR.textoApagado : COLOR.indigoVivo;
     ctx.stroke();
   }
 
