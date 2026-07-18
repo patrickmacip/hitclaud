@@ -138,6 +138,7 @@
   const CLOUD_MIN = 5000;     // aparece cada 5–25s (aleatorio)
   const CLOUD_MAX = 25000;
   const CLOUD_LENTO = 0.5;    // 50% más lento (reduce la velocidad de lanzamiento)
+  const CLOUD_ESCALA = 1.3;   // 1.3× el target normal (más visible, más ominoso)
 
   // ── Inactividad ────────────────────────────────────────────────────
   const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
@@ -306,6 +307,8 @@
     t.enojado = false;
     t.vx *= CLOUD_LENTO;
     t.vy *= CLOUD_LENTO;
+    // Caja de colisión escalada 1.3× (coincide con el sprite agrandado).
+    t.caja = { cx: 0, cy: 0, hw: 20 * CLOUD_ESCALA, hh: 16 * CLOUD_ESCALA };
     targets.push(t);
   }
 
@@ -507,9 +510,13 @@
           continue;
         }
         if (tg.cloud) {
-          // CloudOver: CUALQUIER contacto (tu hitball O una dispersa/pequeña)
-          // TERMINA LA PARTIDA. Es peligro para todo.
+          // CloudOver: SOLO la hitball PRINCIPAL lo activa. Las dispersas de
+          // moneda lo IGNORAN (ni game over ni daño). Y NO es letal mientras hay
+          // un estado de premio (fiesta o power-up): un CloudOver vivo se queda
+          // pero no mata hasta que el premio termine.
+          if (b.dispersa) continue;
           if (!F.colisionCirculoRect(b, tg)) continue;
+          if (t < fiestaHasta || t < powerupHasta) continue; // no letal en premio
           terminarPartida();
           return; // corta el cuadro; el bucle se congela
         }
@@ -612,9 +619,9 @@
       generarTarget(t);
       proximoSpawn = t + retardoActual(t);
     }
-    // CloudOver: cada 5–25s, nunca dos vivos, NUNCA durante la fiesta de premio
-    // (decisión del director: no arruinar el momento de premio).
-    if (t >= cloudProximo && !enFiesta && !targets.some(function (x) { return x.cloud; })) {
+    // CloudOver: cada 5–25s, nunca dos vivos, NUNCA durante fiesta NI power-up
+    // (ambos son estados de premio: meter la muerte ahí es injusto).
+    if (t >= cloudProximo && !enFiesta && t >= powerupHasta && !targets.some(function (x) { return x.cloud; })) {
       generarCloud();
       cloudProximo = t + rnd(CLOUD_MIN, CLOUD_MAX);
     }
@@ -672,6 +679,7 @@
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.rotate(t.rot);
+      if (t.cloud) ctx.scale(CLOUD_ESCALA, CLOUD_ESCALA); // CloudOver más grande
       dibujarSpriteTarget(t, destella); // solo celdas vivas; destello = --crema
       ctx.restore();
     }
@@ -884,7 +892,7 @@
     // cubos oscuros. SIN halo/glow (eso es de los premios). Un fillRect/cuadro.
     if (t.cloud) {
       ctx.save();
-      ctx.globalAlpha = 0.18 + 0.32 * (0.5 + 0.5 * Math.sin(performance.now() / 700));
+      ctx.globalAlpha = 0.12 + 0.55 * (0.5 + 0.5 * Math.sin(performance.now() / 620)); // latido más marcado
       ctx.fillStyle = COLOR.rojoBrasa;
       ctx.fillRect(x, y, COLS * CUBO, FILAS * CUBO);
       ctx.restore();

@@ -13,15 +13,38 @@ console.log('=== Aparición cada 5–25s ===');
   console.log(`  rango observado: ${(min / 1000).toFixed(1)}s – ${(max / 1000).toFixed(1)}s  ${min >= 5000 && max <= 25000 ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('\n=== Nunca durante la fiesta / nunca dos vivos (condición del spawn) ===');
+console.log('\n=== No aparece en fiesta NI power-up, nunca dos vivos ===');
 {
-  // Espejo de main.js: solo lanza si t>=cloudProximo && !enFiesta && !hayCloud.
-  function puedeLanzar(t, cloudProximo, fiestaHasta, hayCloud) {
-    return t >= cloudProximo && !(t < fiestaHasta) && !hayCloud;
+  // Espejo de main.js: lanza si t>=cloudProximo && !enFiesta && t>=powerupHasta && !hayCloud.
+  function puedeLanzar(t, cloudProximo, fiestaHasta, powerupHasta, hayCloud) {
+    return t >= cloudProximo && !(t < fiestaHasta) && t >= powerupHasta && !hayCloud;
   }
-  console.log(`  en fiesta (bloqueado): ${!puedeLanzar(10000, 8000, 15000, false) ? 'OK ✓' : 'NO ✗'}`);
-  console.log(`  con uno vivo (bloqueado): ${!puedeLanzar(10000, 8000, 0, true) ? 'OK ✓' : 'NO ✗'}`);
-  console.log(`  libre (lanza): ${puedeLanzar(10000, 8000, 0, false) ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  en fiesta (bloqueado): ${!puedeLanzar(10000, 8000, 15000, 0, false) ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  en power-up (bloqueado): ${!puedeLanzar(10000, 8000, 0, 15000, false) ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  con uno vivo (bloqueado): ${!puedeLanzar(10000, 8000, 0, 0, true) ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  libre (lanza): ${puedeLanzar(10000, 8000, 0, 0, false) ? 'OK ✓' : 'NO ✗'}`);
+}
+
+console.log('\n=== SOLO tiro directo: dispersa ignora, hitball principal mata ===');
+{
+  // Espejo de main.js: en la rama cloud, si b.dispersa → continue (ignora);
+  // si no y hay colisión y no hay premio → game over.
+  function resultado(b, colisiona, enPremio) {
+    if (b.dispersa) return 'ignora';
+    if (!colisiona) return 'sin contacto';
+    if (enPremio) return 'no letal (premio)';
+    return 'GAME OVER';
+  }
+  console.log(`  dispersa toca → ${resultado({ dispersa: true }, true, false)}  ${resultado({ dispersa: true }, true, false) === 'ignora' ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  hitball principal toca → ${resultado({ dispersa: false }, true, false)}  ${resultado({ dispersa: false }, true, false) === 'GAME OVER' ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  principal toca en premio → ${resultado({ dispersa: false }, true, true)}  ${resultado({ dispersa: false }, true, true) === 'no letal (premio)' ? 'OK ✓' : 'NO ✗'}`);
+}
+
+console.log('\n=== Más visible: 1.3× tamaño (caja escalada) ===');
+{
+  const cloud = { x: 0, y: 0, rot: 0, cloud: true, caja: { cx: 0, cy: 0, hw: 20 * 1.3, hh: 16 * 1.3 } };
+  const c = F.colisionCirculoRect ? cloud.caja : null;
+  console.log(`  caja ${(cloud.caja.hw * 2).toFixed(0)}×${(cloud.caja.hh * 2).toFixed(0)} (era 40×32)  ${cloud.caja.hw === 26 ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== 50% más lento (reduce velocidad de lanzamiento, NO la gravedad) ===');
@@ -36,24 +59,10 @@ console.log('\n=== 50% más lento (reduce velocidad de lanzamiento, NO la graved
   console.log(`  gravedad global intacta (usa G_TARGET ${F.FISICA.G_TARGET}): OK ✓`);
 }
 
-console.log('\n=== Cualquier contacto (hitball o dispersa) = game over ===');
+console.log('\n=== La colisión detecta el contacto (caja escalada) ===');
 {
   const celdas = []; for (let i = 0; i < 20; i++) celdas.push(true);
-  const cloud = { x: 200, y: 400, rot: 0, vx: 0, vy: 0, cloud: true, celdas: celdas, vivos: 20, masa: F.FISICA.MASA_TARGET };
-  const cx = F.cajaLocal(cloud);
-  // hitball principal
-  const b1 = { x: 200, y: 400, radio: 14 };
-  const golpe1 = !!F.colisionCirculoRect(b1, cloud);
-  // dispersa (radio 7)
-  const b2 = { x: 200, y: 400, radio: 7, dispersa: true, moneda: true };
-  const golpe2 = !!F.colisionCirculoRect(b2, cloud);
-  console.log(`  hitball toca → game over: ${golpe1 ? 'OK ✓' : 'NO ✗'}   dispersa toca → game over: ${golpe2 ? 'OK ✓ (peligro para todo)' : 'NO ✗'}`);
-}
-
-console.log('\n=== Caja de colisión = target normal 5×4 (40×32), sin t.caja especial ===');
-{
-  const celdas = []; for (let i = 0; i < 20; i++) celdas.push(true);
-  const cloud = { x: 0, y: 0, rot: 0, celdas: celdas, cloud: true };
-  const c = F.cajaLocal(cloud);
-  console.log(`  caja ${(c.hw * 2)}×${(c.hh * 2)}  ${c.hw === 20 && c.hh === 16 ? 'OK ✓' : 'NO ✗'}`);
+  const cloud = { x: 200, y: 400, rot: 0, vx: 0, vy: 0, cloud: true, celdas: celdas, vivos: 20, masa: F.FISICA.MASA_TARGET, caja: { cx: 0, cy: 0, hw: 26, hh: 20.8 } };
+  const b = { x: 200, y: 400, radio: 14 };
+  console.log(`  hitball en el centro colisiona: ${F.colisionCirculoRect(b, cloud) ? 'OK ✓' : 'NO ✗'}`);
 }
