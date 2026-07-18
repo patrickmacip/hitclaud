@@ -27,7 +27,8 @@
     indigo: tk('--indigo', '#5C5CC8'),
     indigoVivo: tk('--indigo-vivo', '#7C7CFF'),
     morado: tk('--morado', '#8B5CF6'),
-    amarillo: tk('--amarillo', '#FBBF24'),
+    dorado: tk('--dorado', '#FBBF24'),
+    cian: tk('--cian', '#22D3EE'),
     textoApagado: tk('--texto-apagado', '#8989B1'),
     fuente: tk('--fuente', "'Inter', system-ui, -apple-system, sans-serif"),
   };
@@ -98,7 +99,6 @@
   const ESTRELLA_BASE = 0.05;
   const ESTRELLA_PITY = 0.01;
   const ESTRELLA_TOPE = 0.15;
-  const CAJA_ESPECIAL = { cx: 0, cy: 0, hw: 18, hh: 18 }; // caja 36×36 (estrella/moneda)
 
   // ── Moneda (premio de dispersión: 6 hitballs) ──────────────────────
   const MONEDA_PROB = 0.05;    // 5% de los spawns; independiente de la estrella
@@ -113,36 +113,9 @@
   // ── Inactividad ────────────────────────────────────────────────────
   const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
 
-  // Máscara EXACTA de la ESTRELLA (export de Figma del dueño): DESTELLO de 8
-  // puntas (cruz + 4 diagonales), 9×9 cubitos de 4px en 36×36px, 29 cubitos.
-  // Simétrico en ambos ejes. Sin ojos. NO reinterpretar.
-  const ESTRELLA = [
-    '000010000',
-    '010010010',
-    '001010100',
-    '000111000',
-    '111111111',
-    '000111000',
-    '001010100',
-    '010010010',
-    '000010000',
-  ];
-  const SPRITE_ESP = 36; // px del sprite de estrella/moneda (9×9 de 4px)
-
-  // Máscara de la MONEDA (premio de dispersión): CÍRCULO de cubitos de 4px,
-  // 9×9 en 36×36. La FORMA distingue el tipo (destello=estrella, círculo=moneda);
-  // el color (--amarillo) es el mismo (idioma: amarillo = premio). Sin ojos.
-  const MONEDA = [
-    '000111000',
-    '011111110',
-    '011111110',
-    '111111111',
-    '111111111',
-    '111111111',
-    '011111110',
-    '011111110',
-    '000111000',
-  ];
+  // PREMIOS SIN ICONO PROPIO: la estrella y la moneda son el TARGET NORMAL
+  // (retícula 5×4, ojos), sólo que BRILLAN. Los distingue el COLOR DEL BRILLO
+  // (dorado = estrella, cian = moneda), no la forma.
 
   // ── Constantes de la explosión de cubos (animación pura) ───────────
   // Los cubos caen hasta salir del viewport (viven más que antes). Al llenarse
@@ -219,19 +192,16 @@
     while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
   }
 
-  // Centros de mundo de los CUBITOS de 4px de una máscara 9×9 (para su
-  // explosión). Sprite 36×36 centrado en (tg.x, tg.y).
-  function cubitosMascaraMundo(tg, mascara) {
+  // Centros de mundo de los 20 cubos de 8px vivos de un target (para la
+  // explosión de estrella/moneda, que son targets normales).
+  function cubos8Mundo(tg) {
     const out = [];
     const cw = Math.cos(tg.rot);
     const sw = Math.sin(tg.rot);
-    for (let f = 0; f < 9; f++) {
-      for (let c = 0; c < 9; c++) {
-        if (mascara[f][c] !== '1') continue;
-        const lx = c * 4 - 16; // centro del cubito (sprite 36×36 centrado)
-        const ly = f * 4 - 16;
-        out.push({ x: tg.x + lx * cw - ly * sw, y: tg.y + lx * sw + ly * cw });
-      }
+    for (let i = 0; i < 20; i++) {
+      if (!tg.celdas[i]) continue;
+      const l = F.celdaLocal(i);
+      out.push({ x: tg.x + l.x * cw - l.y * sw, y: tg.y + l.x * sw + l.y * cw });
     }
     return out;
   }
@@ -251,8 +221,7 @@
     const hayBonanza = targets.some(function (x) { return x.bonanza; });
     const probEstrella = Math.min(ESTRELLA_TOPE, ESTRELLA_BASE + ESTRELLA_PITY * pityEstrella);
     if (!enFiesta && !hayBonanza && !ultimaBonanza && Math.random() < probEstrella) {
-      t.bonanza = true;
-      t.caja = CAJA_ESPECIAL; // caja 36×36 real de los cubitos
+      t.bonanza = true; // target normal que BRILLA dorado
       t.enojado = false;
       ultimaBonanza = true;
       ultimoEnojado = false;
@@ -262,9 +231,8 @@
       pityEstrella += 1; // spawn sin estrella → sube la probabilidad
       const hayMoneda = targets.some(function (x) { return x.moneda; });
       if (!enFiesta && !hayMoneda && !ultimaMoneda && Math.random() < MONEDA_PROB) {
-        // Moneda: independiente de la estrella (pueden coexistir en pantalla).
+        // Moneda: target normal que BRILLA cian. Independiente de la estrella.
         t.moneda = true;
-        t.caja = CAJA_ESPECIAL;
         t.enojado = false;
         ultimaMoneda = true;
         ultimoEnojado = false;
@@ -487,20 +455,19 @@
           fiestaHasta = t + FIESTA_MS;
           fiestaFlashHasta = t + FIESTA_FLASH_MS;
           b.neutro = true;
-          // Celebración: la estrella estalla en sus cubitos de 4px --amarillo.
-          explotarCubos(cubitosMascaraMundo(tg, ESTRELLA), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.amarillo, 4);
+          // Celebración: la estrella (target normal) estalla en sus 20 cubos --dorado.
+          explotarCubos(cubos8Mundo(tg), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.dorado, 8);
           sacudidaHasta = t + SACUDIDA_MS;
           targets.splice(ti, 1);
           proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t)); // arranca la ráfaga
           continue;
         }
         if (tg.moneda) {
-          // Moneda: TODO O NADA. Cualquier contacto la disuelve en 6 hitballs.
-          // No puntúa; contacto neutro (ni hit ni fallo).
+          // Moneda: TODO O NADA. Contacto neutro (ni hit ni fallo), no puntúa.
           if (!F.colisionCirculoRect(b, tg)) continue;
           b.neutro = true;
           dispersarMoneda(tg.x, tg.y);
-          explotarCubos(cubitosMascaraMundo(tg, MONEDA), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.amarillo, 4);
+          explotarCubos(cubos8Mundo(tg), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.cian, 8);
           sacudidaHasta = t + SACUDIDA_MS;
           targets.splice(ti, 1);
           proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t));
@@ -623,20 +590,19 @@
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
       const destella = t.destelloHasta && performance.now() < t.destelloHasta;
-      // Halo pulsante de los premios (se lee desde la periferia). Un arco con
-      // glow por cuadro. La estrella lo lleva fuerte; la moneda, suave (premio
-      // menor). Costo despreciable.
+      // BRILLO pulsante de los premios (halo con glow). El color distingue el
+      // tipo: --dorado la estrella, --cian la moneda. Se lee desde la periferia.
       if (t.bonanza || t.moneda) {
         const now = performance.now();
-        const fuerte = t.bonanza;
+        const brillo = t.bonanza ? COLOR.dorado : COLOR.cian;
         ctx.save();
-        ctx.globalAlpha = (fuerte ? 0.25 : 0.14) + (fuerte ? 0.2 : 0.1) * Math.sin(now / 200);
-        ctx.strokeStyle = fuerte ? COLOR.crema : COLOR.amarillo;
-        ctx.lineWidth = fuerte ? 3 : 2;
-        ctx.shadowColor = fuerte ? COLOR.crema : COLOR.amarillo;
-        ctx.shadowBlur = fuerte ? 10 : 6;
+        ctx.globalAlpha = 0.3 + 0.22 * Math.sin(now / 200);
+        ctx.strokeStyle = brillo;
+        ctx.lineWidth = 3;
+        ctx.shadowColor = brillo;
+        ctx.shadowBlur = 10;
         ctx.beginPath();
-        ctx.arc(t.x, t.y, 24 + (fuerte ? 4 : 2) * Math.sin(now / 200), 0, Math.PI * 2);
+        ctx.arc(t.x, t.y, 26 + 4 * Math.sin(now / 200), 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
@@ -769,31 +735,19 @@
   // Cubos esquineros con la esquina exterior a 4px; ojos (celdas 6 y 8) en
   // --negro, cada uno solo si su celda sigue viva.
   function dibujarSpriteTarget(t, destella) {
-    // ESTRELLA / MONEDA: máscara 9×9 de cubitos de 4px en --amarillo, sprite
-    // 36×36, sin ojos. La estrella PARPADEA a --crema (más luz); la moneda es
-    // sólida (premio menor). La forma (destello vs círculo) distingue el tipo.
-    if (t.bonanza || t.moneda) {
-      const mascara = t.bonanza ? ESTRELLA : MONEDA;
-      let colE = COLOR.amarillo;
-      if (t.bonanza && Math.sin(performance.now() / 110) > 0) colE = COLOR.crema;
-      if (destella) colE = COLOR.crema;
-      ctx.fillStyle = colE;
-      for (let f = 0; f < 9; f++) {
-        for (let c = 0; c < 9; c++) {
-          if (mascara[f][c] === '1') ctx.fillRect(-18 + c * 4, -18 + f * 4, 4, 4);
-        }
-      }
-      return;
-    }
     const CUBO = 8;
     const COLS = 5;
     const FILAS = 4;
     const RADIO_ESQ = 4;
     const x = -20;
     const y = -16;
-    // Color como SEÑAL: coral = normal, --morado = enojado (castigo).
-    // El destello de contacto pinta --crema. La cara es idéntica en todos.
+    // Color como SEÑAL: coral = normal, --morado = enojado. Los PREMIOS son el
+    // target normal (coral) PARPADEANDO hacia su brillo: --dorado la estrella,
+    // --cian la moneda (el color del brillo distingue, no la forma). El
+    // destello de contacto pinta --crema.
     let col = t.enojado ? COLOR.morado : COLOR.coral;
+    if (t.bonanza && Math.sin(performance.now() / 110) > 0) col = COLOR.dorado;
+    if (t.moneda && Math.sin(performance.now() / 110) > 0) col = COLOR.cian;
     if (destella) col = COLOR.crema;
     ctx.fillStyle = col;
     for (let f = 0; f < FILAS; f++) {

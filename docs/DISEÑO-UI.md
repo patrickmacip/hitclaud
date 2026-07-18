@@ -12,7 +12,8 @@
 | `--indigo` | `#5C5CC8` | Bolita del jugador |
 | `--indigo-vivo` | `#7C7CFF` | Borde de la bolita |
 | `--morado` | `#8B5CF6` | Castigo: enojado, hitball bajo debuff, barra de debuff |
-| `--amarillo` | `#FFD400` | Premio: la estrella (Bonanza) |
+| `--dorado` | `#FBBF24` | Brillo de la estrella (fiesta). Contraste ~11:1 sobre `--bg` |
+| `--cian` | `#22D3EE` | Brillo de la moneda (power-up). Contraste ~10.5:1 sobre `--bg` |
 | `--texto-apagado` | `#8989B1` | Etiquetas secundarias |
 | `--texto-apagado-fuerte` | `#B9B9DC` | Números secundarios |
 | `--negro` | `#000` | Ojos del target |
@@ -24,8 +25,10 @@
 - **coral** = target normal (lo que puntúa).
 - **--morado** = castigo: target enojado, hitball en modo chico (debuff), barra de debuff radiante.
 - **índigo** = la hitball del jugador.
-- **--amarillo** = premio: la estrella (Bonanza), forma de 5 picos en cubitos de 4px.
-- **luz** (halo pulsante, parpadeo, glow) = premios (la estrella: amarillo + halo + parpadeo amarillo↔crema; los bonos de racha; el descargue del debuff).
+- **--dorado** = estrella / fiesta.
+- **--cian** = moneda / power-up.
+
+**Los premios NO tienen forma propia:** la estrella y la moneda son el TARGET NORMAL (retícula 5×4, ojos) que BRILLA. Los distingue el COLOR del brillo (dorado vs cian), no la silueta. Eje de lectura a 40px en movimiento: **mate vs brillo** + matiz — normal (coral mate), enojado (morado mate), estrella (coral + glow dorado + parpadeo), moneda (coral + glow cian + parpadeo). La **luz** (halo/glow/parpadeo) sigue significando recompensa.
 
 La cara del target NO cambia entre normal y enojado (mismos ojos, sin cejas): la señal es el color, no la forma. Esto evita cortar la silueta sobre fondo oscuro.
 
