@@ -6,7 +6,11 @@
 (function (global) {
   'use strict';
 
-  const PTS_CUBO = 10;       // cada cubo destruido = 10 pts (target intacto = 200)
+  // Ganancia PROPORCIONAL al tramo: el valor por cubo escala IGUAL que el
+  // castigo (valorCubo = penalBase / VALOR_DIV). Así el ratio ganancia/castigo
+  // es constante en todos los tramos (a score 0: penalBase 50 → 10/cubo, como
+  // antes). Interpolado dentro del tramo → sin salto en fronteras.
+  const VALOR_DIV = 5;
   // Bonos de racha (una vez, al alcanzar el hito exacto).
   const HITOS = { 5: 500, 10: 1000, 50: 5000, 100: 20000 };
 
@@ -94,16 +98,20 @@
     return AMORT_MIN + (1 - AMORT_MIN) * (score / suelo); // ×1 en el suelo → AMORT_MIN en 0
   }
 
-  // n cubos destruidos → +n·10. Devuelve los puntos ganados.
+  // Valor de un cubo según el tramo (proporcional al castigo, interpolado).
+  function valorCubo(score) { return penalBase(score) / VALOR_DIV; }
+
+  // n cubos destruidos → +round(n·valorCubo(tramo)). El valor por cubo escala
+  // con el tramo (equilibrio con el castigo). Devuelve los puntos ganados.
   function anotarDestruidos(m, n) {
-    const g = n * PTS_CUBO;
+    const g = Math.round(n * valorCubo(m.puntos));
     m.puntos += g;
     subirPico(m);
     return g;
   }
 
-  // Un hit (bolita que tocó ≥1 target normal): resetea fallos, sube la racha
-  // y paga el bono de hito si corresponde. Devuelve el bono (0 si no hay).
+  // Un hit (bolita que tocó ≥1 target): resetea fallos, sube la racha y paga el
+  // bono de hito si corresponde. Devuelve el bono (0 si no hay).
   function anotarHit(m) {
     m.fallosSeguidos = 0;
     m.racha += 1;
@@ -176,6 +184,7 @@
     penalTramo: penalTramo,
     penalBase: penalBase,
     multFallo: multFallo,
+    valorCubo: valorCubo,
     amortiguar: amortiguar,
     SUELO_PICO: SUELO_PICO,
     AMORT_MIN: AMORT_MIN,
@@ -188,7 +197,7 @@
     anotarInactividadSegundo: anotarInactividadSegundo,
     HITOS: HITOS,
     TRAMOS: TRAMOS,
-    PTS_CUBO: PTS_CUBO,
+    VALOR_DIV: VALOR_DIV,
     RETARDO_BASE: RETARDO_BASE,
     RETARDO_TOPE: RETARDO_TOPE,
     SCORE_RITMO_MAX: SCORE_RITMO_MAX,
