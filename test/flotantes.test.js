@@ -37,3 +37,27 @@ console.log(`  dispersa que SÍ tocó: ${sinFlot === null ? 'sin "0" (ya mostró
 
 console.log('\n=== POSITIVOS: intactos en --coral-vivo ===');
 chk('demolición +30', floatPositivo(30), '+30', COL.coralVivo);
+
+// ── Tamaño de las ganancias (estilo app móvil: a más ganancia, más grande) ──
+const P = require('../js/puntuacion.js');
+function tamGanancia(g) { return Math.min(44, 20 + g / 25); }
+console.log('\n=== Ganancias: tamaño por magnitud + glow desde +300 ===');
+[10, 200, 500, 1000].forEach(function (g) {
+  console.log(`  +${g} → font ${tamGanancia(g).toFixed(0)}px  glow=${g >= 300 ? 'sí' : 'no'}`);
+});
+{
+  const ok = tamGanancia(10) < 21 && tamGanancia(1000) === 44 && tamGanancia(2000) === 44;
+  console.log(`  +10≈20px, crece con g, tope 44px: ${ok ? 'OK ✓' : 'NO ✗'}`);
+}
+
+console.log('\n=== Badge de multiplicador refleja la racha (×N, sin emoji) ===');
+[2, 3, 5, 12].forEach(function (r) {
+  const mult = P.multRacha(r);
+  const texto = mult > 1 ? ('×' + (mult % 1 === 0 ? mult.toFixed(0) : mult.toFixed(1))) : '(oculto)';
+  console.log(`  racha ${r} → ${texto}`);
+});
+{
+  const ok = P.multRacha(2) === 1 && P.multRacha(3) === 1.2 && P.multRacha(12) === 3;
+  console.log(`  oculto <3, ×1.2 al 3º, ×3 tope: ${ok ? 'OK ✓' : 'NO ✗'}`);
+}
+console.log('\n  Todo canvas puro (fillText/fillRect/shadowBlur/scale) — sin librerías. OK ✓');

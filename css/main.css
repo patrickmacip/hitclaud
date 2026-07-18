@@ -64,6 +64,9 @@ body {
 .marcador--actual .valor {
   font: var(--texto-xl);
   color: var(--coral-vivo);
+  display: inline-block;
+  transform-origin: center;
+  transition: transform 0.15s ease-out; /* pop/latido en ganancias fuertes */
 }
 
 .boton-pausa {

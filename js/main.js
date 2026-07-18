@@ -54,16 +54,21 @@
     return rnd(rg.min, rg.max);
   }
 
-  // Números flotantes de feedback (animación pura, en canvas).
+  // Números flotantes de feedback (canvas puro): pop de escala al aparecer +
+  // subida + desvanecimiento. Tope MAX_FLOTANTES (recicla el más viejo).
   const flotantes = [];
-  const FLOTANTE_VIDA = 700;   // ms del +N en el punto de impacto
-  const FLOTANTE_BONO_VIDA = 900;
-  function flotante(x, y, texto, color) {
-    flotantes.push({ x: x, y: y, texto: texto, edad: 0, vida: FLOTANTE_VIDA, grande: false, color: color });
+  const FLOTANTE_VIDA = 750;
+  const MAX_FLOTANTES = 40;
+  function flotante(x, y, texto, color, tam, glow) {
+    flotantes.push({ x: x, y: y, texto: texto, edad: 0, vida: FLOTANTE_VIDA, color: color, tam: tam || 20, glow: !!glow });
+    if (flotantes.length > MAX_FLOTANTES) flotantes.shift();
   }
-  function flotanteBono(bono) {
-    flotantes.push({ x: W / 2, y: H * 0.42, texto: '+' + bono, edad: 0, vida: FLOTANTE_BONO_VIDA, grande: true });
-  }
+  // Tamaño de fuente de una GANANCIA según su magnitud (20px chico → 44px enorme;
+  // glow desde +300). A mayor ganancia, más grande y brillante.
+  function tamGanancia(g) { return Math.min(44, 20 + g / 25); }
+  // Latido del marcador Actual en ganancias fuertes (CSS transform).
+  let marcadorPopHasta = 0;
+  function popMarcador() { elActual.style.transform = 'scale(1.3)'; marcadorPopHasta = performance.now() + 180; }
 
   // ── Constantes de input ────────────────────────────────────────────
   const RADIO_HITMAKER = 203; // hit-test RADIAL desde la esquina inf-der (+40%)
@@ -148,6 +153,7 @@
   let powerupHasta = 0;       // timestamp fin del power-up de moneda (dispersión)
   let fiestaHasta = 0;        // timestamp fin de la fiesta (tope y ritmo altos)
   let fiestaFlashHasta = 0;   // lavado suave al entrar a la fiesta
+  let powerFlashHasta = 0;    // destello cian al activar el power-up
   let proximoSpawn = 0;       // timestamp mínimo del próximo lanzamiento
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
@@ -418,7 +424,7 @@
           const c = P.anotarInactividadSegundo(marcador);
           segundosCobrados++;
           // El cobro por segundo SE VE, junto al marcador Actual (arriba-centro).
-          if (c > 0) flotante(W / 2, 96, '−' + c, COLOR.morado);
+          if (c > 0) flotante(W / 2, 96, '−' + c, COLOR.morado, 18);
         }
         if (debidos > 0) { cobrando = true; actualizarMarcador(); }
       }
@@ -470,6 +476,7 @@
           if (!F.colisionCirculoRect(b, tg)) continue;
           b.neutro = true;
           powerupHasta = t + POWERUP_MS;
+          powerFlashHasta = t + 400;           // destello cian de celebración
           explotarCubos(cubos8Mundo(tg), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.cian, 8);
           sacudidaHasta = t + SACUDIDA_MS;
           targets.splice(ti, 1);
@@ -490,9 +497,10 @@
             P.anotarHit(marcador);
             P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, t); // respiro al 10º hit en dif. máx
           }
-          if (r.destruidos > 0) {              // 10 pts por cubo demolido
+          if (r.destruidos > 0) {              // ganancia proporcional × racha
             const g = P.anotarDestruidos(marcador, r.destruidos);
-            flotante(r.px, r.py, '+' + g);
+            flotante(r.px, r.py, '+' + g, COLOR.coralVivo, tamGanancia(g), g >= 300);
+            if (g >= 50) popMarcador();        // latido en ganancias fuertes
           }
           actualizarMarcador();
           // POWER-UP: al impactar un target normal (y no siendo ya una dispersa)
@@ -526,15 +534,13 @@
       const b = bolitas[i];
       if (!b.viva) {
         if (b.moneda) {
-          // La moneda no penaliza: "0" apagado (sin signo −) = sin costo, para
-          // que el premio no se sienta desventaja.
-          if (!b.tocado) flotante(b.x, b.y, '0', COLOR.textoApagado);
+          // La dispersa no penaliza: "0" apagado (sin signo −) = sin costo.
+          if (!b.tocado) flotante(b.x, b.y, '0', COLOR.textoApagado, 16);
         } else if (!b.tocado && !b.neutro) {
-          // FALLO: la pérdida SE VE (número negativo en --morado en el punto
-          // donde murió).
+          // FALLO: la pérdida SE VE (número negativo grande en --morado).
           const pen = P.anotarFallo(marcador, { debuff: t < debuffHasta }); // espiral: en debuff no escala
           actualizarMarcador();
-          flotante(b.x, b.y, '−' + pen, COLOR.morado);
+          flotante(b.x, b.y, '−' + pen, COLOR.morado, 26, true);
         }
         bolitas.splice(i, 1);
       }
@@ -564,6 +570,8 @@
     }
     // Récord EN VIVO: si el score superó el récord, sube ya (y escribe con throttle).
     if (record.considerar(marcador.puntos, t)) actualizarRecord();
+    // Fin del latido del marcador.
+    if (marcadorPopHasta && t > marcadorPopHasta) { elActual.style.transform = 'scale(1)'; marcadorPopHasta = 0; }
     dibujar();
    } catch (e) {
     if (typeof console !== 'undefined' && console.error) {
@@ -684,17 +692,44 @@
 
     // Números flotantes: +N en el impacto (sube y se desvanece); bonos de
     // racha más grandes en el centro. --coral-vivo.
+    // Flotantes: pop de escala (0.5→1.2→1.0) + subida + fade. +N coral (glow si
+    // grande), −N morado, 0 apagado. Todo canvas puro, sin librerías.
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (let i = 0; i < flotantes.length; i++) {
       const fl = flotantes[i];
       const p = fl.edad / fl.vida;
+      let esc = 1;
+      if (fl.edad < 110) esc = 0.5 + 0.7 * (fl.edad / 110);
+      else if (fl.edad < 240) esc = 1.2 - 0.2 * ((fl.edad - 110) / 130);
+      ctx.save();
       ctx.globalAlpha = Math.max(0, 1 - p);
-      ctx.fillStyle = fl.color || COLOR.coralVivo; // +N coral, −N morado, 0 apagado
-      ctx.font = (fl.grande ? '600 34px ' : '600 20px ') + COLOR.fuente;
-      ctx.fillText(fl.texto, fl.x, fl.y - p * 30); // sube 30px en su vida
+      ctx.translate(fl.x, fl.y - p * 34);
+      ctx.scale(esc, esc);
+      if (fl.glow) { ctx.shadowColor = fl.color || COLOR.coralVivo; ctx.shadowBlur = 12; }
+      ctx.fillStyle = fl.color || COLOR.coralVivo;
+      ctx.font = '700 ' + fl.tam + 'px ' + COLOR.fuente;
+      ctx.fillText(fl.texto, 0, 0);
+      ctx.restore();
     }
     ctx.globalAlpha = 1;
+
+    // BADGE del multiplicador de racha: "×N" prominente arriba-centro, crece con
+    // la racha y pulsa. Solo cuando el multiplicador supera ×1 (racha ≥ 3).
+    const mult = P.multRacha(marcador.racha);
+    if (mult > 1) {
+      const now = performance.now();
+      ctx.save();
+      ctx.translate(W / 2, H * 0.16);
+      ctx.scale(1 + 0.06 * Math.sin(now / 150), 1 + 0.06 * Math.sin(now / 150));
+      ctx.shadowColor = COLOR.coralVivo;
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = COLOR.coralVivo;
+      ctx.font = '800 ' + (26 + Math.min(20, marcador.racha)) + 'px ' + COLOR.fuente;
+      ctx.fillText('×' + (mult % 1 === 0 ? mult.toFixed(0) : mult.toFixed(1)), 0, 0);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
 
     // Amortiguador de caída: "cojín" de luz cálida (--coral-vivo) en el borde
     // inferior cuando el score está bajo el suelo (60% del pico). Alfa según la
@@ -720,6 +755,15 @@
       ctx.save();
       ctx.globalAlpha = 0.18 * (flash / FIESTA_FLASH_MS);
       ctx.fillStyle = COLOR.crema;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+    // Destello cian de celebración al activar el power-up (barato, se desvanece).
+    const flashP = powerFlashHasta - performance.now();
+    if (flashP > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.16 * (flashP / 400);
+      ctx.fillStyle = COLOR.cian;
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
     }
