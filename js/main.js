@@ -26,8 +26,16 @@
 
   // Marcador (puntuación por demolición) + su celda en la barra superior.
   const marcador = P.crearMarcador();
+  const ritmo = P.crearRitmo();
   const elActual = document.querySelector('.marcador--actual .valor');
   function actualizarMarcador() { elActual.textContent = marcador.puntos; }
+
+  // Retardo del próximo spawn: rango vigente (escala con el score; base en
+  // respiro) sorteado → tiempos variables. Hueco máx absoluto = 1200ms (base).
+  function retardoSpawn(ahora) {
+    const rg = P.rangoVigente(ritmo, marcador.puntos, ahora);
+    return rnd(rg.min, rg.max);
+  }
 
   // Números flotantes de feedback (animación pura, en canvas).
   const flotantes = [];
@@ -54,13 +62,10 @@
   const LAG_ESTELA = 3;       // muestreo hacia atrás por fantasma (×1,2,3)
 
   // ── Constantes del spawner de targets ──────────────────────────────
-  // Tope 6 (sube de 3 para dar variedad sin tapizar la pantalla → evita
-  // acertar a ciegas). Si está lleno, el spawner ESPERA al próximo hueco:
-  // solo lanza cuando muere uno y su retardo se cumple. Retardo máx 1200ms
-  // (nunca una pausa larga y aburrida).
+  // Tope 6 (sube de 3 para dar variedad sin tapizar). El retardo entre spawns
+  // lo da el ritmo progresivo (puntuacion.js): escala con el score y usa el
+  // rango base en respiro. Hueco máx absoluto = 1200ms (nunca pausa larga).
   const MAX_TARGETS = 6;      // tope de targets vivos
-  const SPAWN_MIN = 400;      // retardo mín tras una muerte (ms)
-  const SPAWN_MAX = 1200;     // retardo máx (ms)
 
   // ── Constantes de la explosión de cubos (animación pura) ───────────
   const MAX_CUBOS = 120;      // tope de cubos vivos = 6 explosiones simultáneas
@@ -252,7 +257,7 @@
       F.paso(targets[i], dt, limites);
       if (!targets[i].viva) {
         targets.splice(i, 1);
-        proximoSpawn = Math.min(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX)); // la muerte acelera el refill (nunca lo retrasa); hueco max = SPAWN_MAX
+        proximoSpawn = Math.min(proximoSpawn, t + retardoSpawn(t)); // la muerte acelera el refill (nunca lo retrasa); hueco max = SPAWN_MAX
       }
     }
 
@@ -268,6 +273,7 @@
           b.tocado = true;
           const bono = P.anotarHit(marcador);
           if (bono > 0) flotanteBono(bono);
+          P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, t); // respiro al 10º hit en dif. máx
         }
         if (r.destruidos > 0) {                // 10 pts por cubo demolido
           const g = P.anotarDestruidos(marcador, r.destruidos);
@@ -280,7 +286,7 @@
         if (r.muerto) {
           sacudidaHasta = t + SACUDIDA_MS;     // micro-sacudida solo en muerte
           targets.splice(ti, 1);
-          proximoSpawn = Math.min(proximoSpawn, t + rnd(SPAWN_MIN, SPAWN_MAX)); // la muerte acelera el refill (nunca lo retrasa); hueco max = SPAWN_MAX
+          proximoSpawn = Math.min(proximoSpawn, t + retardoSpawn(t)); // la muerte acelera el refill (nunca lo retrasa); hueco max = SPAWN_MAX
         }
       }
     }
@@ -317,7 +323,7 @@
     }
     if (targets.length < MAX_TARGETS && t >= proximoSpawn) {
       generarTarget();
-      proximoSpawn = t + rnd(SPAWN_MIN, SPAWN_MAX);
+      proximoSpawn = t + retardoSpawn(t);
     }
     dibujar();
     // El juego lanza targets de continuo → el bucle sigue vivo.
