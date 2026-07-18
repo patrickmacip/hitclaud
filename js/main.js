@@ -37,6 +37,14 @@
   const elActual = document.querySelector('.marcador--actual .valor');
   function actualizarMarcador() { elActual.textContent = marcador.puntos; }
 
+  // Récord = MÁXIMO HISTÓRICO EN VIVO (se actualiza en el cuadro en que se
+  // supera, no al terminar). Persistente con throttle + flush. El "último
+  // score" NO va en esta celda: es de la fase del ciclo de partida.
+  const almacen = (function () { try { return window.localStorage; } catch (e) { return null; } })();
+  const record = U.crearRecord(almacen, 'hitclaud.record', 500);
+  const elRecord = document.querySelector('.marcador--record .valor');
+  function actualizarRecord() { elRecord.textContent = record.valor; }
+
   // Retardo del próximo spawn: rango vigente (escala con el score; base en
   // respiro) sorteado → tiempos variables. Hueco máx absoluto = 1200ms (base).
   function retardoSpawn(ahora) {
@@ -320,8 +328,11 @@
   // el documento (bloqueo, segundo plano, cambio de pestaña) el reloj no corre;
   // al volver, gracia fresca sin cobro retroactivo.
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) marcarActividad();
+    if (document.hidden) record.flush(performance.now()); // guarda la marca al ocultarse
+    else marcarActividad();
   });
+  // pagehide: última oportunidad de guardar antes de cerrar/descargar.
+  window.addEventListener('pagehide', function () { record.flush(performance.now()); });
 
   // ── Bucle de animación ─────────────────────────────────────────────
   function arrancarBucle() {
@@ -474,6 +485,8 @@
       generarTarget(t);
       proximoSpawn = t + retardoActual(t);
     }
+    // Récord EN VIVO: si el score superó el récord, sube ya (y escribe con throttle).
+    if (record.considerar(marcador.puntos, t)) actualizarRecord();
     dibujar();
    } catch (e) {
     if (typeof console !== 'undefined' && console.error) {
@@ -684,6 +697,7 @@
   window.addEventListener('resize', redimensionar);
   redimensionar();
   actualizarMarcador();  // arranca en 0 (no el placeholder del HTML)
+  actualizarRecord();    // muestra el récord persistido (o 0)
   marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
   arrancarBucle();       // el spawner de targets corre desde el arranque
 
