@@ -145,9 +145,10 @@
   ];
 
   // ── Constantes de la explosión de cubos (animación pura) ───────────
-  const MAX_CUBOS = 160;      // tope de cubos vivos (una estrella son ~58 cubitos)
-  const CUBO_VIDA_MIN = 800;  // ms de vida (se desvanecen)
-  const CUBO_VIDA_MAX = 1200;
+  // Los cubos caen hasta salir del viewport (viven más que antes). Al llenarse
+  // el pool se reciclan los MÁS VIEJOS (cubos.shift, ya saliendo), nunca los
+  // recién nacidos. Tope medido para el peor caso (fiesta + estrella).
+  const MAX_CUBOS = 240;
   const CUBO_FUERZA = 0.5;    // escala del impulso radial por rapidez de impacto
   const CUBO_JITTER = 0.12;   // px/ms de ruido aleatorio por cubo
   const SACUDIDA_AMP = 2;     // px de micro-sacudida de pantalla en destrucción
@@ -212,7 +213,6 @@
         vx: tvx + dirx * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
         vy: tvy + diry * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
         rot: rnd(0, Math.PI * 2), velRot: rnd(-0.01, 0.01),
-        edad: 0, vida: rnd(CUBO_VIDA_MIN, CUBO_VIDA_MAX),
         color: color || COLOR.coral, tam: tam || 8,
       });
     }
@@ -572,15 +572,15 @@
       flotantes[i].edad += dt;
       if (flotantes[i].edad >= flotantes[i].vida) flotantes.splice(i, 1);
     }
-    // Cubos: gravedad de los targets, giro y desvanecimiento. Sin colisión.
+    // Cubos: gravedad de los targets, giro. CAEN hasta SALIR del viewport (sin
+    // fade, sin muerte por tiempo). No colisionan.
     for (let i = cubos.length - 1; i >= 0; i--) {
       const q = cubos[i];
       q.vy += F.FISICA.G_TARGET * dt;
       q.x += q.vx * dt;
       q.y += q.vy * dt;
       q.rot += q.velRot * dt;
-      q.edad += dt;
-      if (q.edad >= q.vida) cubos.splice(i, 1);
+      if (q.y > H + 8 || q.x < -8 || q.x > W + 8 || q.y < -400) cubos.splice(i, 1);
     }
     // Flujo continuo: lanza en cuanto vence el retardo. En fiesta el tope sube
     // a 16; al terminar vuelve a 12 y los sobrantes mueren por su vuelo (no se
@@ -646,11 +646,10 @@
       dibujarSpriteTarget(t, destella); // solo celdas vivas; destello = --crema
       ctx.restore();
     }
-    // Cubos de explosión (animación pura).
+    // Cubos de explosión (animación pura, sin fade: caen sólidos hasta salir).
     for (let i = 0; i < cubos.length; i++) {
       const q = cubos[i];
       ctx.save();
-      ctx.globalAlpha = Math.max(0, 1 - q.edad / q.vida);
       ctx.translate(q.x, q.y);
       ctx.rotate(q.rot);
       ctx.fillStyle = q.color;

@@ -42,11 +42,9 @@
     // salida a velSuelta≈0.68 px/ms (flick deliberado) es 2.26·tanh(0.619·0.68)
     // ≈ 0.9; por encima destruye entero.
     UMBRAL_DESTRUCCION: 0.9,
-    // Daño parcial entre [MÍNIMO, DESTRUCCIÓN): arranca cubos cercanos al
-    // impacto. Mapeo lineal 0.3→2 cubos, 0.9→8 cubos. Por debajo del mínimo:
-    // solo empuje (un roce no desmorona).
-    UMBRAL_MINIMO_DANO: 0.3,
-    DANO_CUBOS_MIN: 2,
+    // Daño por golpe: CUALQUIER contacto arranca ≥1 cubo (el toque mínimo nunca
+    // es fallo). Mapeo lineal: contacto mínimo (poder→0) → 1 cubo; poder justo
+    // por debajo de DESTRUCCIÓN → 8 cubos. Ya no existe "solo empuje sin daño".
     DANO_CUBOS_MAX: 8,
     DESMORONA_CUBOS: 4,       // ≤ este nº de cubos vivos tras un golpe → muere
   };
@@ -384,20 +382,15 @@
       return Object.assign(base, { tipo: 'destruido', cubosLiberados: libres, destruidos: libres.length, muerto: true });
     }
 
-    // Empuje siempre (transferencia de momento con la masa actual).
+    // Empuje siempre (transferencia de momento con la masa actual). La física
+    // del rebote/empuje NO cambia; sólo se añade que SIEMPRE hay daño.
     transferirMomento(bolita, t, nx, ny, vn);
     t.golpeado = true;
 
-    if (poder < FISICA.UMBRAL_MINIMO_DANO) {
-      // Roce: solo empuje, sin daño. Cuenta como toque (hit).
-      return Object.assign(base, { tipo: 'empuje', cubosLiberados: [], destruidos: 0, muerto: false });
-    }
-
-    // Daño parcial: arranca las n celdas vivas más cercanas al impacto.
-    const rango01 = (poder - FISICA.UMBRAL_MINIMO_DANO) /
-      (FISICA.UMBRAL_DESTRUCCION - FISICA.UMBRAL_MINIMO_DANO);
-    let n = Math.round(FISICA.DANO_CUBOS_MIN + rango01 * (FISICA.DANO_CUBOS_MAX - FISICA.DANO_CUBOS_MIN));
-    n = Math.min(n, t.vivos);
+    // Daño: SIEMPRE al menos 1 cubo (1 en el toque mínimo → 8 justo bajo umbral).
+    const rango01 = Math.min(1, poder / FISICA.UMBRAL_DESTRUCCION);
+    let n = Math.round(1 + rango01 * (FISICA.DANO_CUBOS_MAX - 1));
+    n = Math.max(1, Math.min(n, t.vivos));
     const arrancadas = celdasCercanas(t, col.px, col.py, n);
     const libres = arrancadas.map(function (i) { return celdaMundo(t, i); });
     for (let k = 0; k < arrancadas.length; k++) t.celdas[arrancadas[k]] = false;

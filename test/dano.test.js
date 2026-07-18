@@ -16,8 +16,8 @@ function caja(t) {
   return c ? `${(c.hw * 2).toFixed(0)}×${(c.hh * 2).toFixed(0)}` : '—';
 }
 
-console.log(`Umbrales: mínimo=${F.FISICA.UMBRAL_MINIMO_DANO}  destrucción=${F.FISICA.UMBRAL_DESTRUCCION} px/ms`);
-console.log(`Mapeo daño: ${F.FISICA.UMBRAL_MINIMO_DANO}→${F.FISICA.DANO_CUBOS_MIN} cubos, ${F.FISICA.UMBRAL_DESTRUCCION}→${F.FISICA.DANO_CUBOS_MAX} cubos`);
+console.log(`Umbral destrucción=${F.FISICA.UMBRAL_DESTRUCCION} px/ms.`);
+console.log(`Mapeo daño: CUALQUIER contacto → ≥1 cubo (mínimo→1, justo bajo umbral→${F.FISICA.DANO_CUBOS_MAX}).`);
 
 // La bola entra por la cara izquierda (x local = -20 → mundo 180 con rot 0).
 function golpe(t, v) {
@@ -53,9 +53,19 @@ console.log('\n(c) Golpe FUERTE (v=1.2) → destrucción total');
   console.log(`  tipo=${r.tipo} destruidos=${r.destruidos} vivos=${t.vivos} muerto=${r.muerto}`);
 }
 
-console.log('\n(d) Bajo el umbral mínimo (v=0.2) → solo empuje, sin daño');
+console.log('\n(d) Toque MÍNIMO (v=0.2) → arranca 1 cubo (nunca "solo empuje"), y empuja');
 {
   const t = target();
   const r = golpe(t, 0.2);
-  console.log(`  tipo=${r.tipo} destruidos=${r.destruidos} vivos=${t.vivos} target.vx=${t.vx.toFixed(3)} (empujado)`);
+  console.log(`  tipo=${r.tipo} arrancados=${r.destruidos} vivos=${t.vivos} target.vx=${t.vx.toFixed(3)} (empujado)`);
+  console.log(`  ≥1 cubo (el mínimo nunca es fallo): ${r.destruidos >= 1 ? 'OK ✓' : 'NO ✗'}`);
+}
+
+console.log('\n(e) NO exploit: demoler a roces mínimos (~1 cubo/roce) vs un tiro fuerte');
+{
+  const t = target();
+  let golpes = 0, total = 0;
+  while (t.vivos > 0 && golpes < 60) { const r = golpe(t, 0.05); golpes++; total += r.destruidos; if (r.muerto) break; }
+  console.log(`  ${golpes} roces para demoler (${total} cubos = ${total * 10} pts) vs 1 tiro fuerte (1 disparo, 200 pts)`);
+  console.log(`  mismos ~200 pts pero ${golpes} disparos (${(200 / golpes).toFixed(0)} pts/disparo vs 200) → sano: ${golpes >= 10 && total <= 200 ? 'OK ✓' : 'revisar'}`);
 }
