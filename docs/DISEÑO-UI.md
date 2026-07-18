@@ -9,11 +9,23 @@
 | `--coral` | `#E8704E` | Acento principal, targets, hitmaker |
 | `--coral-vivo` | `#FF8764` | Score actual, anillo del hitmaker |
 | `--crema` | `#FFD9CE` | Reservado (destellos / énfasis) |
-| `--indigo` | `#5C5CC8` | Bolita |
+| `--indigo` | `#5C5CC8` | Bolita del jugador |
 | `--indigo-vivo` | `#7C7CFF` | Borde de la bolita |
+| `--morado` | `#8B5CF6` | Castigo: enojado, hitball bajo debuff, barra de debuff |
 | `--texto-apagado` | `#8989B1` | Etiquetas secundarias |
 | `--texto-apagado-fuerte` | `#B9B9DC` | Números secundarios |
 | `--negro` | `#000` | Ojos del target |
+
+## Idioma del color — regla del sistema
+
+**El COLOR señala peligro; la LUZ (brillo/pulso/glow) señala recompensa.**
+
+- **coral** = target normal (lo que puntúa).
+- **--morado** = castigo: target enojado, hitball en modo chico (debuff), barra de debuff radiante.
+- **índigo** = la hitball del jugador.
+- **luz** (halo pulsante, parpadeo, glow) = premios (p.ej. la Bonanza: coral + halo + parpadeo coral↔crema; los bonos de racha; el descargue del debuff).
+
+La cara del target NO cambia entre normal y enojado (mismos ojos, sin cejas): la señal es el color, no la forma. Esto evita cortar la silueta sobre fondo oscuro.
 
 ## Tipografía
 

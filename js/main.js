@@ -21,6 +21,7 @@
     negro: tokens.getPropertyValue('--negro').trim(),
     indigo: tokens.getPropertyValue('--indigo').trim(),
     indigoVivo: tokens.getPropertyValue('--indigo-vivo').trim(),
+    morado: tokens.getPropertyValue('--morado').trim(),
     textoApagado: tokens.getPropertyValue('--texto-apagado').trim(),
     fuente: tokens.getPropertyValue('--fuente').trim(),
   };
@@ -128,7 +129,7 @@
   // Anima una lista de cubos liberados (arrancados o de destrucción total).
   // Cada cubo: velocidad del target + impulso radial desde el impacto (mayor
   // cuanto más cerca) + jitter. Sistema ÚNICO: lo usan golpe suave y fuerte.
-  function explotarCubos(centros, px, py, vImpact, tvx, tvy) {
+  function explotarCubos(centros, px, py, vImpact, tvx, tvy, color) {
     for (let k = 0; k < centros.length; k++) {
       const wc = centros[k];
       const dx = wc.x - px;
@@ -144,6 +145,7 @@
         vy: tvy + diry * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
         rot: rnd(0, Math.PI * 2), velRot: rnd(-0.01, 0.01),
         edad: 0, vida: rnd(CUBO_VIDA_MIN, CUBO_VIDA_MAX),
+        color: color || COLOR.coral,
       });
     }
     while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
@@ -356,7 +358,7 @@
           actualizarMarcador();
         }
         if (r.cubosLiberados.length > 0) {
-          explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy);
+          explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy, tg.enojado ? COLOR.morado : COLOR.coral);
         }
         if (r.muerto) {
           sacudidaHasta = t + SACUDIDA_MS;     // micro-sacudida solo en muerte
@@ -442,7 +444,7 @@
       ctx.globalAlpha = Math.max(0, 1 - q.edad / q.vida);
       ctx.translate(q.x, q.y);
       ctx.rotate(q.rot);
-      ctx.fillStyle = COLOR.coral;
+      ctx.fillStyle = q.color;
       ctx.beginPath();
       ctx.roundRect(-4, -4, 8, 8, 1.5);
       ctx.fill();
@@ -468,11 +470,22 @@
       dibujarBolita(r.x, r.y, radioAhora, debil);
     }
 
-    // Indicador de debuff: barra fina en el BORDE SUPERIOR del canvas que se
-    // encoge con el tiempo restante (--texto-apagado). Técnica barata.
+    // Indicador de debuff: barra en el BORDE SUPERIOR que se DESCARGA (se
+    // encoge) con el tiempo restante. --morado RADIANTE: gradiente + glow por
+    // shadowBlur (parpadeo por alfa) = electricidad. Barato: un fillRect con
+    // sombra. Al vaciarse, el regreso al modo normal se ve entretenido.
     if (debil) {
-      ctx.fillStyle = COLOR.textoApagado;
-      ctx.fillRect(0, 0, W * (remDebuff / DEBUFF_MS), 3);
+      const w = W * (remDebuff / DEBUFF_MS);
+      const grad = ctx.createLinearGradient(0, 0, w, 0);
+      grad.addColorStop(0, COLOR.morado);
+      grad.addColorStop(1, COLOR.crema);
+      ctx.save();
+      ctx.globalAlpha = 0.75 + 0.25 * Math.sin(performance.now() / 90); // chispazo
+      ctx.shadowColor = COLOR.morado;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, 4);
+      ctx.restore();
     }
 
     // Números flotantes: +N en el impacto (sube y se desvanece); bonos de
@@ -525,7 +538,11 @@
     const RADIO_ESQ = 4;
     const x = -20;
     const y = -16;
-    ctx.fillStyle = destella ? COLOR.crema : COLOR.coral; // destello breve al contacto
+    // Color como SEÑAL: coral = normal, --morado = enojado (castigo). La cara
+    // es idéntica al normal (mismos ojos, mismo patrón). El destello pinta --crema.
+    let col = t.enojado ? COLOR.morado : COLOR.coral;
+    if (destella) col = COLOR.crema;
+    ctx.fillStyle = col;
     for (let f = 0; f < FILAS; f++) {
       for (let c = 0; c < COLS; c++) {
         if (!t.celdas[f * COLS + c]) continue; // celda muerta = boquete
@@ -542,33 +559,23 @@
         ctx.fill();
       }
     }
-    // Ojos: celdas 6 (f1,c1) y 8 (f1,c3), cada una si sigue viva.
+    // Ojos: celdas 6 (f1,c1) y 8 (f1,c3), cada una si sigue viva. Iguales en
+    // normal y enojado (la señal es el COLOR, no la cara).
     ctx.fillStyle = COLOR.negro;
     if (t.celdas[6]) ctx.fillRect(x + 1 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
     if (t.celdas[8]) ctx.fillRect(x + 3 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
-    // ENOJADO: cejas = celdas de la fila 0 (idx 0,1,3,4) pintadas en --negro
-    // sobre cada ojo (deja libre la celda 2 central). Mismo sistema de máscara.
-    if (t.enojado) {
-      const cejas = [0, 1, 3, 4];
-      for (let k = 0; k < cejas.length; k++) {
-        const idx = cejas[k];
-        if (!t.celdas[idx]) continue;
-        const c = idx % 5;
-        ctx.fillRect(x + c * CUBO, y, CUBO, CUBO);
-      }
-    }
   }
 
   // Bolita: --indigo con borde --indigo-vivo. Bajo debuff se dibuja chica
-  // (radio 7) y con borde --texto-apagado (se ve "apagada"/débil).
+  // (radio 7) y en --morado (idioma: morado = castigo).
   function dibujarBolita(cx, cy, radio, debil) {
     const RADIO = radio || 14;
     ctx.beginPath();
     ctx.arc(cx, cy, RADIO - 1.5, 0, Math.PI * 2);
-    ctx.fillStyle = COLOR.indigo;
+    ctx.fillStyle = debil ? COLOR.morado : COLOR.indigo;
     ctx.fill();
     ctx.lineWidth = debil ? 2 : 3;
-    ctx.strokeStyle = debil ? COLOR.textoApagado : COLOR.indigoVivo;
+    ctx.strokeStyle = debil ? COLOR.morado : COLOR.indigoVivo;
     ctx.stroke();
   }
 
