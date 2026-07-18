@@ -9,11 +9,13 @@
   --crema: #FFD9CE;
   --indigo: #5C5CC8;
   --indigo-vivo: #7C7CFF;
-  --morado: #8B5CF6;
-  --dorado: #FBBF24;
-  --cian: #22D3EE;
+  --azul: #1F55C9;      /* CASTIGO: enojado, hitball chica (debuff), barra de debuff (antes morado) */
+  --dorado: #FFC300;    /* estrella (bonanza) / multiplicador */
+  --cian: #22D3EE;      /* moneda (power-up) */
+  --disperso: #6FFF2C;  /* bolitas de dispersión de la moneda (verde) */
   --amenaza: #08080E;   /* CloudOver: masa oscura (más negra que el fondo) */
-  --rojo-brasa: #EF4444; /* latido interno del CloudOver (rojo, NO el morado del castigo) */
+  --cloudover-a: #B1003B; /* CloudOver: parpadeo A */
+  --cloudover-b: #FF0055; /* CloudOver: parpadeo B */
   --texto-apagado: #8989B1;
   --texto-apagado-fuerte: #B9B9DC;
   --negro: #000;

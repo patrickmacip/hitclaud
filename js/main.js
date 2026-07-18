@@ -26,11 +26,13 @@
     negro: tk('--negro', '#000'),
     indigo: tk('--indigo', '#5C5CC8'),
     indigoVivo: tk('--indigo-vivo', '#7C7CFF'),
-    morado: tk('--morado', '#8B5CF6'),
-    dorado: tk('--dorado', '#FBBF24'),
+    azul: tk('--azul', '#1F55C9'),        // castigo (antes azul)
+    dorado: tk('--dorado', '#FFC300'),
     cian: tk('--cian', '#22D3EE'),
+    disperso: tk('--disperso', '#6FFF2C'), // dispersión de moneda (verde)
     amenaza: tk('--amenaza', '#08080E'),
-    rojoBrasa: tk('--rojo-brasa', '#EF4444'),
+    cloudoverA: tk('--cloudover-a', '#B1003B'),
+    cloudoverB: tk('--cloudover-b', '#FF0055'),
     textoApagado: tk('--texto-apagado', '#8989B1'),
     fuente: tk('--fuente', "'Inter', system-ui, -apple-system, sans-serif"),
   };
@@ -508,7 +510,7 @@
           const c = P.anotarInactividadSegundo(marcador);
           segundosCobrados++;
           // El cobro por segundo SE VE, junto al marcador Actual (arriba-centro).
-          if (c > 0) flotante(W / 2, 96, '−' + c, COLOR.morado, 18);
+          if (c > 0) flotante(W / 2, 96, '−' + c, COLOR.azul, 18);
         }
         if (debidos > 0) { cobrando = true; actualizarMarcador(); }
       }
@@ -603,7 +605,7 @@
           if (t < powerupHasta && !b.dispersa) dispersarMoneda(r.px, r.py);
         }
         if (r.cubosLiberados.length > 0) {
-          explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy, tg.enojado ? COLOR.morado : COLOR.coral);
+          explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy, tg.enojado ? COLOR.azul : COLOR.coral);
         }
         if (r.muerto) {
           sacudidaHasta = t + SACUDIDA_MS;     // micro-sacudida solo en muerte
@@ -632,10 +634,10 @@
           // La dispersa no penaliza: "0" apagado (sin signo −) = sin costo.
           if (!b.tocado) flotante(b.x, b.y, '0', COLOR.textoApagado, 16);
         } else if (!b.tocado && !b.neutro) {
-          // FALLO: la pérdida SE VE (número negativo grande en --morado).
+          // FALLO: la pérdida SE VE (número negativo grande en --azul).
           const pen = P.anotarFallo(marcador, { debuff: t < debuffHasta }); // espiral: en debuff no escala
           actualizarMarcador();
-          flotante(b.x, b.y, '−' + pen, COLOR.morado, 26, true);
+          flotante(b.x, b.y, '−' + pen, COLOR.azul, 26, true);
         }
         bolitas.splice(i, 1);
       }
@@ -775,17 +777,17 @@
     }
 
     // Indicador de debuff: barra en el BORDE SUPERIOR que se DESCARGA (se
-    // encoge) con el tiempo restante. --morado RADIANTE: gradiente + glow por
+    // encoge) con el tiempo restante. --azul RADIANTE: gradiente + glow por
     // shadowBlur (parpadeo por alfa) = electricidad. Barato: un fillRect con
     // sombra. Al vaciarse, el regreso al modo normal se ve entretenido.
     if (debil) {
       const w = W * (remDebuff / DEBUFF_MS);
       const grad = ctx.createLinearGradient(0, 0, w, 0);
-      grad.addColorStop(0, COLOR.morado);
+      grad.addColorStop(0, COLOR.azul);
       grad.addColorStop(1, COLOR.crema);
       ctx.save();
       ctx.globalAlpha = 0.75 + 0.25 * Math.sin(performance.now() / 90); // chispazo
-      ctx.shadowColor = COLOR.morado;
+      ctx.shadowColor = COLOR.azul;
       ctx.shadowBlur = 8;
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, 4);
@@ -808,7 +810,7 @@
     // Números flotantes: +N en el impacto (sube y se desvanece); bonos de
     // racha más grandes en el centro. --coral-vivo.
     // Flotantes: pop de escala (0.5→1.2→1.0) + subida + fade. +N coral (glow si
-    // grande), −N morado, 0 apagado. Todo canvas puro, sin librerías.
+    // grande), −N azul, 0 apagado. Todo canvas puro, sin librerías.
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (let i = 0; i < flotantes.length; i++) {
@@ -919,11 +921,11 @@
     const RADIO_ESQ = 4;
     const x = -20;
     const y = -16;
-    // Color como SEÑAL: coral = normal, --morado = enojado. Los PREMIOS son el
+    // Color como SEÑAL: coral = normal, --azul = enojado. Los PREMIOS son el
     // target normal (coral) PARPADEANDO hacia su brillo: --dorado la estrella,
     // --cian la moneda. El CLOUDOVER es --amenaza (oscuro) con LATIDO ROJO
     // interno lento (como brasa), SIN brillo → peligro, no premio.
-    let col = t.enojado ? COLOR.morado : COLOR.coral;
+    let col = t.enojado ? COLOR.azul : COLOR.coral;
     if (t.cloud) col = COLOR.amenaza;
     if (t.bonanza && Math.sin(performance.now() / 110) > 0) col = COLOR.dorado;
     if (t.moneda && Math.sin(performance.now() / 110) > 0) col = COLOR.cian;
@@ -950,7 +952,7 @@
     if (t.cloud) {
       ctx.save();
       ctx.globalAlpha = 0.12 + 0.55 * (0.5 + 0.5 * Math.sin(performance.now() / 620)); // latido más marcado
-      ctx.fillStyle = COLOR.rojoBrasa;
+      ctx.fillStyle = COLOR.cloudoverB;
       ctx.fillRect(x, y, COLS * CUBO, FILAS * CUBO);
       ctx.restore();
     }
@@ -960,15 +962,15 @@
     if (t.celdas[8]) ctx.fillRect(x + 3 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
   }
 
-  // Bolita: --indigo con borde --indigo-vivo. Debuff → chica --morado. Con
+  // Bolita: --indigo con borde --indigo-vivo. Debuff → chica --azul. Con
   // MULTIPLICADOR de racha (dorada=true) → --dorado PARPADEANTE. Con power-up
-  // (glow=true) → glow --cian. Precedencia del RELLENO: debuff (morado) > racha
+  // (glow=true) → glow --cian. Precedencia del RELLENO: debuff (azul) > racha
   // (dorado) > índigo; el glow cian del power-up es aparte y se superpone.
   function dibujarBolita(cx, cy, radio, debil, glow, dorada) {
     const RADIO = radio || 14;
     let relleno = COLOR.indigo;
     let borde = COLOR.indigoVivo;
-    if (debil) { relleno = COLOR.morado; borde = COLOR.morado; }
+    if (debil) { relleno = COLOR.azul; borde = COLOR.azul; }
     else if (dorada) {
       const on = Math.sin(performance.now() / 120) > 0;
       relleno = on ? COLOR.dorado : COLOR.indigo; // parpadeo dorado↔índigo
