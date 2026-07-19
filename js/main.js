@@ -78,7 +78,10 @@
   // supera, no al terminar). Persistente con throttle + flush. El "último
   // score" NO va en esta celda: es de la fase del ciclo de partida.
   const almacen = (function () { try { return window.localStorage; } catch (e) { return null; } })();
-  const record = U.crearRecord(almacen, 'hitclaud.record', 500);
+  // RESET de récord por cambio de economía: llave VERSIONADA nueva. La vieja
+  // ('hitclaud.record') queda ignorada para siempre → reset determinista en
+  // cualquier dispositivo/caché, sin código de migración que limpiar luego.
+  const record = U.crearRecord(almacen, 'hitclaud.record.v2', 500);
   const elRecord = document.querySelector('.marcador--record .valor');
   function actualizarRecord() { elRecord.textContent = record.valor; }
 

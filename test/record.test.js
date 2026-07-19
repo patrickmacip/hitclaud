@@ -45,6 +45,20 @@ console.log('\n=== Persistencia: recarga conserva el récord ===');
   console.log(`  guardado=${s._data.rec}  récord tras recarga=${r2.valor}  ${r2.valor === 4242 ? 'OK ✓' : 'NO ✗'}`);
 }
 
+console.log('\n=== Reset por versión de llave: la vieja se ignora, persiste en la nueva ===');
+{
+  const VIEJA = 'hitclaud.record', NUEVA = 'hitclaud.record.v2';
+  const s = mockStorage();
+  s.setItem(VIEJA, '99999'); // récord viejo de la economía anterior
+  // El juego arranca leyendo SOLO la llave nueva → récord 0.
+  const r = U.crearRecord(s, NUEVA, 500);
+  console.log(`  llave vieja '${VIEJA}'=${s._data[VIEJA]} (ignorada) → arranca en ${r.valor}  ${r.valor === 0 ? 'OK ✓' : 'NO ✗'}`);
+  // Persiste en la llave NUEVA, sin tocar la vieja.
+  r.considerar(1234, 0); r.flush(0);
+  console.log(`  persiste en '${NUEVA}'=${s._data[NUEVA]}  ${s._data[NUEVA] === '1234' ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  la vieja queda intacta e ignorada: ${s._data[VIEJA] === '99999' ? 'OK ✓' : 'NO ✗'}`);
+}
+
 console.log('\n=== Robustez: localStorage bloqueado → juego vive, récord en memoria ===');
 {
   // storage null (window.localStorage lanzó / no existe)
