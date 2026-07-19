@@ -43,31 +43,52 @@ console.log('\n=== Multiplicador INACTIVO en modo chico (racha pausada) ===');
   chk(`racha pausada: se preserva en ${antes} (ni sube ni se resetea)`, antes === 10);
 }
 
-console.log('\n=== Rebote FÍSICO con gravedad (no rebote plano) — SOLO en modo chico ===');
+console.log('\n=== Rebote LATERAL con gravedad (no rebote plano) — SOLO en modo chico ===');
 {
-  // Bola chica dentro del viewport, cayendo. rebota=true → rebota en el suelo.
-  const b = { x: 195, y: 400, vx: 0.05, vy: 1.2, radio: RADIO_DEBIL, edad: 0, viva: true, rebota: true, haEntrado: true };
-  let toploBase = false, subioTrasRebote = false, volvioACaer = false, picoTrasRebote = Infinity;
-  let vyAntes = b.vy, faseRebote = 0;
-  for (let i = 0; i < 400 && b.viva; i++) {
-    const yPrev = b.y, vyPrev = b.vy;
+  // Bola chica cerca de la pared izquierda, moviéndose a la izquierda. Rebota en
+  // el lateral (vx se invierte); la gravedad la sigue haciendo caer tras rebotar.
+  const b = { x: 30, y: 100, vx: -0.8, vy: 0, radio: RADIO_DEBIL, edad: 0, viva: true, rebota: true, haEntrado: true };
+  let boteLateral = false, vyCrecioTrasBote = false;
+  for (let i = 0; i < 500 && b.viva; i++) {
+    const vxPrev = b.vx;
     F.paso(b, 16, VP, null);
-    // Detecta el primer rebote en el suelo: vy pasa de + (bajando) a − (subiendo).
-    if (vyPrev > 0 && b.vy < 0 && faseRebote === 0) { faseRebote = 1; toploBase = true; }
-    if (faseRebote === 1 && b.vy < 0) { subioTrasRebote = true; picoTrasRebote = Math.min(picoTrasRebote, b.y); }
-    // Tras subir, la gravedad la vuelve a hacer caer (vy > 0 otra vez).
-    if (faseRebote === 1 && subioTrasRebote && b.vy > 0.1) { faseRebote = 2; volvioACaer = true; }
+    if (vxPrev < 0 && b.vx > 0 && !boteLateral) boteLateral = true;   // rebotó a la derecha
+    if (boteLateral && b.vy > 0.2) vyCrecioTrasBote = true;           // la gravedad la hace caer
   }
-  chk('rebota en el suelo (vy se invierte hacia arriba)', toploBase);
-  chk('tras rebotar SUBE (no rebote plano)', subioTrasRebote);
-  chk('la GRAVEDAD la vuelve a hacer CAER tras el rebote (parábola)', volvioACaer);
-  chk('rebote ATENUADO (restitución < 1): el pico queda por debajo de la altura de salida (y=400)', picoTrasRebote > 400);
-  chk('se ASIENTA/agota (muere dentro del tiempo, no rebota infinito)', !b.viva);
+  chk('rebota en la pared lateral (vx se invierte)', boteLateral);
+  chk('tras rebotar la GRAVEDAD la sigue haciendo CAER (no rebote plano)', vyCrecioTrasBote);
+}
+
+console.log('\n=== Rebote en el TECHO (vy se invierte hacia abajo) ===');
+{
+  const b = { x: 195, y: 30, vx: 0, vy: -1.0, radio: RADIO_DEBIL, edad: 0, viva: true, rebota: true, haEntrado: true };
+  let boteTecho = false;
+  for (let i = 0; i < 60 && b.viva; i++) { const vyPrev = b.vy; F.paso(b, 16, VP, null); if (vyPrev < 0 && b.vy > 0) boteTecho = true; }
+  chk('rebota en el techo (vy sube→baja)', boteTecho);
+}
+
+console.log('\n=== El PISO NO rebota: la bola MUERE al tocarlo ===');
+{
+  const b = { x: 195, y: 780, vx: 0, vy: 1.2, radio: RADIO_DEBIL, edad: 0, viva: true, rebota: true, haEntrado: true };
+  let reboteEnPiso = false;
+  for (let i = 0; i < 200 && b.viva; i++) { const vyPrev = b.vy; F.paso(b, 16, VP, null); if (vyPrev > 0 && b.vy < 0) reboteEnPiso = true; }
+  chk('NO rebota en el piso (nunca invierte vy hacia arriba abajo)', !reboteEnPiso);
+  chk('muere al tocar el piso', !b.viva && b.y >= VP.h - RADIO_DEBIL - 1);
+}
+
+console.log('\n=== Tope de 3 rebotes en paredes/techo ===');
+{
+  // Viewport angosto y bola horizontal rápida cerca del techo: rebota lateral
+  // muchas veces antes de que la gravedad la baje → se corta a 3 y muere.
+  const VN = { w: 80, h: 844 };
+  const b = { x: 40, y: 30, vx: 2.5, vy: 0, radio: RADIO_DEBIL, edad: 0, viva: true, rebota: true, haEntrado: true };
+  for (let i = 0; i < 400 && b.viva; i++) F.paso(b, 16, VN, null);
+  console.log(`  rebotes al morir: ${b.rebotes}  (tope ${F.FISICA.REBOTES_MAX})`);
+  chk('respeta el tope de 3 rebotes (no rebota infinito)', (b.rebotes || 0) <= F.FISICA.REBOTES_MAX && !b.viva);
 }
 
 console.log('\n=== Fuera del modo la bola NO rebota: muere al salir ===');
 {
-  // Misma bola SIN rebota: sale por el borde inferior y muere (mundo sin paredes).
   const b = { x: 195, y: 800, vx: 0, vy: 2.0, radio: RADIO_NORMAL, edad: 0, viva: true, rebota: false, haEntrado: true };
   for (let i = 0; i < 200 && b.viva; i++) F.paso(b, 16, VP, null);
   chk('bola normal muere al salir del viewport (sin paredes)', !b.viva && b.y > VP.h);

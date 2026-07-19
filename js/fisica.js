@@ -37,11 +37,12 @@
     TARGET_HW: 20,
     TARGET_HH: 16,
     RESTITUCION_GOLPE: 0.6,   // atenuación del rebote de la hitball
-    // Rebote contra los BORDES del viewport. EXCEPCIÓN al mundo sin paredes:
-    // SOLO la bola chica (modo enojado) rebota; la bola normal muere al salir.
+    // Rebote contra los bordes. EXCEPCIÓN al mundo sin paredes: SOLO la bola
+    // chica (modo enojado) rebota, y SOLO en LATERALES (izq/der) y TECHO. El
+    // PISO (borde inferior) NO rebota: la bola MUERE al tocarlo. La bola normal
+    // muere al salir por cualquier lado.
     RESTITUCION_PARED: 0.62,  // invierte la componente normal atenuada (no rebote plano)
-    REBOTES_MAX: 9,           // válvula: máx rebotes antes de asentar la bola
-    ASIENTA_VEL: 0.14,        // px/ms: bajo esto y tocando el suelo → se asienta (muere)
+    REBOTES_MAX: 3,           // tope: máx 3 rebotes en paredes/techo; el 4º contacto mata
     MASA_TARGET: 2.5,         // "peso" de un target intacto (20 cubos); baja con el daño
     // Umbral de destrucción (rapidez normal de impacto, px/ms). Cuenta: la
     // salida a velSuelta≈0.68 px/ms (flick deliberado) es 2.26·tanh(0.619·0.68)
@@ -232,27 +233,27 @@
       }
       if (onPaso) onPaso(); // colisión probada en CADA subpaso
 
-      // REBOTE en los bordes: SOLO si o.rebota (bola chica). Invierte la
-      // componente NORMAL atenuada por RESTITUCION_PARED; la gravedad se sigue
-      // integrando arriba → tras rebotar la bola SIGUE CAYENDO (no rebote plano).
+      // REBOTE en los bordes: SOLO si o.rebota (bola chica). Paredes LATERALES y
+      // TECHO invierten la componente NORMAL atenuada por RESTITUCION_PARED; la
+      // gravedad se sigue integrando arriba → tras rebotar la bola SIGUE CAYENDO
+      // (no rebote plano). El PISO NO rebota: MATA. Tope de 3 rebotes: el 4º
+      // contacto con pared/techo también mata (la bola se "gasta").
       if (o.rebota) {
-        let choco = false;
-        if (o.x < r) { o.x = r; o.vx = Math.abs(o.vx) * FISICA.RESTITUCION_PARED; choco = true; }
-        else if (o.x > limites.w - r) { o.x = limites.w - r; o.vx = -Math.abs(o.vx) * FISICA.RESTITUCION_PARED; choco = true; }
-        if (o.y < r) { o.y = r; o.vy = Math.abs(o.vy) * FISICA.RESTITUCION_PARED; choco = true; }
-        else if (o.y > limites.h - r) { o.y = limites.h - r; o.vy = -Math.abs(o.vy) * FISICA.RESTITUCION_PARED; choco = true; }
-        if (choco) o.rebotes = (o.rebotes || 0) + 1;
-        // Se ASIENTA: tocando el suelo y casi sin velocidad, o agotó la válvula.
-        const enSuelo = o.y >= limites.h - r - 0.5;
-        if ((enSuelo && Math.hypot(o.vx, o.vy) < FISICA.ASIENTA_VEL) || (o.rebotes || 0) >= FISICA.REBOTES_MAX) {
-          o.viva = false;
-          break;
+        if (o.y > limites.h - r) { o.viva = false; break; } // el PISO mata
+        if ((o.rebotes || 0) < FISICA.REBOTES_MAX) {
+          let choco = false;
+          if (o.x < r) { o.x = r; o.vx = Math.abs(o.vx) * FISICA.RESTITUCION_PARED; choco = true; }
+          else if (o.x > limites.w - r) { o.x = limites.w - r; o.vx = -Math.abs(o.vx) * FISICA.RESTITUCION_PARED; choco = true; }
+          if (o.y < r) { o.y = r; o.vy = Math.abs(o.vy) * FISICA.RESTITUCION_PARED; choco = true; } // techo
+          if (choco) o.rebotes = (o.rebotes || 0) + 1;
+        } else if (o.x < r || o.x > limites.w - r || o.y < r) {
+          o.viva = false; break; // gastó los 3 rebotes: el siguiente contacto mata
         }
       }
 
       const fuera =
         o.x < -r || o.x > limites.w + r || o.y < -r || o.y > limites.h + r;
-      // Sin rebote (bola normal): muere al salir. Con rebote no puede salir.
+      // Sin rebote (bola normal): muere al salir. Con rebote no sale (lo clampa).
       if (o.edad >= FISICA.VIDA_MAX_MS || (!o.rebota && o.haEntrado && fuera)) {
         o.viva = false;
         break;

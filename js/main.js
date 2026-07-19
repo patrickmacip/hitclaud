@@ -668,8 +668,9 @@
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
       // `chica` = disparada en modo bola-chica: radio 7 toda su vida y REBOTA en
-      // los bordes MIENTRAS el modo dura. Dispersas y normales = radio 14 sin
-      // paredes (mueren al salir). Al terminar el modo, la chica deja de rebotar.
+      // LATERALES y TECHO (el PISO la mata) MIENTRAS el modo dura, hasta 3 rebotes.
+      // Dispersas y normales = radio 14 sin paredes (mueren al salir). Al terminar
+      // el modo, la chica deja de rebotar.
       b.radio = b.chica ? RADIO_DEBIL : RADIO_NORMAL;
       b.rebota = b.chica && debuffActivo;
       F.paso(b, dt, limites, function () { colisionar(b); });
