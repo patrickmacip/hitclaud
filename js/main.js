@@ -36,28 +36,38 @@
     fuente: tk('--fuente', "'Inter', system-ui, -apple-system, sans-serif"),
   };
 
-  // BAÑO DE COLOR POR MODO: un ACENTO ACTIVO tiñe TODO lo naranja del juego (la
-  // hitball, el marcador Actual, el hitmaker, los flotantes de ganancia, el badge
-  // ×N) mientras dura un modo. El FONDO y la SUPERFICIE NUNCA se tocan (si se
-  // tiñeran el juego sería ilegible). Precedencia: castigo > bonanza > power-up >
-  // normal (el castigo es el estado más urgente de comunicar). SIN parpadeo del
-  // acento (color estable); el único que parpadea es el CloudOver, con su rojo.
-  // acento.hb = color de la hitball/UI-canvas; base/vivo = vars CSS del hitmaker.
-  function acentoActivo(t) {
-    if (t < debuffHasta) return { hb: COLOR.azul, base: COLOR.azul, vivo: COLOR.azul };            // castigo (bola chica)
-    if (t < fiestaHasta) return { hb: COLOR.dorado, base: COLOR.dorado, vivo: COLOR.dorado };      // bonanza / fiesta
-    if (t < powerupHasta) return { hb: COLOR.disperso, base: COLOR.disperso, vivo: COLOR.disperso }; // power-up (dispersión)
-    return { hb: COLOR.coralVivo, base: COLOR.coral, vivo: COLOR.coralVivo };                       // normal (naranja)
+  // BAÑO DE COLOR TOTAL POR MODO: al entrar a un modo, TODO se tiñe con una
+  // PALETA ARMÓNICA de 4 roles — targets (normales Y especiales), hitball,
+  // hitmaker, marcador, récord, toda la UI y el texto. Lo ÚNICO intocable: el
+  // FONDO #121216 y la SUPERFICIE de la barra #15151C. Los modos NO se suman: se
+  // REEMPLAZAN. Precedencia: castigo > bonanza > power-up > normal.
+  //   base     = targets / cuerpo principal.
+  //   vivo     = hitball, acentos (más brillante/saturado).
+  //   claro    = récord y jerarquía secundaria de UI/texto (tono más claro).
+  //   profundo = contraste dentro del modo (tono más oscuro; NUNCA fondo/superficie).
+  const MODOS = {
+    normal:  { base: '#E8704E', vivo: '#FF8764', claro: '#FFC9B8', profundo: '#A84A2E' },
+    bonanza: { base: '#FFC300', vivo: '#FFD84D', claro: '#FFEBA3', profundo: '#B88C00' },
+    power:   { base: '#6FFF2C', vivo: '#9CFF6B', claro: '#CBFFAD', profundo: '#3FA817' },
+    castigo: { base: '#1F55C9', vivo: '#4E82F5', claro: '#AFC6F7', profundo: '#143C8F' },
+  };
+  function modoActivo(t) {
+    if (t < debuffHasta) return MODOS.castigo;   // castigo (bola chica)
+    if (t < fiestaHasta) return MODOS.bonanza;   // bonanza / fiesta
+    if (t < powerupHasta) return MODOS.power;    // power-up (dispersión)
+    return MODOS.normal;                         // normal (naranja)
   }
   const raiz = document.documentElement;
-  let acentoBaseAplicado = '';
-  // Escribe las vars CSS del hitmaker SOLO cuando el acento cambia (deja que la
+  let modoAplicado = null;
+  // Escribe las 4 vars CSS del modo SOLO cuando el modo cambia (deja que la
   // transición CSS haga el degradado suave; reescribir cada cuadro la anularía).
-  function aplicarAcentoCSS(base, vivo) {
-    if (base === acentoBaseAplicado) return;
-    acentoBaseAplicado = base;
-    raiz.style.setProperty('--acento', base);
-    raiz.style.setProperty('--acento-vivo', vivo);
+  function aplicarModoCSS(m) {
+    if (m === modoAplicado) return;
+    modoAplicado = m;
+    raiz.style.setProperty('--acento', m.base);
+    raiz.style.setProperty('--acento-vivo', m.vivo);
+    raiz.style.setProperty('--acento-claro', m.claro);
+    raiz.style.setProperty('--acento-profundo', m.profundo);
   }
 
   // Marcador (puntuación por demolición) + su celda en la barra superior.
@@ -633,7 +643,7 @@
           }
           if (r.destruidos > 0) {              // ganancia proporcional (SIN multiplicador en modo chico)
             const g = P.anotarDestruidos(marcador, r.destruidos, enChico);
-            flotante(r.px, r.py, '+' + g, acentoActivo(t).hb, tamGanancia(g), g >= 300); // +N entra al color del modo
+            flotante(r.px, r.py, '+' + g, modoActivo(t).vivo, tamGanancia(g), g >= 300); // +N entra al color del modo
             if (g >= 50) popMarcador();        // latido en ganancias fuertes
           }
           actualizarMarcador();
@@ -642,7 +652,7 @@
           if (t < powerupHasta && !b.dispersa) dispersarMoneda(r.px, r.py);
         }
         if (r.cubosLiberados.length > 0) {
-          explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy, tg.enojado ? COLOR.azul : COLOR.coral);
+          explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy, modoActivo(t).base); // debris = color del modo
         }
         if (r.muerto) {
           sacudidaHasta = t + SACUDIDA_MS;     // micro-sacudida solo en muerte
@@ -761,17 +771,39 @@
     ctx.save();
     ctx.translate(ox, oy);
 
+    // MODO ACTIVO: una sola verdad para todo el cuadro (canvas + vars CSS).
+    const modo = modoActivo(performance.now());
+    aplicarModoCSS(modo);
+
     // Targets lanzados, rotados sobre su centro. SIN colisión con los cubos.
+    // Baño TOTAL: el CUERPO de todos los targets se tiñe del modo (modo.base);
+    // los ESPECIALES se distinguen por su LUZ (halo/pulso/parpadeo en su matiz
+    // de firma), NO por el color del cuerpo. El halo/aura de "estás en un modo"
+    // va en la HITBALL, no en el target; estos halos son la FIRMA del tipo.
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
-      const destella = t.destelloHasta && performance.now() < t.destelloHasta;
-      // SIN aura en el target: los especiales SOLO cambian de color (estrella
-      // dorada, moneda verde, CloudOver rojo). El aura/glow vive en la HITBALL.
+      const now = performance.now();
+      const destella = t.destelloHasta && now < t.destelloHasta;
+      // Halo/pulso de firma del especial (se lee a 40px): bonanza dorado, moneda
+      // verde, enojado azul. El CloudOver no lleva halo: su cuerpo PARPADEA rojo.
+      if (!t.cloud && (t.bonanza || t.moneda || t.enojado)) {
+        const firma = t.bonanza ? COLOR.dorado : t.moneda ? COLOR.disperso : COLOR.azul;
+        ctx.save();
+        ctx.globalAlpha = 0.32 + 0.22 * Math.sin(now / 200);
+        ctx.strokeStyle = firma;
+        ctx.lineWidth = 3;
+        ctx.shadowColor = firma;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, 26 + 4 * Math.sin(now / 200), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.rotate(t.rot);
       if (t.cloud) ctx.scale(CLOUD_ESCALA, CLOUD_ESCALA); // CloudOver más grande
-      dibujarSpriteTarget(t, destella); // solo celdas vivas; destello = --crema
+      dibujarSpriteTarget(t, destella, modo); // cuerpo = modo.base; CloudOver parpadea; destello = crema
       ctx.restore();
     }
     // Cubos de explosión (animación pura, sin fade: caen sólidos hasta salir).
@@ -792,23 +824,21 @@
     const remDebuff = debuffHasta - ahoraB;
     const debil = remDebuff > 0;                 // debuff activo → hitball chica
     const radioAhora = debil ? RADIO_DEBIL : RADIO_NORMAL;
-    // ACENTO del modo: una sola verdad para toda la UI naranja.
-    const acento = acentoActivo(ahoraB);
-    aplicarAcentoCSS(acento.base, acento.vivo);  // hitmaker (var CSS + transición suave)
-    if (elActual) elActual.style.color = acento.hb; // marcador Actual entra al modo
+    // Hitball = tono VIVO del modo; su estela/glow es el AURA (va en la bola).
+    if (elActual) elActual.style.color = modo.vivo; // marcador Actual entra al modo
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
       const rB = b.radio || RADIO_NORMAL;
-      dibujarEstela(b, rB, acento.hb);           // estela = AURA viva del modo (va en la hitball)
-      dibujarBolita(b.x, b.y, rB, acento.hb, false);
+      dibujarEstela(b, rB, modo.vivo);           // estela = AURA viva del modo (va en la hitball)
+      dibujarBolita(b.x, b.y, rB, modo.vivo, false);
     }
-    // Bolita principal (reposo/agarrada): color del modo + glow suave = aura viva.
+    // Bolita principal (reposo/agarrada): tono vivo del modo + glow = aura viva.
     if (gesto.activo) {
       const dedo = gesto.puntos[gesto.puntos.length - 1];
-      dibujarBolita(dedo.x, dedo.y, radioAhora, acento.hb, true);
+      dibujarBolita(dedo.x, dedo.y, radioAhora, modo.vivo, true);
     } else if (ahoraB - ultimoDisparo >= CADENCIA_MS) {
       const r = reposo();
-      dibujarBolita(r.x, r.y, radioAhora, acento.hb, true);
+      dibujarBolita(r.x, r.y, radioAhora, modo.vivo, true);
     }
 
     // Indicador de debuff: barra en el BORDE SUPERIOR que se DESCARGA (se
@@ -817,12 +847,13 @@
     // sombra. Al vaciarse, el regreso al modo normal se ve entretenido.
     if (debil) {
       const w = W * (remDebuff / DEBUFF_MS);
+      // Barra en la paleta del modo: PROFUNDO → VIVO (barrido oscuro→brillante).
       const grad = ctx.createLinearGradient(0, 0, w, 0);
-      grad.addColorStop(0, COLOR.azul);
-      grad.addColorStop(1, COLOR.crema);
+      grad.addColorStop(0, modo.profundo);
+      grad.addColorStop(1, modo.vivo);
       ctx.save();
       ctx.globalAlpha = 0.75 + 0.25 * Math.sin(performance.now() / 90); // chispazo
-      ctx.shadowColor = COLOR.azul;
+      ctx.shadowColor = modo.base;
       ctx.shadowBlur = 8;
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, 4);
@@ -835,9 +866,9 @@
     if (remPower > 0) {
       ctx.save();
       ctx.globalAlpha = 0.85;
-      ctx.shadowColor = COLOR.disperso;
+      ctx.shadowColor = modo.base;
       ctx.shadowBlur = 8;
-      ctx.fillStyle = COLOR.disperso;
+      ctx.fillStyle = modo.vivo;      // barra del power-up en el tono vivo del modo
       ctx.fillRect(0, H - 4, W * (remPower / POWERUP_MS), 4);
       ctx.restore();
     }
@@ -858,8 +889,8 @@
       ctx.globalAlpha = Math.max(0, 1 - p);
       ctx.translate(fl.x, fl.y - p * 34);
       ctx.scale(esc, esc);
-      if (fl.glow) { ctx.shadowColor = fl.color || COLOR.coralVivo; ctx.shadowBlur = 12; }
-      ctx.fillStyle = fl.color || COLOR.coralVivo;
+      if (fl.glow) { ctx.shadowColor = fl.color || modo.vivo; ctx.shadowBlur = 12; }
+      ctx.fillStyle = fl.color || modo.vivo;
       ctx.font = '700 ' + fl.tam + 'px ' + COLOR.fuente;
       ctx.fillText(fl.texto, 0, 0);
       ctx.restore();
@@ -875,9 +906,9 @@
       ctx.save();
       ctx.translate(W / 2, H * 0.16);
       ctx.scale(1 + 0.06 * Math.sin(now / 150), 1 + 0.06 * Math.sin(now / 150));
-      ctx.shadowColor = acento.hb;
+      ctx.shadowColor = modo.vivo;
       ctx.shadowBlur = 12;
-      ctx.fillStyle = acento.hb;
+      ctx.fillStyle = modo.vivo;
       ctx.font = '800 ' + (26 + Math.min(20, marcador.racha)) + 'px ' + COLOR.fuente;
       ctx.fillText('×' + (mult % 1 === 0 ? mult.toFixed(0) : mult.toFixed(1)), 0, 0);
       ctx.restore();
@@ -892,7 +923,7 @@
       const prof = 1 - marcador.puntos / suelo; // 0 en el suelo → 1 en 0
       const alto = 90;
       const g = ctx.createLinearGradient(0, H, 0, H - alto);
-      g.addColorStop(0, acento.hb);
+      g.addColorStop(0, modo.vivo);
       g.addColorStop(1, 'transparent');
       ctx.save();
       ctx.globalAlpha = 0.12 * prof;
@@ -901,22 +932,22 @@
       ctx.restore();
     }
 
-    // Entrada a la fiesta: lavado suave de --crema que se desvanece (~500ms).
-    // Sin pantallazos agresivos (juego desestresante). Un fillRect por cuadro.
+    // Entrada a la fiesta: lavado suave en el tono CLARO del modo (~500ms). Sin
+    // pantallazos agresivos (juego desestresante). Un fillRect por cuadro.
     const flash = fiestaFlashHasta - performance.now();
     if (flash > 0) {
       ctx.save();
       ctx.globalAlpha = 0.18 * (flash / FIESTA_FLASH_MS);
-      ctx.fillStyle = COLOR.crema;
+      ctx.fillStyle = modo.claro;
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
     }
-    // Destello verde de celebración al activar el power-up (barato, se desvanece).
+    // Destello de celebración al activar el power-up (tono claro del modo).
     const flashP = powerFlashHasta - performance.now();
     if (flashP > 0) {
       ctx.save();
       ctx.globalAlpha = 0.16 * (flashP / 400);
-      ctx.fillStyle = COLOR.disperso;
+      ctx.fillStyle = modo.claro;
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
     }
@@ -955,21 +986,18 @@
   // --coral, dibujando SOLO las celdas vivas (t.celdas) → el boquete se ve.
   // Cubos esquineros con la esquina exterior a 4px; ojos (celdas 6 y 8) en
   // --negro, cada uno solo si su celda sigue viva.
-  function dibujarSpriteTarget(t, destella) {
+  function dibujarSpriteTarget(t, destella, modo) {
     const CUBO = 8;
     const COLS = 5;
     const FILAS = 4;
     const RADIO_ESQ = 4;
     const x = -20;
     const y = -16;
-    // Color como SEÑAL (los targets NO entran al baño de color de la UI: son los
-    // blancos). Normal = coral; enojado = --azul; estrella = --dorado sólido;
-    // moneda = --disperso (verde) sólido; CloudOver = parpadeo --cloudover-a/b
-    // cada 100ms (rojos, SIN brillo → peligro). Ninguno lleva aura: eso va en la
-    // hitball. El destello de contacto (crema) manda sobre todos.
-    let col = t.enojado ? COLOR.azul : COLOR.coral;
-    if (t.bonanza) col = COLOR.dorado;
-    if (t.moneda) col = COLOR.disperso;
+    // BAÑO TOTAL: el CUERPO de TODOS los targets es modo.base — el TIPO se lee
+    // por su LUZ (el halo de firma que dibuja la capa superior), no por el color
+    // del cuerpo. Excepción: el CloudOver PARPADEA rojo A/B cada 100ms (su firma
+    // de peligro es el cuerpo mismo). El destello de contacto (crema) manda.
+    let col = modo.base;
     if (t.cloud) col = Math.floor(performance.now() / CLOUD_PARPADEO_MS) % 2 ? COLOR.cloudoverA : COLOR.cloudoverB;
     if (destella) col = COLOR.crema;
     ctx.fillStyle = col;

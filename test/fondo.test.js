@@ -12,14 +12,27 @@ function chk(nombre, ok) { console.log(`  ${nombre}  ${ok ? 'OK ✓' : 'NO ✗'}
 
 console.log('=== El JS nunca reescribe --bg ni --superficie ===');
 {
-  // Cualquier setProperty debe apuntar SOLO a --acento / --acento-vivo.
+  // Cualquier setProperty debe apuntar SOLO a los 4 roles del acento del modo.
+  const ROLES = ['--acento', '--acento-vivo', '--acento-claro', '--acento-profundo'];
   const sets = src.match(/setProperty\(\s*['"]([^'"]+)['"]/g) || [];
   const tokens = sets.map(function (s) { return s.match(/['"]([^'"]+)['"]/)[1]; });
   console.log(`  tokens escritos por JS: ${tokens.length ? tokens.join(', ') : '(ninguno)'}`);
-  const soloAcento = tokens.every(function (t) { return t === '--acento' || t === '--acento-vivo'; });
-  chk('setProperty solo toca --acento / --acento-vivo', soloAcento);
+  const soloAcento = tokens.every(function (t) { return ROLES.indexOf(t) !== -1; });
+  chk('setProperty solo toca los 4 roles del acento', soloAcento);
   chk('NUNCA setProperty(--bg)', !tokens.includes('--bg'));
   chk('NUNCA setProperty(--superficie)', !tokens.includes('--superficie'));
+}
+
+console.log('\n=== Ninguna paleta de modo iguala el fondo #121216 ni la superficie #15151C ===');
+{
+  // Extrae los hex de MODOS y confirma que ningún rol de ningún modo es el
+  // fondo/superficie (el error a evitar: teñir la pantalla de un color ilegible).
+  const bloque = src.slice(src.indexOf('const MODOS = {'), src.indexOf('};', src.indexOf('const MODOS = {')));
+  const hexes = (bloque.match(/#[0-9A-Fa-f]{6}/g) || []).map(function (h) { return h.toUpperCase(); });
+  console.log(`  hex de las 4 paletas (${hexes.length}): ${hexes.join(' ')}`);
+  chk('16 tonos (4 modos × 4 roles)', hexes.length === 16);
+  chk('ninguno = #121216 (fondo)', hexes.indexOf('#121216') === -1);
+  chk('ninguno = #15151C (superficie)', hexes.indexOf('#15151C') === -1);
 }
 
 console.log('\n=== El canvas se limpia con clearRect (no se pinta el fondo con un color) ===');

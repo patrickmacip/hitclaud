@@ -6,11 +6,15 @@
   --superficie: #15151C;
   --coral: #E8704E;
   --coral-vivo: #FF8764;
-  /* Acento ACTIVO del baño de color por modo (JS lo reescribe): por defecto el
-     naranja del juego; pasa a dorado/verde/azul mientras dura un modo. El FONDO
-     y la SUPERFICIE NUNCA se tocan. */
+  /* Acento ACTIVO del baño de color TOTAL por modo (JS reescribe los 4 roles):
+     por defecto la familia naranja; pasa a la paleta dorada/verde/azul mientras
+     dura un modo. El FONDO y la SUPERFICIE NUNCA se tocan.
+     base = principal · vivo = hitball/acentos · claro = récord/UI secundaria ·
+     profundo = contraste dentro del modo. */
   --acento: #E8704E;
   --acento-vivo: #FF8764;
+  --acento-claro: #FFC9B8;
+  --acento-profundo: #A84A2E;
   --crema: #FFD9CE;
   --indigo: #5C5CC8;
   --indigo-vivo: #7C7CFF;

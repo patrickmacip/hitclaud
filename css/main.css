@@ -47,10 +47,12 @@ body {
   font: var(--texto-s);
 }
 
-.marcador--record .etiqueta { color: var(--texto-apagado); }
+/* Récord = tono CLARO del modo (jerarquía secundaria, buena UI). */
+.marcador--record .etiqueta { color: var(--acento-claro, #FFC9B8); transition: color 0.25s ease-out; }
 .marcador--record .valor {
   font: var(--texto-l);
-  color: var(--texto-apagado-fuerte);
+  color: var(--acento-claro, #FFC9B8);
+  transition: color 0.25s ease-out;
 }
 
 .marcador--actual {
@@ -60,10 +62,10 @@ body {
   align-items: center;
 }
 
-.marcador--actual .etiqueta { color: var(--coral); }
+.marcador--actual .etiqueta { color: var(--acento-claro, #FFC9B8); transition: color 0.25s ease-out; }
 .marcador--actual .valor {
   font: var(--texto-xl);
-  color: var(--coral-vivo);
+  color: var(--acento-vivo, #FF8764); /* JS lo fija en vivo por cuadro; esto es el respaldo */
   display: inline-block;
   transform-origin: center;
   /* pop/latido en ganancias fuertes + color entra al color del modo activo */
@@ -75,8 +77,9 @@ body {
   height: 44px;
   border: none;
   border-radius: var(--radio);
-  background: var(--superficie);
-  color: var(--texto-apagado-fuerte);
+  background: var(--superficie); /* superficie INTOCABLE: no se tiñe */
+  color: var(--acento-claro, #FFC9B8); /* el ícono sí entra al modo (claro) */
+  transition: color 0.25s ease-out;
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -176,7 +179,7 @@ body {
 }
 .go-score .valor {
   font: var(--texto-xl);
-  color: var(--coral-vivo);
+  color: var(--acento-vivo, #FF8764);
 }
 
 .go-record {
@@ -191,7 +194,7 @@ body {
   padding: 14px;
   border: none;
   border-radius: var(--radio);
-  background: var(--coral);
+  background: var(--acento, #E8704E);
   color: var(--negro);
   font: var(--texto-m);
   cursor: pointer;

@@ -26,40 +26,59 @@
 
 ## Idioma del color — regla del sistema
 
-**El MODO tiñe la pantalla.** Al entrar a un modo (golpear un especial), TODO lo
-naranja del juego —la hitball, el marcador Actual, el hitmaker, los flotantes de
-ganancia, el badge ×N— pasa al color del modo mientras dura. El **FONDO**
-`#121216` y la **SUPERFICIE** `#15151C` NUNCA se tiñen (si lo hicieran, el juego
-sería ilegible). Los **TARGETS normales siguen coral SIEMPRE** (son los blancos:
-no entran al baño). El **aura/glow** de "estás en un modo" va en la **HITBALL**
-(estela + glow del color del modo), NO en el target.
+**El MODO tiñe TODA la pantalla.** Al entrar a un modo (golpear un especial),
+**todo** se tiñe con la paleta del modo — targets (normales Y especiales),
+hitball, hitmaker, marcador, récord, toda la UI y el texto. Lo **ÚNICO** que NO
+cambia: el **FONDO** `#121216` y la **SUPERFICIE** de la barra `#15151C` (si se
+tiñeran, el juego sería ilegible). Los modos **NO se suman: se REEMPLAZAN** (entrar
+a uno nuevo cambia todo de golpe). Precedencia: **castigo > bonanza > power-up > normal**.
 
-**Acento activo por modo** (precedencia **castigo > bonanza > power-up > normal**):
+### Paletas de modo (4 roles)
 
-- **Normal** → **--coral-vivo** `#FF8764` (hitball) / **--coral** `#E8704E` (hitmaker). Naranja vivo, NO el coral del target (para no camuflar la munición).
-- **Castigo** (bola chica / debuff) → **--azul** `#1F55C9`. El estado más urgente: gana a todos.
-- **Bonanza** (fiesta) → **--dorado** `#FFC300`.
-- **Power-up** (dispersión) → **--disperso** `#6FFF2C` (verde).
+Cada modo es una **familia armónica** de 4 tonos con roles:
+- **base** — targets / cuerpo principal.
+- **vivo** — hitball, acentos (más brillante/saturado).
+- **claro** — récord y jerarquía secundaria de UI/texto (tono más claro).
+- **profundo** — contraste dentro del modo (más oscuro; NUNCA el fondo/superficie).
 
-Transición del baño **breve y suave** (CSS `transition` 0.25s en el hitmaker y en
-el marcador; el canvas cambia en el límite del modo). **SIN parpadeo del acento**
-— el único que parpadea es el CloudOver, con su rojo.
+| Modo | base | vivo | claro | profundo |
+|---|---|---|---|---|
+| **normal** (naranja) | `#E8704E` | `#FF8764` | `#FFC9B8` | `#A84A2E` |
+| **bonanza** (dorado) | `#FFC300` | `#FFD84D` | `#FFEBA3` | `#B88C00` |
+| **power-up** (verde) | `#6FFF2C` | `#9CFF6B` | `#CBFFAD` | `#3FA817` |
+| **castigo** (azul) | `#1F55C9` | `#4E82F5` | `#AFC6F7` | `#143C8F` |
 
-**Color de los targets especiales** (SOLO cambian de color, sin aura):
+Contraste del **claro** (texto del récord) sobre `#121216`: normal 12.7 · bonanza
+15.7 · power 16.4 · castigo 10.9 — legible en los 4. El **profundo** se usa como
+tope oscuro del barrido de la barra de debuff (no como texto).
 
-- **--coral** = target normal (lo que puntúa).
-- **--azul** = target enojado (activa el modo bola-chica). Ojos negros intactos.
-- **--dorado** = estrella (bonanza): dorado sólido.
-- **--disperso** (verde) = moneda (power-up): verde sólido.
-- **--cloudover-a/b** = CloudOver (game over): PARPADEA entre dos rojos (#B1003B ↔ #FF0055) cada 100ms, **SIN brillo** → peligro. Es el único con parpadeo.
+Enrutado por token (var CSS `--acento`/`-vivo`/`-claro`/`-profundo`, JS reescribe
+las 4 por modo): hitball, hitmaker, marcador Actual, récord, etiquetas, ícono de
+pausa, cuerpos de targets, cubos, flotantes de ganancia, badge ×N, amortiguador,
+barras, flashes y botones de game-over. Transición **breve y suave** (CSS 0.25s;
+el canvas cambia en el límite del modo).
 
-**Pérdida = ROJO** `#FF0055` (el rojo claro del CloudOver): TODO lo que RESTA puntos se ve rojo — el −N del fallo y el cobro de inactividad. El **"0"** de una dispersa sin impacto NO es pérdida (no cuesta) → **--texto-apagado**, no rojo. Durante el modo bola-chica NO se emiten números de pérdida (ese modo no resta).
+### Distinción NORMAL vs ESPECIAL dentro del modo
 
-**Los premios NO tienen forma propia:** la estrella y la moneda son el TARGET
-NORMAL (retícula 5×4, ojos) que cambia de COLOR (dorado / verde). Los distingue
-el color, no la silueta. La cara del target NO cambia (mismos ojos, sin cejas).
+Como todos los targets se tiñen del color del modo, los **especiales se
+distinguen por su LUZ, no por su color** — conservan su halo/pulso/parpadeo en su
+**matiz de firma** (se lee a 40px):
 
-La cara del target NO cambia entre normal y enojado (mismos ojos, sin cejas): la señal es el color, no la forma. Esto evita cortar la silueta sobre fondo oscuro.
+- **enojado** = halo **azul** pulsante (activa el modo bola-chica).
+- **estrella (bonanza)** = halo **dorado** pulsante.
+- **moneda (power-up)** = halo **verde** pulsante.
+- **CloudOver** = su CUERPO PARPADEA entre dos rojos (`#B1003B` ↔ `#FF0055`) cada 100ms, **SIN brillo** → peligro. Único con parpadeo de cuerpo; no lleva halo.
+
+El **aura/glow** de "estás en un modo" va en la **HITBALL** (estela + glow del tono
+vivo), NO en los targets. Los ojos negros de todos los sprites NO cambian nunca.
+
+**Pérdida = ROJO** `#FF0055` (el rojo claro del CloudOver): TODO lo que RESTA
+puntos se ve rojo — el −N del fallo y el cobro de inactividad. El **"0"** de una
+dispersa sin impacto NO es pérdida (no cuesta) → **--texto-apagado**. Durante el
+modo bola-chica NO se emiten números de pérdida (ese modo no resta).
+
+La cara del target NO cambia (mismos ojos, sin cejas): la señal es el color del
+modo + la luz de firma, no la forma. Esto evita cortar la silueta sobre el fondo.
 
 ## Tipografía
 
