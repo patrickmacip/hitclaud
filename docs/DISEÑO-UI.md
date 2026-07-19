@@ -60,17 +60,18 @@ el canvas cambia en el límite del modo).
 
 ### Distinción NORMAL vs ESPECIAL dentro del modo
 
-Como todos los targets se tiñen del color del modo, los **especiales se
-distinguen por su LUZ, no por su color** — conservan su halo/pulso/parpadeo en su
-**matiz de firma** (se lee a 40px):
+**Solo los targets NORMALES entran al baño** (cuerpo = `base` del modo). Los
+**ESPECIALES son EXENTOS**: se pintan SIEMPRE con su **color de identidad fijo**,
+en cualquier modo, **SIN halo ni aura** — su color contrasta contra el baño y los
+distingue solos (regla sellada del dueño):
 
-- **enojado** = halo **azul** pulsante (activa el modo bola-chica).
-- **estrella (bonanza)** = halo **dorado** pulsante.
-- **moneda (power-up)** = halo **verde** pulsante.
-- **CloudOver** = su CUERPO PARPADEA entre dos rojos (`#B1003B` ↔ `#FF0055`) cada 100ms, **SIN brillo** → peligro. Único con parpadeo de cuerpo; no lleva halo.
+- **estrella (bonanza)** = `#FFC300` (--dorado).
+- **moneda (power-up)** = `#6FFF2C` (--disperso).
+- **enojado** = `#1F55C9` (--azul).
+- **CloudOver** = PARPADEA entre `#B1003B` ↔ `#FF0055` cada 100ms (su firma de peligro; único con parpadeo de cuerpo).
 
-El **aura/glow** de "estás en un modo" va en la **HITBALL** (estela + glow del tono
-vivo), NO en los targets. Los ojos negros de todos los sprites NO cambian nunca.
+Ningún target lleva halo/aura. El **aura/glow** de "estás en un modo" vive SOLO en
+la **HITBALL** (estela + glow del tono vivo). Los ojos negros NO cambian nunca.
 
 **Pérdida = ROJO** `#FF0055` (el rojo claro del CloudOver): TODO lo que RESTA
 puntos se ve rojo — el −N del fallo y el cobro de inactividad. El **"0"** de una

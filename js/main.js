@@ -775,34 +775,18 @@
     aplicarModoCSS(modo);
 
     // Targets lanzados, rotados sobre su centro. SIN colisión con los cubos.
-    // Baño TOTAL: el CUERPO de todos los targets se tiñe del modo (modo.base);
-    // los ESPECIALES se distinguen por su LUZ (halo/pulso/parpadeo en su matiz
-    // de firma), NO por el color del cuerpo. El halo/aura de "estás en un modo"
-    // va en la HITBALL, no en el target; estos halos son la FIRMA del tipo.
+    // Baño de color: los targets NORMALES se tiñen del modo (modo.base). Los
+    // ESPECIALES son EXENTOS: color de IDENTIDAD fijo, SIN halo/aura (su color
+    // contrasta contra el baño y los distingue solos). El aura de "estás en un
+    // modo" vive SOLO en la hitball, nunca en el target.
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
-      const now = performance.now();
-      const destella = t.destelloHasta && now < t.destelloHasta;
-      // Halo/pulso de firma del especial (se lee a 40px): bonanza dorado, moneda
-      // verde, enojado azul. El CloudOver no lleva halo: su cuerpo PARPADEA rojo.
-      if (!t.cloud && (t.bonanza || t.moneda || t.enojado)) {
-        const firma = t.bonanza ? COLOR.dorado : t.moneda ? COLOR.disperso : COLOR.azul;
-        ctx.save();
-        ctx.globalAlpha = 0.32 + 0.22 * Math.sin(now / 200);
-        ctx.strokeStyle = firma;
-        ctx.lineWidth = 3;
-        ctx.shadowColor = firma;
-        ctx.shadowBlur = 10;
-        ctx.beginPath();
-        ctx.arc(t.x, t.y, 26 + 4 * Math.sin(now / 200), 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
+      const destella = t.destelloHasta && performance.now() < t.destelloHasta;
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.rotate(t.rot);
       if (t.cloud) ctx.scale(CLOUD_ESCALA, CLOUD_ESCALA); // CloudOver más grande
-      dibujarSpriteTarget(t, destella, modo); // cuerpo = modo.base; CloudOver parpadea; destello = crema
+      dibujarSpriteTarget(t, destella, modo); // normal = modo.base; especial = identidad; destello = crema
       ctx.restore();
     }
     // Cubos de explosión (animación pura, sin fade: caen sólidos hasta salir).
@@ -992,11 +976,15 @@
     const RADIO_ESQ = 4;
     const x = -20;
     const y = -16;
-    // BAÑO TOTAL: el CUERPO de TODOS los targets es modo.base — el TIPO se lee
-    // por su LUZ (el halo de firma que dibuja la capa superior), no por el color
-    // del cuerpo. Excepción: el CloudOver PARPADEA rojo A/B cada 100ms (su firma
-    // de peligro es el cuerpo mismo). El destello de contacto (crema) manda.
-    let col = modo.base;
+    // Baño de color: SOLO los targets NORMALES entran (cuerpo = modo.base). Los
+    // ESPECIALES son EXENTOS — color de IDENTIDAD FIJO en cualquier modo, sin
+    // halo: su color contrasta contra el baño y los distingue solos.
+    //   estrella #FFC300 · moneda #6FFF2C · enojado #1F55C9 · CloudOver parpadeo
+    //   #B1003B ↔ #FF0055 (cada 100ms). El destello de contacto (crema) manda.
+    let col = modo.base;                 // NORMAL: en el baño
+    if (t.enojado) col = COLOR.azul;     // identidad (exento)
+    if (t.bonanza) col = COLOR.dorado;   // identidad (exento)
+    if (t.moneda) col = COLOR.disperso;  // identidad (exento)
     if (t.cloud) col = Math.floor(performance.now() / CLOUD_PARPADEO_MS) % 2 ? COLOR.cloudoverA : COLOR.cloudoverB;
     if (destella) col = COLOR.crema;
     ctx.fillStyle = col;
