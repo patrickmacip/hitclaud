@@ -205,7 +205,8 @@
 
   // ── Moneda (power-up de disparo explosivo) ─────────────────────────
   const MONEDA_PROB = 0.05;    // 5% de los spawns; independiente de la estrella
-  const POWERUP_MS = 10000;    // duración del power-up al tocar la moneda
+  const POWERUP_MS = 15000;    // duración del modo dispersión (rediseño: 15s, antes 10s)
+  const DISPERSION_SPAWN_FACTOR = 0.5; // durante el modo, la cadencia es ½ del intervalo → spawn ×2
   const MONEDA_BOLAS = 6;      // dispersas que nacen por CADA impacto durante el power-up
   const MONEDA_VEL = [0.8, 1.3]; // rango de velocidad del "puff" (px/ms)
   const FIESTA_MS = 5000;         // duración de la fiesta
@@ -403,8 +404,13 @@
   }
 
   // Retardo del próximo spawn: en fiesta = ráfaga; si no, el ritmo del score.
+  // Durante el MODO DISPERSIÓN el intervalo se reduce a la mitad (spawn ×2), sin
+  // spawner paralelo: se reusa la misma cadencia parametrizada. Al terminar el
+  // modo, el factor desaparece → ritmo normal exacto, sin residuo.
   function retardoActual(ahora) {
-    return ahora < fiestaHasta ? rnd(FIESTA_RET_MIN, FIESTA_RET_MAX) : retardoSpawn(ahora);
+    let r = ahora < fiestaHasta ? rnd(FIESTA_RET_MIN, FIESTA_RET_MAX) : retardoSpawn(ahora);
+    if (ahora < powerupHasta) r *= DISPERSION_SPAWN_FACTOR;
+    return r;
   }
 
   function reposo() {
