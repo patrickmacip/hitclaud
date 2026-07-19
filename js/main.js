@@ -20,8 +20,6 @@
   const tokens = getComputedStyle(document.documentElement);
   function tk(nombre, respaldo) { return U.leerToken(nombre, respaldo, tokens.getPropertyValue(nombre)); }
   const COLOR = {
-    coral: tk('--coral', '#E8704E'),
-    coralVivo: tk('--coral-vivo', '#FF8764'),
     crema: tk('--crema', '#FFD9CE'),
     negro: tk('--negro', '#000'),
     indigo: tk('--indigo', '#5C5CC8'),
@@ -303,7 +301,7 @@
         vx: tvx + dirx * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
         vy: tvy + diry * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
         rot: rnd(0, Math.PI * 2), velRot: rnd(-0.01, 0.01),
-        color: color || COLOR.coral, tam: tam || 8,
+        color: color || MODOS.normal.base, tam: tam || 8, // respaldo: base naranja (nunca se alcanza; todos pasan color)
       });
     }
     while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
