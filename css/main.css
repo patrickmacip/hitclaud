@@ -108,8 +108,9 @@ body {
   height: 290px;
   transform: translate(50%, 50%); /* cuarto de círculo sangrando */
   border-radius: 50%;
-  /* Baño de color: el hitmaker (UI naranja) entra al color del modo activo. */
-  background: radial-gradient(circle, var(--acento) 0%, transparent 70%);
+  /* Baño de color: el hitmaker (UI naranja) entra al color del modo activo.
+     Fallback literal (blindaje): si el CSS llega stale sin --acento, coral. */
+  background: radial-gradient(circle, var(--acento, #E8704E) 0%, transparent 70%);
   transition: background 0.25s ease-out;
   pointer-events: none;
   z-index: 2;
@@ -120,7 +121,7 @@ body {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 2px solid var(--acento-vivo);
+  border: 2px solid var(--acento-vivo, #FF8764);
   transition: border-color 0.25s ease-out;
   animation: pulso 2s ease-in-out infinite;
 }
