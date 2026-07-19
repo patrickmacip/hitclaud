@@ -8,9 +8,12 @@
 
   // Ganancia PROPORCIONAL al tramo: el valor por cubo escala IGUAL que el
   // castigo (valorCubo = penalBase / VALOR_DIV). Así el ratio ganancia/castigo
-  // es constante en todos los tramos (a score 0: penalBase 50 → 10/cubo, como
-  // antes). Interpolado dentro del tramo → sin salto en fronteras.
-  const VALOR_DIV = 10; // ganancia al 50% del castigo (ratio 0.10): fallar pesa el doble que acertar
+  // es constante en todos los tramos. Interpolado dentro del tramo → sin salto.
+  // CASTIGO −50%: la tabla de tramos se dividió a la mitad (ver TRAMOS) y, para
+  // que la GANANCIA no cambie, VALOR_DIV también (10→5). Resultado: mismos puntos
+  // por cubo (a score 0: penalBase 25 → 5/cubo, igual que antes), castigo a la
+  // mitad, y el ratio ganancia/castigo pasa de 0.10 a 0.20 (constante entre tramos).
+  const VALOR_DIV = 5; // ganancia = 20% del castigo (ratio 0.20): fallar pesa 5× acertar un cubo
   // Multiplicador de RACHA CONTINUA: un hit = hitball que toca ≥1 target; se
   // rompe con el fallo de la hitball principal (no con dispersas ni contacto
   // neutro). Desde el 3er hit, ×1.2, 4º ×1.4… +0.2/hit, tope ×3 (racha 12).
@@ -21,13 +24,15 @@
   const RACHA_TOPE = 3.0;
 
   // Castigo por TRAMOS (el tramo se calcula con el score ANTES de restar).
+  // −50% respecto a la tabla previa (50/100/250/500/1000/2000): fallar pesa la
+  // mitad. Los umbrales (min) NO cambian; solo el castigo.
   const TRAMOS = [
-    { min: 0, pen: 50 },
-    { min: 2000, pen: 100 },
-    { min: 10000, pen: 250 },
-    { min: 25000, pen: 500 },
-    { min: 50000, pen: 1000 },
-    { min: 100000, pen: 2000 },
+    { min: 0, pen: 25 },
+    { min: 2000, pen: 50 },
+    { min: 10000, pen: 125 },
+    { min: 25000, pen: 250 },
+    { min: 50000, pen: 500 },
+    { min: 100000, pen: 1000 },
   ];
   // Multiplicador de fallos consecutivos ESCALADO por tramo (abajo perdona,
   // arriba no). El 1º fallo siempre ×1; la fila = multiplicadores del 2º/3º/4º+.

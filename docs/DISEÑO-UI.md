@@ -53,6 +53,8 @@ el marcador; el canvas cambia en el límite del modo). **SIN parpadeo del acento
 - **--disperso** (verde) = moneda (power-up): verde sólido.
 - **--cloudover-a/b** = CloudOver (game over): PARPADEA entre dos rojos (#B1003B ↔ #FF0055) cada 100ms, **SIN brillo** → peligro. Es el único con parpadeo.
 
+**Pérdida = ROJO** `#FF0055` (el rojo claro del CloudOver): TODO lo que RESTA puntos se ve rojo — el −N del fallo y el cobro de inactividad. El **"0"** de una dispersa sin impacto NO es pérdida (no cuesta) → **--texto-apagado**, no rojo. Durante el modo bola-chica NO se emiten números de pérdida (ese modo no resta).
+
 **Los premios NO tienen forma propia:** la estrella y la moneda son el TARGET
 NORMAL (retícula 5×4, ojos) que cambia de COLOR (dorado / verde). Los distingue
 el color, no la silueta. La cara del target NO cambia (mismos ojos, sin cejas).

@@ -4,7 +4,7 @@ const P = require('../js/puntuacion.js');
 const GRACIA_MS = 3000; // espejo de main.js
 
 console.log('=== Costo por segundo = 25% del castigo del tramo ===');
-[[500, 13], [5000, 25], [30000, 125], [80000, 250]].forEach(function (caso) {
+[[500, 6], [5000, 13], [30000, 63], [80000, 125]].forEach(function (caso) { // castigo −50%: inactividad = 25% del tramo (halved)
   const c = P.costoInactividad(caso[0]);
   console.log(`  score ${caso[0]} → −${c}/s (esperado −${caso[1]})  ${c === caso[1] ? 'OK ✓' : 'NO ✗'}`);
 });
@@ -35,10 +35,10 @@ console.log('\n=== 3s de gracia sin cobro ===');
   console.log(`  a 2.9s: cobros=${r.cobros} puntos=${r.puntos}  ${r.cobros === 0 && r.puntos === 30000 ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('\n=== Cobro por segundo tras la gracia (score 30,000 → −125/s) ===');
+console.log('\n=== Cobro por segundo tras la gracia (score 30,000 → −63/s, castigo −50%) ===');
 {
   const r = corre({ score: 30000, durMs: 3000 + 3000 + 30 }); // gracia + 3s
-  console.log(`  tras 3s cobrando: cobros=${r.cobros} puntos=${r.puntos}  (30000 − 3×125 = 29625)  ${r.cobros === 3 ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  tras 3s cobrando: cobros=${r.cobros} puntos=${r.puntos}  (30000 − 3×63 = 29811)  ${r.cobros === 3 ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== Documento OCULTO → cero cobro ===');

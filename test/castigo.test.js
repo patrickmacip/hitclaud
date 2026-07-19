@@ -42,11 +42,11 @@ console.log('\n=== Transición suave al cruzar 2,000 (sin salto) ===');
 console.log('\n=== Piso en 0 intacto ===');
 {
   const m = P.crearMarcador();
-  m.puntos = 30;
+  m.puntos = 30; // castigo −50%: pen base ≈25 → 30→5, y el 2º fallo topa en 0
   P.anotarFallo(m);
   const a = m.puntos;
   P.anotarFallo(m);
-  console.log(`  fallo con 30 → ${a}, otro → ${m.puntos}  ${a === 0 && m.puntos === 0 ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  fallo con 30 → ${a}, otro → ${m.puntos}  ${a === 5 && m.puntos === 0 ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== Un hit resetea los consecutivos ===');

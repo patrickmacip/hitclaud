@@ -15,9 +15,9 @@ console.log('=== Ganancia (a score 0: 5/cubo, ganancia al 50%) ===');
 console.log('\n=== Piso en 0 ===');
 {
   const m = P.crearMarcador();
-  m.puntos = 50; m.racha = 3;
+  m.puntos = 20; m.racha = 3; // castigo −50%: pen base ≈25 ≥ 20 → topa en 0
   P.anotarFallo(m);
-  console.log(`  fallo con 50 → ${m.puntos}, racha rota=${m.racha}  ${m.puntos === 0 && m.racha === 0 ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  fallo con 20 → ${m.puntos}, racha rota=${m.racha}  ${m.puntos === 0 && m.racha === 0 ? 'OK ✓' : 'NO ✗'}`);
   const m2 = P.crearMarcador();
   P.anotarFallo(m2);
   console.log(`  fallo con 0 → ${m2.puntos}  ${m2.puntos === 0 ? 'OK ✓' : 'NO ✗'}`);

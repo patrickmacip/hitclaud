@@ -542,7 +542,8 @@
           const c = P.anotarInactividadSegundo(marcador);
           segundosCobrados++;
           // El cobro por segundo SE VE, junto al marcador Actual (arriba-centro).
-          if (c > 0) flotante(W / 2, 96, '−' + c, COLOR.azul, 18);
+          // PÉRDIDA = rojo del CloudOver (#FF0055): todo lo que RESTA se ve rojo.
+          if (c > 0) flotante(W / 2, 96, '−' + c, COLOR.cloudoverB, 18);
         }
         if (debidos > 0) { cobrando = true; actualizarMarcador(); }
       }
@@ -666,10 +667,10 @@
           // La dispersa no penaliza: "0" apagado (sin signo −) = sin costo.
           if (!b.tocado) flotante(b.x, b.y, '0', COLOR.textoApagado, 16);
         } else if (!b.tocado && !b.neutro) {
-          // FALLO: la pérdida SE VE (número negativo grande en --azul).
+          // FALLO: la pérdida SE VE (número negativo grande en ROJO #FF0055).
           const pen = P.anotarFallo(marcador, { debuff: t < debuffHasta }); // espiral: en debuff no escala
           actualizarMarcador();
-          flotante(b.x, b.y, '−' + pen, COLOR.azul, 26, true);
+          flotante(b.x, b.y, '−' + pen, COLOR.cloudoverB, 26, true);
         }
         bolitas.splice(i, 1);
       }
