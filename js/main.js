@@ -354,10 +354,10 @@
     targets.push(t);
   }
 
-  // Al IMPACTAR un target durante el power-up nacen 6 hitballs PEQUEÑAS (radio
-  // 7, poder reducido = misma ruta que el debuff) desde (px,py), en abanico
-  // ("puff"). Marcadas `moneda` (NO penalizan) y `dispersa` (no re-disparan →
-  // sin cascada). Si el tope de 24 está lleno, nacen las que quepan.
+  // Al IMPACTAR un target durante el power-up nacen 6 hitballs de TAMAÑO NORMAL
+  // (radio 14, poder pleno) desde (px,py), en abanico ("puff"). Marcadas `moneda`
+  // (NO penalizan) y `dispersa` (no re-disparan → sin cascada). Si el tope de 24
+  // está lleno, nacen las que quepan. (Antes reusaban el radio 7 del castigo.)
   function dispersarMoneda(px, py) {
     const n = Math.min(MONEDA_BOLAS, Math.max(0, MAX_BOLITAS - bolitas.length));
     for (let i = 0; i < n; i++) {
@@ -366,7 +366,7 @@
       bolitas.push({
         x: px, y: py,
         vx: Math.cos(ang) * vel, vy: Math.sin(ang) * vel,
-        radio: RADIO_DEBIL, chica: true, moneda: true, dispersa: true,
+        radio: RADIO_NORMAL, moneda: true, dispersa: true,
         edad: 0, viva: true, tocado: false, neutro: false, historia: [],
       });
     }
@@ -463,6 +463,7 @@
       edad: 0,
       viva: true,
       tocado: false, // ¿tocó algún target? (para racha y fallo)
+      chica: performance.now() < debuffHasta, // disparada en modo bola-chica → rebota, no penaliza
       historia: [],
     });
     ultimoDisparo = performance.now();
@@ -622,13 +623,16 @@
           debuffHasta = t + DEBUFF_MS;
           b.neutro = true;
         } else {
+          const enChico = t < debuffHasta;     // modo bola-chica: racha PAUSADA, sin multiplicador
           if (!b.tocado) {                     // primer toque = hit (sube la racha continua)
             b.tocado = true;
-            P.anotarHit(marcador);
-            P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, t); // respiro al 10º hit en dif. máx
+            if (!enChico) {                    // en modo chico la racha se PAUSA (ni sube ni se resetea)
+              P.anotarHit(marcador);
+              P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, t); // respiro al 10º hit en dif. máx
+            }
           }
-          if (r.destruidos > 0) {              // ganancia proporcional × racha
-            const g = P.anotarDestruidos(marcador, r.destruidos);
+          if (r.destruidos > 0) {              // ganancia proporcional (SIN multiplicador en modo chico)
+            const g = P.anotarDestruidos(marcador, r.destruidos, enChico);
             flotante(r.px, r.py, '+' + g, acentoActivo(t).hb, tamGanancia(g), g >= 300); // +N entra al color del modo
             if (g >= 50) popMarcador();        // latido en ganancias fuertes
           }
@@ -653,7 +657,11 @@
     const debuffActivo = t < debuffHasta;
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
-      b.radio = (debuffActivo || b.chica) ? RADIO_DEBIL : RADIO_NORMAL; // debuff o bolita de moneda
+      // `chica` = disparada en modo bola-chica: radio 7 toda su vida y REBOTA en
+      // los bordes MIENTRAS el modo dura. Dispersas y normales = radio 14 sin
+      // paredes (mueren al salir). Al terminar el modo, la chica deja de rebotar.
+      b.radio = b.chica ? RADIO_DEBIL : RADIO_NORMAL;
+      b.rebota = b.chica && debuffActivo;
       F.paso(b, dt, limites, function () { colisionar(b); });
       b.historia.unshift({ x: b.x, y: b.y }); // estela propia (3 fantasmas)
       if (b.historia.length > LAG_ESTELA * 3 + 1) b.historia.pop();
@@ -663,12 +671,18 @@
     for (let i = bolitas.length - 1; i >= 0; i--) {
       const b = bolitas[i];
       if (!b.viva) {
-        if (b.moneda) {
+        const enChico = t < debuffHasta;
+        if (b.chica || enChico) {
+          // MODO BOLA-CHICA: ningún fallo resta, ni rompe racha, ni cobra —
+          // ni el tiro principal ni las dispersas. NO se emite −N ni "0" (evita
+          // el número confuso). Las bolas `chica` nunca penalizan (nacen sin
+          // costo). Esta regla ANULA la anterior (el tiro principal ya no resta).
+        } else if (b.moneda) {
           // La dispersa no penaliza: "0" apagado (sin signo −) = sin costo.
           if (!b.tocado) flotante(b.x, b.y, '0', COLOR.textoApagado, 16);
         } else if (!b.tocado && !b.neutro) {
           // FALLO: la pérdida SE VE (número negativo grande en ROJO #FF0055).
-          const pen = P.anotarFallo(marcador, { debuff: t < debuffHasta }); // espiral: en debuff no escala
+          const pen = P.anotarFallo(marcador, {});
           actualizarMarcador();
           flotante(b.x, b.y, '−' + pen, COLOR.cloudoverB, 26, true);
         }
@@ -854,8 +868,9 @@
 
     // BADGE del multiplicador de racha: "×N" prominente arriba-centro, crece con
     // la racha y pulsa. Solo cuando el multiplicador supera ×1 (racha ≥ 3).
+    // Badge OCULTO en modo bola-chica: el multiplicador está pausado (gains ×1).
     const mult = P.multRacha(marcador.racha);
-    if (mult > 1) {
+    if (mult > 1 && !debil) {
       const now = performance.now();
       ctx.save();
       ctx.translate(W / 2, H * 0.16);

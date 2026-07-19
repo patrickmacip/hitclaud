@@ -123,8 +123,11 @@
   // por cubo lo fija el TRAMO (equilibrio con el castigo); la racha lo amplifica
   // DESPUÉS (premia el flujo sin distorsionar el ratio tramo↔castigo). Devuelve
   // los puntos ganados.
-  function anotarDestruidos(m, n) {
-    const g = Math.round(n * valorCubo(m.puntos) * multRacha(m.racha));
+  function anotarDestruidos(m, n, sinMult) {
+    // sinMult (modo bola-chica): sin multiplicador de racha (la ventaja no da
+    // puntos exagerados). Fuera de ese modo, la racha amplifica normal.
+    const mult = sinMult ? 1 : multRacha(m.racha);
+    const g = Math.round(n * valorCubo(m.puntos) * mult);
     m.puntos += g;
     subirPico(m);
     return g;
