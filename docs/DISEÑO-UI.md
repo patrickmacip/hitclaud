@@ -6,15 +6,16 @@
 |---|---|---|
 | `--bg` | `#121216` | Fondo general |
 | `--superficie` | `#15151C` | Superficies elevadas (botón pausa) |
-| `--coral` | `#E8704E` | Acento principal, targets, hitmaker |
-| `--coral-vivo` | `#FF8764` | Score actual, anillo del hitmaker |
+| `--coral` | `#E8704E` | Acento naranja por defecto, targets normales, hitmaker |
+| `--coral-vivo` | `#FF8764` | Hitball normal, score actual, anillo del hitmaker |
+| `--acento` / `--acento-vivo` | (JS) | **Baño de color activo**: por defecto naranja; el JS lo reescribe al color del modo (dorado/verde/azul) para el hitmaker. El FONDO y la SUPERFICIE NUNCA se tocan. |
 | `--crema` | `#FFD9CE` | Reservado (destellos / énfasis) |
 | `--indigo` | `#5C5CC8` | (reservado) |
 | `--indigo-vivo` | `#7C7CFF` | (reservado) |
 | `--azul` | `#1F55C9` | **Castigo** (antes morado): enojado, hitball chica (debuff), barra de debuff. Contraste 2.85:1 |
 | `--dorado` | `#FFC300` | Estrella (fiesta) / multiplicador. Contraste 11.62:1 |
-| `--cian` | `#22D3EE` | Moneda (power-up). Contraste ~10.5:1 |
-| `--disperso` | `#6FFF2C` | Bolitas de dispersión de la moneda (verde). Contraste 14.25:1 |
+| `--cian` | `#22D3EE` | Reservado (antes moneda; la moneda ahora es verde) |
+| `--disperso` | `#6FFF2C` | Moneda / power-up / dispersión (verde). Contraste 14.25:1 |
 | `--amenaza` | `#08080E` | CloudOver: masa oscura |
 | `--cloudover-a` | `#B1003B` | CloudOver parpadeo A. Contraste 2.61:1 |
 | `--cloudover-b` | `#FF0055` | CloudOver parpadeo B. Contraste 4.79:1 |
@@ -25,17 +26,36 @@
 
 ## Idioma del color — regla del sistema
 
-**El COLOR señala peligro; la LUZ (brillo/pulso/glow) señala recompensa.**
+**El MODO tiñe la pantalla.** Al entrar a un modo (golpear un especial), TODO lo
+naranja del juego —la hitball, el marcador Actual, el hitmaker, los flotantes de
+ganancia, el badge ×N— pasa al color del modo mientras dura. El **FONDO**
+`#121216` y la **SUPERFICIE** `#15151C` NUNCA se tiñen (si lo hicieran, el juego
+sería ilegible). Los **TARGETS normales siguen coral SIEMPRE** (son los blancos:
+no entran al baño). El **aura/glow** de "estás en un modo" va en la **HITBALL**
+(estela + glow del color del modo), NO en el target.
 
-- **coral** = target normal (lo que puntúa).
-- **--azul** `#1F55C9` = **CASTIGO** (renombrado de morado): target enojado, hitball chica (debuff), barra de debuff. Ojos negros intactos.
-- **--coral-vivo** = la hitball del jugador (modo normal) — naranja vivo, NO el coral del target (para no camuflar la munición).
-- **--dorado** = estrella / fiesta / multiplicador.
-- **--cian** = moneda / power-up.
-- **--disperso** `#6FFF2C` = verde de las bolitas de dispersión de la moneda.
-- **--amenaza + --cloudover-a/b** = CloudOver (game over): masa oscura que PARPADEA entre dos rojos (#B1003B ↔ #FF0055), **SIN brillo** → peligro, no premio. Se distingue: es la única DARK con parpadeo rojo; estrella/moneda brillan (dorado/cian), enojado es azul mate.
+**Acento activo por modo** (precedencia **castigo > bonanza > power-up > normal**):
 
-**Los premios NO tienen forma propia:** la estrella y la moneda son el TARGET NORMAL (retícula 5×4, ojos) que BRILLA. Los distingue el COLOR del brillo (dorado vs cian), no la silueta. Eje de lectura a 40px en movimiento: **mate vs brillo** + matiz — normal (coral mate), enojado (morado mate), estrella (coral + glow dorado + parpadeo), moneda (coral + glow cian + parpadeo). La **luz** (halo/glow/parpadeo) sigue significando recompensa.
+- **Normal** → **--coral-vivo** `#FF8764` (hitball) / **--coral** `#E8704E` (hitmaker). Naranja vivo, NO el coral del target (para no camuflar la munición).
+- **Castigo** (bola chica / debuff) → **--azul** `#1F55C9`. El estado más urgente: gana a todos.
+- **Bonanza** (fiesta) → **--dorado** `#FFC300`.
+- **Power-up** (dispersión) → **--disperso** `#6FFF2C` (verde).
+
+Transición del baño **breve y suave** (CSS `transition` 0.25s en el hitmaker y en
+el marcador; el canvas cambia en el límite del modo). **SIN parpadeo del acento**
+— el único que parpadea es el CloudOver, con su rojo.
+
+**Color de los targets especiales** (SOLO cambian de color, sin aura):
+
+- **--coral** = target normal (lo que puntúa).
+- **--azul** = target enojado (activa el modo bola-chica). Ojos negros intactos.
+- **--dorado** = estrella (bonanza): dorado sólido.
+- **--disperso** (verde) = moneda (power-up): verde sólido.
+- **--cloudover-a/b** = CloudOver (game over): PARPADEA entre dos rojos (#B1003B ↔ #FF0055) cada 100ms, **SIN brillo** → peligro. Es el único con parpadeo.
+
+**Los premios NO tienen forma propia:** la estrella y la moneda son el TARGET
+NORMAL (retícula 5×4, ojos) que cambia de COLOR (dorado / verde). Los distingue
+el color, no la silueta. La cara del target NO cambia (mismos ojos, sin cejas).
 
 La cara del target NO cambia entre normal y enojado (mismos ojos, sin cejas): la señal es el color, no la forma. Esto evita cortar la silueta sobre fondo oscuro.
 

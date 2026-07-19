@@ -108,7 +108,9 @@ body {
   height: 290px;
   transform: translate(50%, 50%); /* cuarto de círculo sangrando */
   border-radius: 50%;
-  background: radial-gradient(circle, var(--coral) 0%, transparent 70%);
+  /* Baño de color: el hitmaker (UI naranja) entra al color del modo activo. */
+  background: radial-gradient(circle, var(--acento) 0%, transparent 70%);
+  transition: background 0.25s ease-out;
   pointer-events: none;
   z-index: 2;
 }
@@ -118,7 +120,8 @@ body {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 2px solid var(--coral-vivo);
+  border: 2px solid var(--acento-vivo);
+  transition: border-color 0.25s ease-out;
   animation: pulso 2s ease-in-out infinite;
 }
 

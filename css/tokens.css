@@ -6,6 +6,11 @@
   --superficie: #15151C;
   --coral: #E8704E;
   --coral-vivo: #FF8764;
+  /* Acento ACTIVO del baño de color por modo (JS lo reescribe): por defecto el
+     naranja del juego; pasa a dorado/verde/azul mientras dura un modo. El FONDO
+     y la SUPERFICIE NUNCA se tocan. */
+  --acento: #E8704E;
+  --acento-vivo: #FF8764;
   --crema: #FFD9CE;
   --indigo: #5C5CC8;
   --indigo-vivo: #7C7CFF;
