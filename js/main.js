@@ -72,7 +72,7 @@
   const marcador = P.crearMarcador();
   const ritmo = P.crearRitmo();
   const elActual = document.querySelector('.marcador--actual .valor');
-  function actualizarMarcador() { elActual.textContent = marcador.puntos; }
+  function actualizarMarcador() { elActual.textContent = U.abreviarNumero(marcador.puntos); }
 
   // Récord = MÁXIMO HISTÓRICO EN VIVO (se actualiza en el cuadro en que se
   // supera, no al terminar). Persistente con throttle + flush. El "último
@@ -83,7 +83,7 @@
   // cualquier dispositivo/caché, sin código de migración que limpiar luego.
   const record = U.crearRecord(almacen, 'hitclaud.record.v2', 500);
   const elRecord = document.querySelector('.marcador--record .valor');
-  function actualizarRecord() { elRecord.textContent = record.valor; }
+  function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record.valor); }
 
   // Game over (CloudOver): congela la partida y muestra el overlay mínimo con
   // score final, marca de récord si aplica, y REINICIAR (recarga la página =
@@ -94,7 +94,7 @@
     gameOver = true;
     record.flush(performance.now()); // asegura la marca guardada
     const esRecord = marcador.puntos >= record.valor && marcador.puntos > 0;
-    elGameOver.querySelector('.go-score .valor').textContent = marcador.puntos;
+    elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(marcador.puntos); // último score abreviado
     elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
     elGameOver.classList.remove('oculto');
   }

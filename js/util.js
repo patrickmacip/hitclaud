@@ -61,7 +61,18 @@
     };
   }
 
-  const U = { leerToken: leerToken, crearRecord: crearRecord };
+  // Abreviatura de números grandes (fuente ÚNICA). >=10,000 → K/M con UNA
+  // decimal TRUNCADA (no redondea hacia arriba): 10,499 → "10.4K". Debajo de
+  // 10,000, número completo. Se descarta la decimal .0 (125,000 → "125K").
+  function abreviarNumero(n) {
+    n = Math.trunc(n);
+    if (n < 10000) return String(n);
+    if (n < 1000000) { const k = Math.floor(n / 100) / 10; return (k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)) + 'K'; }
+    const m = Math.floor(n / 100000) / 10;
+    return (m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)) + 'M';
+  }
+
+  const U = { leerToken: leerToken, crearRecord: crearRecord, abreviarNumero: abreviarNumero };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = U;
   } else {
