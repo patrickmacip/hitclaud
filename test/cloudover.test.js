@@ -47,16 +47,77 @@ console.log('\n=== Más visible: 1.3× tamaño (caja escalada) ===');
   console.log(`  caja ${(cloud.caja.hw * 2).toFixed(0)}×${(cloud.caja.hh * 2).toFixed(0)} (era 40×32)  ${cloud.caja.hw === 26 ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('\n=== 50% más lento (reduce velocidad de lanzamiento, NO la gravedad) ===');
-{
-  const t = F.crearTarget(VP);
-  const v0 = Math.hypot(t.vx, t.vy);
+const CLOUD_GRAV_FRAC = 0.25;
+
+// Fabrica un CloudOver como main.js (mismo spawner de orígenes + v/2 + g/4).
+function crearCloud(vp) {
+  const t = F.crearTarget(vp);
+  t.cloud = true; t.enojado = false;
   t.vx *= CLOUD_LENTO; t.vy *= CLOUD_LENTO;
-  const v1 = Math.hypot(t.vx, t.vy);
-  console.log(`  velocidad ${v0.toFixed(2)} → ${v1.toFixed(2)} px/ms (×${(v1 / v0).toFixed(2)})  ${Math.abs(v1 / v0 - 0.5) < 0.001 ? 'OK ✓' : 'NO ✗'}`);
-  // gravedad intacta: sigue siendo G_TARGET
-  const gY = t.vy; F.paso(t, 100, VP);
-  console.log(`  gravedad global intacta (usa G_TARGET ${F.FISICA.G_TARGET}): OK ✓`);
+  t.gravedad = F.FISICA.G_TARGET * CLOUD_GRAV_FRAC;
+  t.caja = { cx: 0, cy: 0, hw: 20 * 1.3, hh: 16 * 1.3 };
+  return t;
+}
+
+console.log('\n=== 50% más lento en el TIEMPO: v/2 + g/4 → MISMO apex, ~2× de vuelo ===');
+{
+  // apex ∝ v²/g. Con v→v/2 y g→g/4: v²/g → (v/2)²/(g/4) = v²/g (igual). El
+  // tiempo de vuelo ∝ v/g → (v/2)/(g/4) = 2·(v/g) (el doble). Verifico con la
+  // simulación real: apex del cloud ≈ apex de un normal con la misma v de salida.
+  const vp = { w: 390, h: 844 };
+  function apex(obj) { // altura máx alcanzada (menor y) desde su y inicial
+    let minY = obj.y, t = 0;
+    while (obj.viva && t < 8000) { F.paso(obj, 16, vp); minY = Math.min(minY, obj.y); t += 16; }
+    return minY;
+  }
+  // Un normal y un cloud con IDÉNTICO estado de salida salvo v/2 y g/4.
+  // Origen INFERIOR (sube desde abajo) para que el apex mida el arco de verdad.
+  let base; do { base = F.crearTarget(vp); } while (base.origen !== 'inferior');
+  const norm = Object.assign({}, base, { celdas: base.celdas.slice() });
+  const cl = Object.assign({}, base, { celdas: base.celdas.slice(), vx: base.vx * 0.5, vy: base.vy * 0.5, gravedad: F.FISICA.G_TARGET * CLOUD_GRAV_FRAC });
+  const aN = apex(norm), aC = apex(cl);
+  console.log(`  apex normal ${aN.toFixed(0)}px vs cloud ${aC.toFixed(0)}px (Δ ${Math.abs(aN - aC).toFixed(0)}px)  ${Math.abs(aN - aC) < 30 ? 'OK ✓ (mismo arco)' : 'NO ✗'}`);
+}
+
+console.log('\n=== Orígenes: los especiales usan el MISMO spawner (sin spawner aparte) ===');
+{
+  const vp = { w: 390, h: 844 };
+  const cont = { inferior: 0, lateral: 0, superior: 0 };
+  for (let i = 0; i < 6000; i++) cont[crearCloud(vp).origen]++;
+  const tot = 6000;
+  console.log(`  inferior ${(100 * cont.inferior / tot).toFixed(0)}% · lateral ${(100 * cont.lateral / tot).toFixed(0)}% · superior ${(100 * cont.superior / tot).toFixed(0)}%`);
+  const todos = cont.inferior > 0 && cont.lateral > 0 && cont.superior > 0;
+  console.log(`  sale de los TRES orígenes (inferior/lateral/superior): ${todos ? 'OK ✓' : 'NO ✗'}`);
+}
+
+console.log('\n=== Vuelo VISIBLE y GOLPEABLE desde cada origen (criterio: ≥90% por origen, ≥95% global) ===');
+{
+  const vp = { w: 390, h: 844 };
+  // "Visible y golpeable" = pasa ≥1200ms dentro de la zona jugable central
+  // (x∈[0.05w,0.95w], y∈[0.06h,0.94h]) → hay ventana amplia para el tiro directo.
+  function vueloGolpeable(t) {
+    let dentro = 0, tt = 0;
+    while (t.viva && tt < 8000) {
+      F.paso(t, 16, vp);
+      if (t.x > 0.05 * vp.w && t.x < 0.95 * vp.w && t.y > 0.06 * vp.h && t.y < 0.94 * vp.h) dentro += 16;
+      tt += 16;
+    }
+    return dentro;
+  }
+  const porOrigen = { inferior: { n: 0, ok: 0, ms: 0 }, lateral: { n: 0, ok: 0, ms: 0 }, superior: { n: 0, ok: 0, ms: 0 } };
+  for (let i = 0; i < 3000; i++) {
+    const t = crearCloud(vp);
+    const o = porOrigen[t.origen];
+    const ms = vueloGolpeable(t);
+    o.n++; o.ms += ms; if (ms >= 1200) o.ok++;
+  }
+  let globalOk = 0, globalN = 0;
+  ['inferior', 'lateral', 'superior'].forEach(function (k) {
+    const o = porOrigen[k];
+    globalOk += o.ok; globalN += o.n;
+    console.log(`  ${k}: ${(100 * o.ok / o.n).toFixed(0)}% golpeables · vuelo medio ${(o.ms / o.n).toFixed(0)}ms  ${o.ok / o.n >= 0.90 ? 'OK ✓' : 'NO ✗'}`);
+  });
+  console.log(`  GLOBAL golpeables ${(100 * globalOk / globalN).toFixed(1)}%  ${globalOk / globalN >= 0.95 ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== La colisión detecta el contacto (caja escalada) ===');

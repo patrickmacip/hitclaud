@@ -206,7 +206,10 @@
   // ── CloudOver (game over) ──────────────────────────────────────────
   const CLOUD_MIN = 5000;     // aparece cada 5–25s (aleatorio)
   const CLOUD_MAX = 25000;
-  const CLOUD_LENTO = 0.5;    // 50% más lento (reduce la velocidad de lanzamiento)
+  const CLOUD_LENTO = 0.5;    // 50% más lento: mitad de velocidad de lanzamiento…
+  const CLOUD_GRAV_FRAC = 0.25; // …Y gravedad a ¼ → MISMO apex que un normal (arco
+                              // completo y visible) pero ~2× de tiempo de vuelo
+                              // (apex ∝ v²/g: con v/2 y g/4, v²/g queda igual).
   const CLOUD_ESCALA = 1.3;   // 1.3× el target normal (más visible, más ominoso)
   const CLOUD_PARPADEO_MS = 100; // parpadeo entre cloudover-a/b (loop, afinable)
 
@@ -370,14 +373,19 @@
     return n;
   }
 
-  // CloudOver: target normal marcado `cloud`, sin premios/enojado, 50% más
-  // lento (reduzco su velocidad de lanzamiento; la gravedad global NO se toca).
+  // CloudOver: target normal marcado `cloud`, sin premios/enojado. Usa el MISMO
+  // spawner de orígenes que los demás (crearTarget: inferior/laterales/superior
+  // con sus ángulos) — sin spawner aparte. "50% más lento" = mitad de velocidad
+  // Y gravedad a ¼ (por-objeto, la global NO se toca): así conserva el MISMO
+  // apex que un target normal (arco completo, sube y cruza, no muere abajo) pero
+  // tarda ~2× en recorrerlo → tiempo de sobra para esquivar/decidir y acertarle.
   function generarCloud() {
     const t = F.crearTarget({ w: W, h: H });
     t.cloud = true;
     t.enojado = false;
     t.vx *= CLOUD_LENTO;
     t.vy *= CLOUD_LENTO;
+    t.gravedad = F.FISICA.G_TARGET * CLOUD_GRAV_FRAC;
     // Caja de colisión escalada 1.3× (coincide con el sprite agrandado).
     t.caja = { cx: 0, cy: 0, hw: 20 * CLOUD_ESCALA, hh: 16 * CLOUD_ESCALA };
     targets.push(t);
