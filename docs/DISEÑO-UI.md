@@ -73,10 +73,14 @@ distingue solos (regla sellada del dueño):
 Ningún target lleva halo/aura. El **aura/glow** de "estás en un modo" vive SOLO en
 la **HITBALL** (estela + glow del tono vivo). Los ojos negros NO cambian nunca.
 
-**Pérdida = ROJO** `#FF0055` (el rojo claro del CloudOver): TODO lo que RESTA
-puntos se ve rojo — el −N del fallo y el cobro de inactividad. El **"0"** de una
-dispersa sin impacto NO es pérdida (no cuesta) → **--texto-apagado**. Durante el
-modo bola-chica NO se emiten números de pérdida (ese modo no resta).
+**Pérdida = BORDES + CONTADOR + MONTO** (rediseño: sin números flotantes regados).
+Al restar puntos (fallo o inactividad):
+- **Palpitar de bordes:** los dos bordes laterales del viewport se iluminan en rojo `#FF0055` (franja de 28px difuminada hacia adentro), entra en 100ms y disipa en 350ms. Cobros seguidos RE-DISPARAN el pulso (no se apila).
+- **Contador rojo:** el marcador Actual se pinta `#FF4583` durante 400ms y vuelve al tono de su modo.
+- **Monto agregado:** bajo el marcador, un solo número `#FF6D9E` (~60% del tamaño del marcador) con el total restado, palpita y disipa en 600ms; cobros seguidos se AGREGAN en un monto y reinician el palpitar.
+
+Se eliminaron los flotantes −N y el "0" de dispersa. En **modo bola-chica no hay
+pérdida**: nada de esto (bordes, contador rojo, monto) se dispara.
 
 La cara del target NO cambia (mismos ojos, sin cejas): la señal es el color del
 modo + la luz de firma, no la forma. Esto evita cortar la silueta sobre el fondo.

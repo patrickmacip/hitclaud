@@ -108,6 +108,7 @@
     debuffHasta = 0; powerupHasta = 0; fiestaHasta = 0; fiestaFlashHasta = 0; powerFlashHasta = 0;
     ultimoEnojado = false; ultimaBonanza = false; ultimaMoneda = false; pityEstrella = 0;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0;
+    perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
     const ahora = performance.now();
     proximoSpawn = ahora;
@@ -167,6 +168,28 @@
   // Latido del marcador Actual en ganancias fuertes (CSS transform).
   let marcadorPopHasta = 0;
   function popMarcador() { elActual.style.transform = 'scale(1.3)'; marcadorPopHasta = performance.now() + 180; }
+
+  // ── Feedback de PÉRDIDA (bordes + contador rojo + monto agregado) ──────
+  // Al RESTAR puntos: PALPITAN los dos bordes laterales en rojo, el contador se
+  // tiñe de rojo y aparece el MONTO agregado bajo el marcador. Sin flotantes
+  // regados. Cobros consecutivos RE-DISPARAN el pulso (reinician), no se apilan.
+  const PULSO_ENTRADA = 100, PULSO_DISIP = 350;  // bordes: 100ms entra, 350ms disipa
+  const CONTADOR_ROJO_MS = 400;                  // contador rojo tras restar
+  const MONTO_MS = 600;                           // monto bajo el contador
+  const FRANJA_PX = 28;                           // ancho de la franja de borde
+  const ROJO_BORDE = '#FF0055', ROJO_CONTADOR = '#FF4583', ROJO_MONTO = '#FF6D9E';
+  let perdidaInicio = -Infinity;   // inicio del pulso de bordes (envelope)
+  let contadorRojoHasta = 0;       // fin del rojo del contador
+  let montoPerdido = 0;            // monto agregado en la ventana viva
+  let montoInicio = -Infinity;     // inicio del monto (palpitar)
+  let montoHasta = 0;              // fin de la exhibición del monto
+  function registrarPerdida(monto) {
+    const now = performance.now();
+    perdidaInicio = now;                                 // re-dispara (reinicia, no apila)
+    contadorRojoHasta = now + CONTADOR_ROJO_MS;
+    montoPerdido = (now < montoHasta) ? montoPerdido + monto : monto; // agrega si sigue viva
+    montoInicio = now; montoHasta = now + MONTO_MS;      // palpitar reinicia
+  }
 
   // ── Constantes de input ────────────────────────────────────────────
   const RADIO_HITMAKER = 203; // hit-test RADIAL desde la esquina inf-der (+40%)
@@ -552,16 +575,15 @@
     // del castigo del tramo actual. El reloj NO corre si el documento está
     // oculto (ya gateado) ni mientras hay un gesto activo. Piso en 0.
     cobrando = false;
-    if (!document.hidden && !gesto.activo) {
+    // En MODO BOLA-CHICA no hay pérdida: la inactividad tampoco cobra (ni feedback).
+    if (!document.hidden && !gesto.activo && t >= debuffHasta) {
       const idle = t - ultimoGesto;
       if (idle > GRACIA_MS) {
         const debidos = Math.floor((idle - GRACIA_MS) / 1000);
         while (segundosCobrados < debidos) {
           const c = P.anotarInactividadSegundo(marcador);
           segundosCobrados++;
-          // El cobro por segundo SE VE, junto al marcador Actual (arriba-centro).
-          // PÉRDIDA = rojo del CloudOver (#FF0055): todo lo que RESTA se ve rojo.
-          if (c > 0) flotante(W / 2, 96, '−' + c, COLOR.cloudoverB, 18);
+          if (c > 0) registrarPerdida(c); // pérdida: bordes + contador rojo + monto (sin flotante)
         }
         if (debidos > 0) { cobrando = true; actualizarMarcador(); }
       }
@@ -691,18 +713,18 @@
       if (!b.viva) {
         const enChico = t < debuffHasta;
         if (b.chica || enChico) {
-          // MODO BOLA-CHICA: ningún fallo resta, ni rompe racha, ni cobra —
-          // ni el tiro principal ni las dispersas. NO se emite −N ni "0" (evita
-          // el número confuso). Las bolas `chica` nunca penalizan (nacen sin
-          // costo). Esta regla ANULA la anterior (el tiro principal ya no resta).
+          // MODO BOLA-CHICA: ningún fallo resta, ni rompe racha, ni cobra — ni el
+          // principal ni las dispersas. Sin feedback de pérdida (bordes/contador/
+          // monto). Las bolas `chica` nunca penalizan. ANULA la regla anterior.
         } else if (b.moneda) {
-          // La dispersa no penaliza: "0" apagado (sin signo −) = sin costo.
-          if (!b.tocado) flotante(b.x, b.y, '0', COLOR.textoApagado, 16);
+          // Dispersa sin impacto: NO cuesta y ya NO muestra "0" (rediseño):
+          // sin número, sin feedback.
         } else if (!b.tocado && !b.neutro) {
-          // FALLO: la pérdida SE VE (número negativo grande en ROJO #FF0055).
+          // FALLO: resta y dispara el feedback de pérdida (bordes + contador rojo
+          // + monto agregado). Sin flotante regado.
           const pen = P.anotarFallo(marcador, {});
           actualizarMarcador();
-          flotante(b.x, b.y, '−' + pen, COLOR.cloudoverB, 26, true);
+          registrarPerdida(pen);
         }
         bolitas.splice(i, 1);
       }
@@ -817,7 +839,8 @@
     const debil = remDebuff > 0;                 // debuff activo → hitball chica
     const radioAhora = debil ? RADIO_DEBIL : RADIO_NORMAL;
     // Hitball = tono VIVO del modo; su estela/glow es el AURA (va en la bola).
-    if (elActual) elActual.style.color = modo.vivo; // marcador Actual entra al modo
+    // Marcador Actual: rojo #FF4583 durante 400ms al restar; si no, el tono del modo.
+    if (elActual) elActual.style.color = (ahoraB < contadorRojoHasta) ? ROJO_CONTADOR : modo.vivo;
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
       const rB = b.radio || RADIO_NORMAL;
@@ -955,6 +978,39 @@
     }
 
     ctx.restore();
+
+    // ── PÉRDIDA: palpitar de bordes laterales + monto agregado (fuera de la
+    // sacudida: pegado al viewport). Coste barato: dos gradientes lineales + un
+    // fillText, y SOLO durante la ventana del pulso. Rojos literales (feedback).
+    const nowP = performance.now();
+    const dtP = nowP - perdidaInicio;
+    if (dtP >= 0 && dtP < PULSO_ENTRADA + PULSO_DISIP) {
+      const env = dtP < PULSO_ENTRADA ? dtP / PULSO_ENTRADA : Math.max(0, 1 - (dtP - PULSO_ENTRADA) / PULSO_DISIP);
+      ctx.save();
+      ctx.globalAlpha = 0.6 * env;
+      const gl = ctx.createLinearGradient(0, 0, FRANJA_PX, 0);
+      gl.addColorStop(0, ROJO_BORDE); gl.addColorStop(1, 'transparent');
+      ctx.fillStyle = gl; ctx.fillRect(0, 0, FRANJA_PX, H);
+      const gr = ctx.createLinearGradient(W, 0, W - FRANJA_PX, 0);
+      gr.addColorStop(0, ROJO_BORDE); gr.addColorStop(1, 'transparent');
+      ctx.fillStyle = gr; ctx.fillRect(W - FRANJA_PX, 0, FRANJA_PX, H);
+      ctx.restore();
+    }
+    const dtM = nowP - montoInicio;
+    if (dtM >= 0 && dtM < MONTO_MS && montoPerdido > 0) {
+      let esc = 1;                                  // palpitar (pop) al aparecer
+      if (dtM < 90) esc = 0.6 + 0.5 * (dtM / 90);
+      else if (dtM < 200) esc = 1.1 - 0.1 * ((dtM - 90) / 110);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - dtM / MONTO_MS); // disipa en 600ms
+      ctx.translate(W / 2, 92);                     // bajo el marcador Actual
+      ctx.scale(esc, esc);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = ROJO_MONTO;
+      ctx.font = '700 17px ' + COLOR.fuente;        // ~60% del marcador (28px)
+      ctx.fillText('−' + montoPerdido, 0, 0);
+      ctx.restore();
+    }
   }
 
   // Estela de LUZ VIVA: 3 fantasmas en el color de modo (30/20/10% alfa). Los
