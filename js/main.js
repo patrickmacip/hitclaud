@@ -48,10 +48,10 @@
   // supera, no al terminar). Persistente con throttle + flush. El "último
   // score" NO va en esta celda: es de la fase del ciclo de partida.
   const almacen = (function () { try { return window.localStorage; } catch (e) { return null; } })();
-  // RESET de récord por cambio de economía: llave VERSIONADA nueva. La vieja
-  // ('hitclaud.record') queda ignorada para siempre → reset determinista en
-  // cualquier dispositivo/caché, sin código de migración que limpiar luego.
-  const record = U.crearRecord(almacen, 'hitclaud.record.v2', 500);
+  // RESET de récord: llave VERSIONADA nueva (v3). Las viejas ('hitclaud.record',
+  // '.v2') quedan ignoradas → reset determinista sin migración. El resto del
+  // guardado (preferencias) NO se toca: sólo cambia esta llave.
+  const record = U.crearRecord(almacen, 'hitclaud.record.v3', 500);
   const elRecord = document.querySelector('.marcador--record .valor');
   function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record.valor); }
 
@@ -74,7 +74,7 @@
   // de la partida (el récord persistente NO se toca) y reanuda el juego.
   function reiniciarPartida() {
     marcador.puntos = 0; marcador.racha = 0; marcador.fallosSeguidos = 0; marcador.pico = 0;
-    targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
+    targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; destellos.length = 0;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0;
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
@@ -176,10 +176,12 @@
 
   // ── Constantes del spawner de targets (dos tipos: NARANJA y ROJO) ──
   // Spawn CAÓTICO: cantidad variable (ráfagas/pausas, retardoCaotico) desde los
-  // 4 orígenes, con velocidad variable por target. Topes = válvula de rendimiento.
+  // 4 orígenes, con velocidad variable por target.
   const RADIO_NORMAL = 14;         // radio de la hitball
-  const MAX_NARANJA = 8;           // tope de naranjas vivos (el caos llena en ráfagas)
-  const MAX_TARGETS_DURO = 16;     // válvula dura total (naranjas + rojos)
+  // TOPE DURO: nunca más de 4 targets vivos en pantalla (naranjas + rojos JUNTOS).
+  // Si no hay lugar, el generador NO descarta el turno: espera con proximoSpawn/
+  // proximoRojo en el pasado y dispara en cuanto se libera (el ritmo se conserva).
+  const MAX_EN_PANTALLA = 4;
 
   // ── ROJO (parpadea y termina la partida) ───────────────────────────
   // Sale como cualquier target (crearTarget: 4 orígenes, velocidad del rango).
@@ -199,6 +201,7 @@
   const SACUDIDA_AMP = 2;     // px de micro-sacudida de pantalla en destrucción
   const SACUDIDA_MS = 80;     // duración de la sacudida
   const DESTELLO_MS = 70;     // destello del target en CUALQUIER contacto (feedback)
+  const REBOTE_ANILLO_MS = 280; // duración del anillo de realce al destruir un rojo por rebote
 
   let W = 0;
   let H = 0;
@@ -217,6 +220,7 @@
   let proximoSpawn = 0;       // timestamp mínimo del próximo lanzamiento
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
+  const destellos = [];       // anillos de realce al destruir un rojo por rebote
   let sacudidaHasta = 0;      // timestamp fin de la micro-sacudida de pantalla
   // Inactividad: cobra tras la gracia si el jugador no hace gestos.
   let ultimoGesto = 0;        // timestamp del último gesto (o reset por visibilidad)
@@ -258,6 +262,29 @@
       });
     }
     while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
+  }
+
+  // Centros de mundo de los cubos vivos de un target (para estallarlo entero).
+  function cubosDelTarget(tg) {
+    const out = [];
+    const cw = Math.cos(tg.rot);
+    const sw = Math.sin(tg.rot);
+    for (let i = 0; i < 20; i++) {
+      if (!tg.celdas[i]) continue;
+      const l = F.celdaLocal(i);
+      out.push({ x: tg.x + l.x * cw - l.y * sw, y: tg.y + l.x * sw + l.y * cw });
+    }
+    return out;
+  }
+
+  // DESTRUCCIÓN POR REBOTE (rojo): confirmación PROPIA, distinta del pop naranja.
+  // Estalla los cubos del rojo en su ROJO de peligro (#FF0055), lanza un ANILLO
+  // de realce (crema) que se expande y desvanece, y una micro-sacudida. Duraciones
+  // por tokens (REBOTE_ANILLO_MS + SACUDIDA_MS).
+  function destruirRojoPorRebote(tg, t) {
+    explotarCubos(cubosDelTarget(tg), tg.x, tg.y, 1.2, tg.vx, tg.vy, COLOR.cloudoverB, 8);
+    destellos.push({ x: tg.x, y: tg.y, inicio: t });
+    sacudidaHasta = t + SACUDIDA_MS;
   }
 
   // Lanza un target NARANJA (el que puntúa): crearTarget da el origen (uno de los
@@ -341,6 +368,8 @@
       edad: 0,
       viva: true,
       tocado: false, // ¿tocó algún target? (para racha y fallo)
+      rebota: true,  // el proyectil rebota en paredes/techo (habilita el tiro de rebote)
+      rebotes: 0,    // contador de rebotes de ESTE lanzamiento (nace en 0)
       historia: [],
     });
     ultimoDisparo = performance.now();
@@ -450,8 +479,16 @@
       for (let ti = targets.length - 1; ti >= 0; ti--) {
         const tg = targets[ti];
         if (tg.rojo) {
-          // ROJO: cualquier contacto de la hitball TERMINA la partida.
           if (!F.colisionCirculoRect(b, tg)) continue;
+          if ((b.rebotes || 0) >= 1) {
+            // TIRO DE REBOTE: con ≥1 rebote, el proyectil DESTRUYE el rojo y la
+            // partida CONTINÚA (no game over, no penaliza). Con confirmación propia.
+            destruirRojoPorRebote(tg, t);
+            targets.splice(ti, 1);
+            b.tocado = true; // fue un impacto útil: no cuenta como fallo
+            continue;
+          }
+          // IMPACTO DIRECTO (0 rebotes): termina la partida, como hoy.
           terminarPartida();
           return; // corta el cuadro; el bucle se congela
         }
@@ -518,17 +555,18 @@
       q.rot += q.velRot * dt;
       if (q.y > H + 8 || q.x < -8 || q.x > W + 8 || q.y < -400) cubos.splice(i, 1);
     }
-    // SPAWN CAÓTICO de NARANJAS: cantidad variable (ráfagas/pausas). El tope es
-    // válvula de diseño (no tapiz); el hard-cap protege el rendimiento total.
-    if (targets.length < MAX_NARANJA && t >= proximoSpawn) {
+    // SPAWN CAÓTICO de NARANJAS bajo el TOPE DURO de 4 (naranjas + rojos juntos).
+    // Si está lleno, proximoSpawn queda vencido y dispara en cuanto se libere lugar
+    // (no se descarta el turno; el retardo caótico sólo se recalcula al spawnear).
+    if (targets.length < MAX_EN_PANTALLA && t >= proximoSpawn) {
       generarNaranja();
       proximoSpawn = t + retardoNaranja(t);
     }
     // ESCALADA de ROJOS: sube de nivel cada 5–10s (sin tope). El nivel acorta el
-    // intervalo de aparición → más rojos, más seguido, desde cualquier lado y a
-    // cualquier velocidad del rango. Hard-cap total como única válvula de perf.
+    // intervalo de aparición → más rojos, más seguido. Comparte el TOPE DURO de 4:
+    // si no hay lugar, espera y dispara al liberarse (proximoRojo queda vencido).
     P.pasoEscalada(escalada, t, Math.random);
-    if (t >= proximoRojo && targets.length < MAX_TARGETS_DURO) {
+    if (t >= proximoRojo && targets.length < MAX_EN_PANTALLA) {
       generarRojo();
       proximoRojo = t + P.intervaloRojo(escalada.nivel) * rnd(ROJO_JITTER[0], ROJO_JITTER[1]);
     }
@@ -585,6 +623,23 @@
       ctx.beginPath();
       ctx.roundRect(-h, -h, q.tam, q.tam, q.tam >= 8 ? 1.5 : 0.8);
       ctx.fill();
+      ctx.restore();
+    }
+    // ANILLO de realce del tiro de rebote (rojo destruido): se expande y desvanece.
+    // Confirmación PROPIA, distinta del pop naranja. Barato: un stroke por destello.
+    for (let i = destellos.length - 1; i >= 0; i--) {
+      const d = destellos[i];
+      const p = (performance.now() - d.inicio) / REBOTE_ANILLO_MS;
+      if (p >= 1) { destellos.splice(i, 1); continue; }
+      ctx.save();
+      ctx.globalAlpha = (1 - p) * 0.9;
+      ctx.strokeStyle = COLOR.crema;
+      ctx.lineWidth = 3 * (1 - p) + 1;
+      ctx.shadowColor = COLOR.cloudoverB;
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, 12 + 46 * p, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
     }
     ctx.globalAlpha = 1;
