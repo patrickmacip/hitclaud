@@ -1,53 +1,41 @@
-// hitclaud — test del castigo escalado por tramo: node test/castigo.test.js
+// hitclaud — castigo PLANO por fallo: node test/castigo.test.js
+// Un fallo resta FALLO (50), plano. Sin tramos, sin escalado por consecutivos,
+// sin amortiguador. Piso en 0, rompe la racha.
 
 const P = require('../js/puntuacion.js');
 
-console.log('=== 4 fallos seguidos → totales (abajo perdona, arriba no) ===');
-[300, 1500, 5000, 30000].forEach(function (s0) {
-  const m = P.crearMarcador();
-  m.puntos = s0;
+function chk(nombre, ok) { console.log(`  ${nombre}  ${ok ? 'OK ✓' : 'NO ✗'}`); }
+
+console.log('=== Un fallo resta 50 (plano) ===');
+{
+  const m = P.crearMarcador(); m.puntos = 500;
+  const pen = P.anotarFallo(m);
+  chk(`fallo → −${pen}, queda ${m.puntos}`, pen === 50 && m.puntos === 450);
+}
+
+console.log('\n=== Fallos consecutivos NO escalan (siempre 50) ===');
+{
+  const m = P.crearMarcador(); m.puntos = 1000;
   const pens = [];
   for (let i = 0; i < 4; i++) pens.push(P.anotarFallo(m));
-  const total = s0 - m.puntos;
-  console.log(`  ${s0}: fallos −${pens.join('/−')}  total −${total}  → queda ${m.puntos}`);
+  chk(`4 fallos: −${pens.join('/−')} (todos 50)`, pens.every(function (p) { return p === 50; }));
+}
+
+console.log('\n=== Da igual el score: 50 plano en cualquier tramo ===');
+[0, 2000, 30000, 100000].forEach(function (s) {
+  const m = P.crearMarcador(); m.puntos = s + 100;
+  chk(`score ~${s} → fallo −${P.anotarFallo(m)}`, m.puntos === s + 50);
 });
 
-console.log('\n=== Fallos consecutivos ESCALAN (contador sube en cada fallo) ===');
+console.log('\n=== Piso en 0 + rompe racha ===');
 {
-  const m = P.crearMarcador(); m.puntos = 30000;
-  const pens = [];
-  for (let i = 0; i < 3; i++) pens.push(P.anotarFallo(m));
-  console.log(`  3 fallos: −${pens.join('/−')}  fallosSeguidos=${m.fallosSeguidos}`);
-  console.log(`  escalan (2º<3º, contador=3): ${pens[2] > pens[0] && m.fallosSeguidos === 3 ? 'OK ✓' : 'NO ✗'}`);
-}
-
-console.log('\n=== Transición suave al cruzar 2,000 (sin salto) ===');
-{
-  const p1900 = P.penalBase(1900);
-  const p2000 = P.penalBase(2000);
-  const p2100 = P.penalBase(2100);
-  console.log(`  castigo base: 1900=${p1900.toFixed(1)}  2000=${p2000.toFixed(1)}  2100=${p2100.toFixed(1)}`);
-  const salto = Math.max(Math.abs(p2000 - p1900), Math.abs(p2100 - p2000));
-  console.log(`  mayor diferencia entre vecinos: ${salto.toFixed(1)}  [sin salto brusco (<10): ${salto < 10 ? 'OK ✓' : 'NO ✗'}]`);
-}
-
-console.log('\n=== Piso en 0 intacto ===');
-{
-  const m = P.crearMarcador();
-  m.puntos = 30; // castigo −50%: pen base ≈25 → 30→5, y el 2º fallo topa en 0
+  const m = P.crearMarcador(); m.puntos = 30; m.racha = 5;
   P.anotarFallo(m);
-  const a = m.puntos;
-  P.anotarFallo(m);
-  console.log(`  fallo con 30 → ${a}, otro → ${m.puntos}  ${a === 5 && m.puntos === 0 ? 'OK ✓' : 'NO ✗'}`);
+  chk(`fallo con 30 → queda ${m.puntos}, racha ${m.racha}`, m.puntos === 0 && m.racha === 0);
+  const m2 = P.crearMarcador(); // 0
+  P.anotarFallo(m2);
+  chk('fallo con 0 → sigue 0', m2.puntos === 0);
 }
 
-console.log('\n=== Un hit resetea los consecutivos ===');
-{
-  const m = P.crearMarcador();
-  m.puntos = 30000;
-  P.anotarFallo(m); P.anotarFallo(m); // sube a 2
-  P.anotarHit(m);                      // reset a 0
-  const antes = m.fallosSeguidos;
-  P.anotarFallo(m);                    // vuelve a ×1 (1º)
-  console.log(`  tras hit fallosSeguidos=${antes}, siguiente fallo cuenta como 1º: ${antes === 0 ? 'OK ✓' : 'NO ✗'}`);
-}
+console.log('\n=== FALLO expuesto como constante ===');
+chk('P.FALLO === 50', P.FALLO === 50);

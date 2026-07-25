@@ -1,45 +1,33 @@
-// hitclaud — test de ganancia proporcional al tramo: node test/ganancia.test.js
+// hitclaud — ganancia PLANA: node test/ganancia.test.js
+// Cada cubito vale VALOR_CUBO (5); un target naranja completo (20 cubos) = 100.
+// El score NO altera el valor; la racha multiplica.
 
 const P = require('../js/puntuacion.js');
 
-console.log(`Valor por cubo = penalBase / ${P.VALOR_DIV} (ganancia al 50%, ratio ~0.10).`);
+function chk(nombre, ok) { console.log(`  ${nombre}  ${ok ? 'OK ✓' : 'NO ✗'}`); }
 
-console.log('\n=== Valor de 1 cubo por tramo + ratio ganancia/castigo (debe ser constante) ===');
-const scores = [500, 5000, 30000, 80000];
-const ratios = [];
-scores.forEach(function (s) {
-  const vCubo = P.valorCubo(s);
-  const castigoBase = P.penalBase(s);           // castigo del 1er fallo (×1)
-  const ratio = vCubo / castigoBase;            // ganancia-por-cubo / castigo-base
-  ratios.push(ratio);
-  // total de un target intacto (20 cubos) vs el 1er fallo:
-  const destroy = Math.round(20 * vCubo);
-  console.log(`  ${s}: 1 cubo=${vCubo.toFixed(1)}  castigo=${castigoBase.toFixed(1)}  ratio=${ratio.toFixed(3)}  (destroy 20c=${destroy} vs fallo=${Math.round(castigoBase)} → ×${(destroy / castigoBase).toFixed(1)})`);
+console.log('=== Valor plano por cubo (no depende del score) ===');
+chk(`VALOR_CUBO = 5`, P.VALOR_CUBO === 5 && P.valorCubo() === 5);
+
+console.log('\n=== Target completo (20 cubos) = 100, en cualquier score ===');
+[0, 500, 30000, 80000].forEach(function (s) {
+  const m = P.crearMarcador(); m.puntos = s;
+  const g = P.anotarDestruidos(m, 20);
+  chk(`score ${s}: 20 cubos → +${g}`, g === 100);
 });
-const rMin = Math.min.apply(null, ratios), rMax = Math.max.apply(null, ratios);
-const constante = (rMax - rMin) / rMax < 0.05;
-console.log(`  ratio constante (±5%): min=${rMin.toFixed(3)} max=${rMax.toFixed(3)}  ${constante ? 'OK ✓' : 'NO ✗'}`);
 
-console.log('\n=== Sin salto al cruzar la frontera 2,000 ===');
+console.log('\n=== Impacto parcial: n cubos → n×5 (×racha) ===');
 {
   const m = P.crearMarcador();
-  const v1900 = P.valorCubo(1900), v2000 = P.valorCubo(2000), v2100 = P.valorCubo(2100);
-  console.log(`  valor de 1 cubo: 1900=${v1900.toFixed(1)}  2000=${v2000.toFixed(1)}  2100=${v2100.toFixed(1)}`);
-  const salto = Math.max(Math.abs(v2000 - v1900), Math.abs(v2100 - v2000));
-  console.log(`  mayor salto entre vecinos: ${salto.toFixed(2)}  [sin salto brusco (<2): ${salto < 2 ? 'OK ✓' : 'NO ✗'}]`);
+  chk('1 cubo → +5', P.anotarDestruidos(m, 1) === 5);
+  const m2 = P.crearMarcador();
+  chk('3 cubos → +15', P.anotarDestruidos(m2, 3) === 15);
 }
 
-console.log('\n=== A score 0: 5/cubo (ganancia al 50%; target intacto = 100) ===');
+console.log('\n=== El multiplicador de racha amplifica la ganancia ===');
 {
-  const m = P.crearMarcador(); // puntos 0
-  const g = P.anotarDestruidos(m, 20);
-  console.log(`  20 cubos a score 0 = +${g}  ${g === 100 ? 'OK ✓ (target intacto = 100)' : 'NO ✗'}`);
-}
-
-console.log('\n=== Aplica a cualquier impacto parcial (mismo anotarDestruidos) ===');
-{
-  const m = P.crearMarcador(); m.puntos = 30000;
-  const g = P.anotarDestruidos(m, 3); // 3 cubos arrancados por un impacto parcial
-  const esperado = Math.round(3 * P.valorCubo(30000));
-  console.log(`  3 cubos a 30,000 = +${g} (=${esperado})  ${g === esperado ? 'OK ✓' : 'NO ✗'}`);
+  const m = P.crearMarcador(); m.racha = 3;        // ×1.2
+  chk('20 cubos con racha 3 → +120 (100 ×1.2)', P.anotarDestruidos(m, 20) === 120);
+  const m2 = P.crearMarcador(); m2.racha = 100;    // tope ×3
+  chk('20 cubos con racha enorme → +300 (tope ×3)', P.anotarDestruidos(m2, 20) === 300);
 }

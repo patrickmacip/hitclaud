@@ -73,8 +73,8 @@
   // detiene el rAF del canvas, no los eventos del DOM). Resetea TODO el estado
   // de la partida (el récord persistente NO se toca) y reanuda el juego.
   function reiniciarPartida() {
-    marcador.puntos = 0; marcador.racha = 0; marcador.fallosSeguidos = 0; marcador.pico = 0;
-    targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; destellos.length = 0;
+    marcador.puntos = 0; marcador.racha = 0;
+    targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0;
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
@@ -201,10 +201,23 @@
   const SACUDIDA_AMP = 2;     // px de micro-sacudida de pantalla en destrucción
   const SACUDIDA_MS = 80;     // duración de la sacudida
   const DESTELLO_MS = 70;     // destello del target en CUALQUIER contacto (feedback)
-  const REBOTE_ANILLO_MS = 280; // duración del anillo de realce al destruir un rojo por rebote
+
+  // ── Plataforma ─────────────────────────────────────────────────────
+  // DESKTOP (puntero fino/mouse): mira que sigue al cursor + disparo HITSCAN
+  // (impacto inmediato) de una hitball 4× más chica. MÓVIL (táctil): tiro por
+  // arrastre, sin rebote en paredes.
+  const esDesktop = (function () {
+    try { return window.matchMedia && window.matchMedia('(pointer: fine)').matches; }
+    catch (e) { return false; }
+  })();
+  const RADIO_MIRA = RADIO_NORMAL / 4; // hitball de desktop: 4× más chica (14 → 3.5)
+  const DISPARO_MS = 130;              // duración del destello del tiro (hitscan)
 
   let W = 0;
   let H = 0;
+  // Mira de desktop (posición del cursor) + destello breve de cada disparo.
+  let miraX = -1, miraY = -1, miraActiva = false;
+  const disparos = []; // {x, y, inicio} destello breve del hitscan
 
   // Estado: MÚLTIPLES bolitas vivas. Cada una lleva SU propia estela.
   const gesto = { activo: false, puntos: [] };
@@ -220,7 +233,6 @@
   let proximoSpawn = 0;       // timestamp mínimo del próximo lanzamiento
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
-  const destellos = [];       // anillos de realce al destruir un rojo por rebote
   let sacudidaHasta = 0;      // timestamp fin de la micro-sacudida de pantalla
   // Inactividad: cobra tras la gracia si el jugador no hace gestos.
   let ultimoGesto = 0;        // timestamp del último gesto (o reset por visibilidad)
@@ -264,29 +276,6 @@
     while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
   }
 
-  // Centros de mundo de los cubos vivos de un target (para estallarlo entero).
-  function cubosDelTarget(tg) {
-    const out = [];
-    const cw = Math.cos(tg.rot);
-    const sw = Math.sin(tg.rot);
-    for (let i = 0; i < 20; i++) {
-      if (!tg.celdas[i]) continue;
-      const l = F.celdaLocal(i);
-      out.push({ x: tg.x + l.x * cw - l.y * sw, y: tg.y + l.x * sw + l.y * cw });
-    }
-    return out;
-  }
-
-  // DESTRUCCIÓN POR REBOTE (rojo): confirmación PROPIA, distinta del pop naranja.
-  // Estalla los cubos del rojo en su ROJO de peligro (#FF0055), lanza un ANILLO
-  // de realce (crema) que se expande y desvanece, y una micro-sacudida. Duraciones
-  // por tokens (REBOTE_ANILLO_MS + SACUDIDA_MS).
-  function destruirRojoPorRebote(tg, t) {
-    explotarCubos(cubosDelTarget(tg), tg.x, tg.y, 1.2, tg.vx, tg.vy, COLOR.cloudoverB, 8);
-    destellos.push({ x: tg.x, y: tg.y, inicio: t });
-    sacudidaHasta = t + SACUDIDA_MS;
-  }
-
   // Lanza un target NARANJA (el que puntúa): crearTarget da el origen (uno de los
   // 4) y la velocidad variable. Sin variantes: los especiales se eliminaron.
   function generarNaranja() {
@@ -320,8 +309,11 @@
     dibujar();
   }
 
-  // ── Input (pointer events) — un gesto (un dedo) a la vez ────────────
+  // ── Input ───────────────────────────────────────────────────────────
+  // DESKTOP: la mira sigue al cursor; el clic dispara un HITSCAN (impacto
+  // inmediato). MÓVIL: gesto de arrastre para lanzar la hitball (un dedo).
   canvas.addEventListener('pointerdown', function (e) {
+    if (esDesktop) { dispararHitscan(e.clientX, e.clientY); return; }
     if (gesto.activo) return;
     if (distEsquina(e.clientX, e.clientY) > RADIO_HITMAKER) return;
     gesto.activo = true;
@@ -333,17 +325,59 @@
   });
 
   canvas.addEventListener('pointermove', function (e) {
+    if (esDesktop) { miraX = e.clientX; miraY = e.clientY; miraActiva = true; return; }
     if (!gesto.activo) return;
     gesto.puntos.push({ x: e.clientX, y: e.clientY, t: performance.now() });
   });
 
   canvas.addEventListener('pointerup', function (e) {
+    if (esDesktop) return;
     if (!gesto.activo) return;
     gesto.activo = false;
     gesto.puntos.push({ x: e.clientX, y: e.clientY, t: performance.now() });
     marcarActividad(); // fin del gesto: reinicia la gracia
     ejecutarSuelta(gesto.puntos, false); // suelta normal: aplica umbral/cancelación
   });
+
+  canvas.addEventListener('pointerleave', function () { miraActiva = false; });
+
+  // DISPARO HITSCAN (desktop): impacto INMEDIATO bajo la mira. Si toca un cubo
+  // vivo de un target, lo destruye (1 cubito = precisión) y puntúa ×racha; si toca
+  // un ROJO, game over; si no toca nada, es FALLO. Anti-spam por CADENCIA_MS.
+  function dispararHitscan(mx, my) {
+    if (pausado || gameOver) return;
+    const ahora = performance.now();
+    if (ahora - ultimoDisparo < CADENCIA_MS) return;
+    ultimoDisparo = ahora;
+    miraX = mx; miraY = my; miraActiva = true;
+    marcarActividad();
+    disparos.push({ x: mx, y: my, inicio: ahora }); // destello del tiro
+    for (let ti = targets.length - 1; ti >= 0; ti--) {
+      const tg = targets[ti];
+      const idx = F.celdaEnPunto(tg, mx, my);
+      if (idx < 0) continue;                 // la mira no está sobre un cubo vivo
+      if (tg.rojo) { terminarPartida(); return; } // impacto en ROJO → game over
+      // NARANJA: destruye el cubito impactado (impacto inmediato, preciso).
+      const centro = F.celdaMundo(tg, idx);
+      tg.celdas[idx] = false;
+      tg.vivos = (tg.vivos || 20) - 1;
+      tg.masa = F.FISICA.MASA_TARGET * (tg.vivos / 20);
+      tg.destelloHasta = ahora + DESTELLO_MS;
+      P.anotarHit(marcador);                 // disparo certero = hit (sube la racha)
+      P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, ahora);
+      const g = P.anotarDestruidos(marcador, 1); // 1 cubo × 5 × racha
+      explotarCubos([centro], mx, my, 1.0, tg.vx, tg.vy, ACENTO.base);
+      flotante(centro.x, centro.y, '+' + g, ACENTO.vivo, tamGanancia(g), g >= 300);
+      if (g >= 50) popMarcador();
+      actualizarMarcador();
+      if (tg.vivos <= 0) { targets.splice(ti, 1); sacudidaHasta = ahora + SACUDIDA_MS; }
+      return; // un tiro impacta un solo target
+    }
+    // No tocó ningún cubo → FALLO.
+    const pen = P.anotarFallo(marcador);
+    actualizarMarcador();
+    registrarPerdida(pen);
+  }
 
   // Ejecuta la suelta desde la posición del dedo. forzar=true (frenos) siempre
   // dispara y respeta la velocidad de suelta real (tiro rápido = tiro real;
@@ -368,8 +402,6 @@
       edad: 0,
       viva: true,
       tocado: false, // ¿tocó algún target? (para racha y fallo)
-      rebota: true,  // el proyectil rebota en paredes/techo (habilita el tiro de rebote)
-      rebotes: 0,    // contador de rebotes de ESTE lanzamiento (nace en 0)
       historia: [],
     });
     ultimoDisparo = performance.now();
@@ -479,16 +511,8 @@
       for (let ti = targets.length - 1; ti >= 0; ti--) {
         const tg = targets[ti];
         if (tg.rojo) {
+          // ROJO: cualquier contacto de la hitball TERMINA la partida.
           if (!F.colisionCirculoRect(b, tg)) continue;
-          if ((b.rebotes || 0) >= 1) {
-            // TIRO DE REBOTE: con ≥1 rebote, el proyectil DESTRUYE el rojo y la
-            // partida CONTINÚA (no game over, no penaliza). Con confirmación propia.
-            destruirRojoPorRebote(tg, t);
-            targets.splice(ti, 1);
-            b.tocado = true; // fue un impacto útil: no cuenta como fallo
-            continue;
-          }
-          // IMPACTO DIRECTO (0 rebotes): termina la partida, como hoy.
           terminarPartida();
           return; // corta el cuadro; el bucle se congela
         }
@@ -625,41 +649,54 @@
       ctx.fill();
       ctx.restore();
     }
-    // ANILLO de realce del tiro de rebote (rojo destruido): se expande y desvanece.
-    // Confirmación PROPIA, distinta del pop naranja. Barato: un stroke por destello.
-    for (let i = destellos.length - 1; i >= 0; i--) {
-      const d = destellos[i];
-      const p = (performance.now() - d.inicio) / REBOTE_ANILLO_MS;
-      if (p >= 1) { destellos.splice(i, 1); continue; }
-      ctx.save();
-      ctx.globalAlpha = (1 - p) * 0.9;
-      ctx.strokeStyle = COLOR.crema;
-      ctx.lineWidth = 3 * (1 - p) + 1;
-      ctx.shadowColor = COLOR.cloudoverB;
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.arc(d.x, d.y, 12 + 46 * p, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
     ctx.globalAlpha = 1;
     const ahoraB = performance.now();
-    // Hitball = ACENTO.vivo; su estela/glow es el aura (va en la bola).
     // Marcador Actual: rojo #FF4583 durante 400ms al restar; si no, el naranja vivo.
     if (elActual) elActual.style.color = (ahoraB < contadorRojoHasta) ? ROJO_CONTADOR : ACENTO.vivo;
-    for (let i = 0; i < bolitas.length; i++) {
-      const b = bolitas[i];
-      const rB = b.radio || RADIO_NORMAL;
-      dibujarEstela(b, rB, ACENTO.vivo);         // estela = aura viva (va en la hitball)
-      dibujarBolita(b.x, b.y, rB, ACENTO.vivo, false);
-    }
-    // Bolita principal (reposo/agarrada): naranja vivo + glow = aura viva.
-    if (gesto.activo) {
-      const dedo = gesto.puntos[gesto.puntos.length - 1];
-      dibujarBolita(dedo.x, dedo.y, RADIO_NORMAL, ACENTO.vivo, true);
-    } else if (ahoraB - ultimoDisparo >= CADENCIA_MS) {
-      const r = reposo();
-      dibujarBolita(r.x, r.y, RADIO_NORMAL, ACENTO.vivo, true);
+
+    if (esDesktop) {
+      // Destello del disparo HITSCAN: una hitball chica que aparece y se apaga.
+      for (let i = disparos.length - 1; i >= 0; i--) {
+        const s = disparos[i];
+        const p = (ahoraB - s.inicio) / DISPARO_MS;
+        if (p >= 1) { disparos.splice(i, 1); continue; }
+        ctx.save();
+        ctx.globalAlpha = 1 - p;
+        ctx.shadowColor = ACENTO.vivo; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(s.x, s.y, RADIO_MIRA, 0, Math.PI * 2);
+        ctx.fillStyle = ACENTO.vivo; ctx.fill();
+        ctx.restore();
+      }
+      // MIRA que sigue al cursor: cruz + anillo finos en naranja vivo.
+      if (miraActiva && miraX >= 0) {
+        ctx.save();
+        ctx.strokeStyle = ACENTO.vivo; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.9;
+        ctx.beginPath(); ctx.arc(miraX, miraY, 11, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(miraX - 16, miraY); ctx.lineTo(miraX - 5, miraY);
+        ctx.moveTo(miraX + 5, miraY); ctx.lineTo(miraX + 16, miraY);
+        ctx.moveTo(miraX, miraY - 16); ctx.lineTo(miraX, miraY - 5);
+        ctx.moveTo(miraX, miraY + 5); ctx.lineTo(miraX, miraY + 16);
+        ctx.stroke();
+        ctx.fillStyle = ACENTO.vivo;
+        ctx.beginPath(); ctx.arc(miraX, miraY, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+    } else {
+      // MÓVIL: hitball lanzada + estela; y la bolita en reposo/agarrada.
+      for (let i = 0; i < bolitas.length; i++) {
+        const b = bolitas[i];
+        const rB = b.radio || RADIO_NORMAL;
+        dibujarEstela(b, rB, ACENTO.vivo);         // estela = aura viva (va en la hitball)
+        dibujarBolita(b.x, b.y, rB, ACENTO.vivo, false);
+      }
+      if (gesto.activo) {
+        const dedo = gesto.puntos[gesto.puntos.length - 1];
+        dibujarBolita(dedo.x, dedo.y, RADIO_NORMAL, ACENTO.vivo, true);
+      } else if (ahoraB - ultimoDisparo >= CADENCIA_MS) {
+        const r = reposo();
+        dibujarBolita(r.x, r.y, RADIO_NORMAL, ACENTO.vivo, true);
+      }
     }
 
     // Números flotantes: +N en el impacto (sube y se desvanece); bonos de
@@ -701,23 +738,6 @@
       ctx.fillText('×' + (mult % 1 === 0 ? mult.toFixed(0) : mult.toFixed(1)), 0, 0);
       ctx.restore();
       ctx.globalAlpha = 1;
-    }
-
-    // Amortiguador de caída: "cojín" de luz cálida (--coral-vivo) en el borde
-    // inferior cuando el score está bajo el suelo (60% del pico). Alfa según la
-    // profundidad → el jugador SIENTE que el fondo lo sostiene. Sin texto.
-    const suelo = P.SUELO_PICO * marcador.pico;
-    if (marcador.pico > 0 && marcador.puntos < suelo) {
-      const prof = 1 - marcador.puntos / suelo; // 0 en el suelo → 1 en 0
-      const alto = 90;
-      const g = ctx.createLinearGradient(0, H, 0, H - alto);
-      g.addColorStop(0, ACENTO.vivo);
-      g.addColorStop(1, 'transparent');
-      ctx.save();
-      ctx.globalAlpha = 0.12 * prof;
-      ctx.fillStyle = g;
-      ctx.fillRect(0, H - alto, W, alto);
-      ctx.restore();
     }
 
     // Aviso sutil de inactividad (cobrando): puntos "· · ·" tenues y pulsantes
@@ -840,6 +860,10 @@
     ctx.stroke();
     ctx.restore();
   }
+
+  // Desktop: marca el <html> para ocultar el hitmaker y el cursor del sistema
+  // (la mira lo reemplaza). Móvil: todo queda como estaba.
+  if (esDesktop) document.documentElement.classList.add('desktop');
 
   window.addEventListener('resize', redimensionar);
   redimensionar();

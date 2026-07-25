@@ -69,39 +69,19 @@ console.log('\n=== La pérdida se dispara SOLO en fallo real (bolita que no toc�
   chk('bolita que impactó (tocó) → no dispara', !disparaPerdida(true));
 }
 
-console.log('\n=== Tabla de castigo a la mitad (−50%) ===');
+console.log('\n=== Castigo PLANO: −50 en cualquier score ===');
 {
-  // Valores previos: 50/100/250/500/1000/2000. Ahora la mitad.
-  const esperado = [[0, 25], [2000, 50], [10000, 125], [25000, 250], [50000, 500], [100000, 1000]];
-  esperado.forEach(function (e) {
-    const p = P.penalTramo(e[0]);
-    chk(`tramo ${e[0]} → castigo ${p} (era ${e[1] * 2})`, p === e[1]);
+  [0, 2000, 30000, 120000].forEach(function (s) {
+    const m = P.crearMarcador(); m.puntos = s + 100;
+    const pen = P.anotarFallo(m);
+    chk(`score ~${s} → −${pen}`, pen === 50);
   });
+  chk('P.FALLO === 50', P.FALLO === 50);
 }
 
-console.log('\n=== Ratio ganancia/castigo = 0.20 CONSTANTE entre tramos ===');
+console.log('\n=== Piso 0 alcanzable fallando ===');
 {
-  // ratio = valorCubo(score) / penalBase(score). Debe ser 0.20 en todo el rango.
-  let constante = true;
-  [0, 1000, 2000, 8000, 15000, 30000, 60000, 120000].forEach(function (s) {
-    const ratio = P.valorCubo(s) / P.penalBase(s);
-    const ok = Math.abs(ratio - 0.20) < 1e-9;
-    if (!ok) constante = false;
-    console.log(`  score ${s}: ratio ${ratio.toFixed(3)}  ${ok ? 'OK ✓' : 'NO ✗'}`);
-  });
-  chk('ratio 0.20 constante en todos los tramos', constante);
-}
-
-console.log('\n=== Amortiguador y piso 0 coherentes con el castigo halved ===');
-{
-  // Piso 0 SIEMPRE alcanzable: fallar desde un score bajo llega a 0.
-  const m = P.crearMarcador(); m.puntos = 40; m.pico = 40;
+  const m = P.crearMarcador(); m.puntos = 40;
   let pasos = 0; while (m.puntos > 0 && pasos < 50) { P.anotarFallo(m); pasos++; }
-  chk(`piso 0 alcanzable fallando (llegó a ${m.puntos} en ${pasos} fallos)`, m.puntos === 0);
-
-  // Amortiguador: bajo el suelo (60% del pico) el castigo se atenúa hacia AMORT_MIN.
-  const cerca = P.amortiguar(600, 1000);  // score 600, pico 1000 → suelo 600 (en el suelo → ×1)
-  const hondo = P.amortiguar(0, 1000);    // en 0 → AMORT_MIN
-  chk(`amortiguar en el suelo = 1 (${cerca.toFixed(2)})`, Math.abs(cerca - 1) < 1e-9);
-  chk(`amortiguar en 0 = AMORT_MIN ${P.AMORT_MIN} (${hondo.toFixed(2)})`, Math.abs(hondo - P.AMORT_MIN) < 1e-9);
+  chk(`llegó a ${m.puntos} en ${pasos} fallos`, m.puntos === 0);
 }

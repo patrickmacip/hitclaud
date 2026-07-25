@@ -101,6 +101,10 @@ body {
   touch-action: none; /* el gesto de disparo no debe scrollear ni zoomear */
 }
 
+/* DESKTOP: la mira (dibujada en canvas) reemplaza al hitmaker y al cursor. */
+.desktop .hitmaker { display: none; }
+.desktop #juego { cursor: none; }
+
 /* ── Hitmaker (esquina inferior derecha) ────────── */
 
 .hitmaker {

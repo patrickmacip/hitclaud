@@ -51,8 +51,29 @@ puntos (fallo o inactividad):
 - **Contador rojo:** el marcador Actual se pinta `#FF4583` durante 400ms y vuelve al naranja vivo.
 - **Monto agregado:** bajo el marcador, un solo número `#FF6D9E` (~60% del tamaño) con el total restado, palpita y disipa en 600ms; cobros seguidos se AGREGAN y reinician el palpitar.
 
+## Plataformas (dos modos de tiro)
+
+Detección por puntero (`matchMedia('(pointer: fine)')`):
+
+- **DESKTOP** — **mira** que sigue al cursor con precisión (cruz + anillo en
+  canvas; se oculta el cursor del sistema y el hitmaker). El clic dispara un
+  **HITSCAN**: una hitball 4× más chica (radio 3.5) con **impacto inmediato** que
+  destruye el **cubito exacto** bajo la mira (`celdaEnPunto`), el que puntúa. Clic
+  sobre un rojo = game over; clic al vacío = fallo. Cadencia mínima anti-spam.
+- **MÓVIL** — tiro por **arrastre** (hitball radio 14), **sin rebote en paredes**
+  (la bolita muere al salir del viewport). Contacto con un rojo = game over.
+
+## Economía (plana)
+
+- Cada **cubito = 5 pts** → un **target naranja completo (20 cubos) = 100**.
+- **Fallo = −50** (plano, piso en 0). Inactividad = −13/s tras 3s de gracia.
+- El **multiplicador de racha** sigue aplicando a las ganancias (×1 → tope ×3).
+- Sin escalado por score (tramos), sin castigo por fallos consecutivos, sin
+  amortiguador: todo se retiró.
+
 ## Spawn caótico y escalada de rojos
 
+- **Tope duro:** máximo **4 targets en pantalla** (naranjas + rojos juntos).
 - **Multi-origen:** los targets salen de los **4 lados** (inferior, superior,
   lateral-izq, lateral-der) con **velocidad variable** por target. `crearTarget`
   (fisica.js) elige origen y velocidad; superior cae con gravedad reducida para

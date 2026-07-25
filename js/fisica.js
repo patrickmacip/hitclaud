@@ -37,7 +37,6 @@
     TARGET_HW: 20,
     TARGET_HH: 16,
     RESTITUCION_GOLPE: 0.6,   // atenuación del rebote de la hitball contra un target
-    RESTITUCION_PARED: 0.72,  // atenuación del rebote del proyectil contra paredes/techo
     MASA_TARGET: 2.5,         // "peso" de un target intacto (20 cubos); baja con el daño
     // Umbral de destrucción (rapidez normal de impacto, px/ms). Cuenta: la
     // salida a velSuelta≈0.68 px/ms (flick deliberado) es 2.26·tanh(0.619·0.68)
@@ -240,26 +239,12 @@
       }
       if (onPaso) onPaso(); // colisión probada en CADA subpaso
 
-      // REBOTE DE PAREDES (solo el proyectil del jugador: o.rebota). Los LATERALES
-      // y el TECHO invierten la componente normal atenuada por RESTITUCION_PARED
-      // y cuentan un rebote (o.rebotes); la gravedad se sigue integrando arriba →
-      // tras rebotar la bola SIGUE CAYENDO (no rebote plano). El PISO NO rebota:
-      // mata (la bola cae y se acaba). Esto habilita el tiro "de rebote" que
-      // destruye rojos. Los targets NO llevan o.rebota → cruzan y mueren al salir.
-      if (o.rebota) {
-        if (o.y > limites.h - r) { o.viva = false; break; } // el PISO mata
-        let choco = false;
-        if (o.x < r) { o.x = r; o.vx = Math.abs(o.vx) * FISICA.RESTITUCION_PARED; choco = true; }
-        else if (o.x > limites.w - r) { o.x = limites.w - r; o.vx = -Math.abs(o.vx) * FISICA.RESTITUCION_PARED; choco = true; }
-        if (o.y < r) { o.y = r; o.vy = Math.abs(o.vy) * FISICA.RESTITUCION_PARED; choco = true; } // techo
-        if (choco) o.rebotes = (o.rebotes || 0) + 1;
-      }
-
-      // MUNDO SIN PAREDES para los targets: mueren al salir una vez que entraron.
-      // (El proyectil que rebota queda contenido; sólo muere por piso o VIDA_MAX.)
+      // MUNDO SIN PAREDES: todo (bolitas y targets) muere al salir del viewport
+      // una vez que entró (los targets nacen fuera; haEntrado los protege en su
+      // primer cuadro). Sin rebote de paredes. Válvula de vida por si algo flota.
       const fuera =
         o.x < -r || o.x > limites.w + r || o.y < -r || o.y > limites.h + r;
-      if (o.edad >= FISICA.VIDA_MAX_MS || (!o.rebota && o.haEntrado && fuera)) {
+      if (o.edad >= FISICA.VIDA_MAX_MS || (o.haEntrado && fuera)) {
         o.viva = false;
         break;
       }
@@ -285,6 +270,21 @@
     const out = [];
     for (let i = 0; i < 20; i++) if (t.celdas[i]) out.push(celdaMundo(t, i));
     return out;
+  }
+
+  // HITSCAN (mira de desktop): índice de la celda VIVA que contiene el punto de
+  // mundo (px,py), o -1. Lleva el punto al espacio LOCAL del target (rotación
+  // inversa) y ve en qué celda 8×8 de la retícula 5×4 (sprite 40×32) cae.
+  function celdaEnPunto(t, px, py) {
+    const dx = px - t.x, dy = py - t.y;
+    const c = Math.cos(-t.rot), s = Math.sin(-t.rot);
+    const lx = dx * c - dy * s;          // local, centro del sprite en (0,0)
+    const ly = dx * s + dy * c;
+    const col = Math.floor((lx + 20) / 8); // sprite va de -20..20 (x), -16..16 (y)
+    const fil = Math.floor((ly + 16) / 8);
+    if (col < 0 || col > 4 || fil < 0 || fil > 3) return -1;
+    const idx = fil * 5 + col;
+    return t.celdas[idx] ? idx : -1;
   }
 
   // Caja de colisión LOCAL = bounding box de las celdas vivas (mordido = más
@@ -450,6 +450,8 @@
     resolverImpacto: resolverImpacto,
     cajaLocal: cajaLocal,
     celdaLocal: celdaLocal,
+    celdaMundo: celdaMundo,
+    celdaEnPunto: celdaEnPunto,
   };
 
   if (typeof module !== 'undefined' && module.exports) {
