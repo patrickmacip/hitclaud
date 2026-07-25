@@ -1,75 +1,61 @@
-// hitclaud — test de lanzamiento de targets: node test/targets.test.js
-// Simula 60 lanzamientos (20 por grupo) y mide vuelo visible y ápice.
+// hitclaud — spawn CAÓTICO MULTI-ORIGEN: node test/targets.test.js
+// crearTarget produce los 4 orígenes con velocidad variable y arcos jugables.
 // Viewport 390×844.
-//
-// NOTA DE FÍSICA (declarada): los targets usan G_TARGET = 0.0021 (flote
-// lunar, 0.6× la gravedad de las bolitas). Con esa gravedad la banda
-// 1.5–3.5s con ápice 20–80% SÍ es alcanzable (con g=0.0035 no lo era).
 
 const F = require('../js/fisica.js');
-const VIEWPORT = { w: 390, h: 844 };
+const VP = { w: 390, h: 844 };
 
-// Fuerza el origen fijando los pesos por grupo (Math.random se mantiene real).
-function lanzarDe(origen) {
-  const bak = { i: F.LANZA.PESO_INFERIOR, l: F.LANZA.PESO_LATERAL, s: F.LANZA.PESO_SUPERIOR };
-  F.LANZA.PESO_INFERIOR = origen === 'inferior' ? 1 : 0;
-  F.LANZA.PESO_LATERAL = origen === 'lateral' ? 1 : 0;
-  F.LANZA.PESO_SUPERIOR = origen === 'superior' ? 1 : 0;
-  const t = F.crearTarget(VIEWPORT);
-  F.LANZA.PESO_INFERIOR = bak.i; F.LANZA.PESO_LATERAL = bak.l; F.LANZA.PESO_SUPERIOR = bak.s;
-  return t;
+function chk(nombre, ok) { console.log(`  ${nombre}  ${ok ? 'OK ✓' : 'NO ✗'}`); }
+
+console.log('=== Los CUATRO orígenes aparecen (abajo, arriba, lat-izq, lat-der) ===');
+{
+  const c = {};
+  for (let i = 0; i < 8000; i++) { const o = F.crearTarget(VP).origen; c[o] = (c[o] || 0) + 1; }
+  const req = ['inferior', 'superior', 'lateral-izq', 'lateral-der'];
+  req.forEach(function (o) { chk(`${o}: ${((100 * (c[o] || 0)) / 8000).toFixed(0)}%`, (c[o] || 0) > 100); });
+  chk('sólo esos 4 orígenes (sin residuos)', Object.keys(c).every(function (k) { return req.indexOf(k) !== -1; }));
 }
 
-function volar(t) {
-  let tEnter = -1;
-  let tDeath = 0;
-  let minY = Infinity;
-  let vx0 = t.vx;
-  let paso = 0;
-  const DT = 10;
-  while (t.viva && paso < 8000) {
-    F.paso(t, DT, VIEWPORT);
-    paso += DT;
-    if (t.haEntrado && tEnter < 0) tEnter = paso;
-    if (t.haEntrado) minY = Math.min(minY, t.y);
-    if (!t.viva) tDeath = paso;
+console.log('\n=== Velocidad VARIABLE por target (lentos y rápidos mezclados) ===');
+{
+  const spd = [];
+  for (let i = 0; i < 8000; i++) { const t = F.crearTarget(VP); spd.push(Math.hypot(t.vx, t.vy)); }
+  spd.sort(function (a, b) { return a - b; });
+  const min = spd[0], med = spd[spd.length >> 1], max = spd[spd.length - 1];
+  console.log(`  velocidad px/ms: min ${min.toFixed(2)} · mediana ${med.toFixed(2)} · max ${max.toFixed(2)}`);
+  chk('hay spread real (max ≥ 2× min)', max >= 2 * min);
+  chk('todas dentro de un rango jugable (0.05–2.0 px/ms)', min > 0.05 && max < 2.0);
+}
+
+console.log('\n=== Cada origen ENTRA al área jugable y es VISIBLE ≥700ms (alcanzable) ===');
+{
+  function visMs(t) {
+    let dentro = 0, tt = 0;
+    while (t.viva && tt < 10000) {
+      F.paso(t, 16, VP);
+      if (t.x > 0.03 * VP.w && t.x < 0.97 * VP.w && t.y > 0.03 * VP.h && t.y < 0.97 * VP.h) dentro += 16;
+      tt += 16;
+    }
+    return dentro;
   }
-  const visible = tEnter >= 0 ? (tDeath - tEnter) / 1000 : 0;
-  const apexFrac = minY === Infinity ? 0 : (VIEWPORT.h - Math.max(0, minY)) / VIEWPORT.h;
-  return { visible: visible, apexFrac: apexFrac, vx0: vx0 };
+  const by = {};
+  for (let i = 0; i < 4000; i++) { const t = F.crearTarget(VP); const o = t.origen; (by[o] = by[o] || { n: 0, ok: 0, sum: 0 }); const v = visMs(t); by[o].n++; by[o].sum += v; if (v >= 700) by[o].ok++; }
+  ['inferior', 'superior', 'lateral-izq', 'lateral-der'].forEach(function (o) {
+    const b = by[o];
+    chk(`${o}: ${((100 * b.ok) / b.n).toFixed(0)}% visibles ≥700ms · medio ${(b.sum / b.n).toFixed(0)}ms`, b.ok / b.n >= 0.80);
+  });
 }
 
-function grupo(origen, evalua) {
-  const N = 20;
-  let ok = 0;
-  let visMin = Infinity, visMax = 0, visSum = 0;
-  let apMin = Infinity, apMax = 0;
-  for (let i = 0; i < N; i++) {
-    const r = volar(lanzarDe(origen));
-    visMin = Math.min(visMin, r.visible); visMax = Math.max(visMax, r.visible); visSum += r.visible;
-    apMin = Math.min(apMin, r.apexFrac); apMax = Math.max(apMax, r.apexFrac);
-    if (evalua(r)) ok++;
+console.log('\n=== Inferior sube en arco SIN cruzar el techo (no muere arriba) ===');
+{
+  let peorApex = 0, murioArriba = 0;
+  for (let i = 0; i < 2000; i++) {
+    let t; do { t = F.crearTarget(VP); } while (t.origen !== 'inferior');
+    let minY = t.y, tt = 0;
+    while (t.viva && tt < 8000) { F.paso(t, 16, VP); minY = Math.min(minY, t.y); tt += 16; }
+    peorApex = Math.max(peorApex, VP.h - minY);
+    if (minY < 0) murioArriba++;
   }
-  console.log(`\n${origen}: ${ok}/${N} cumplen (${(ok / N * 100).toFixed(0)}%)`);
-  console.log(`  vuelo visible s: mín=${visMin.toFixed(2)} prom=${(visSum / N).toFixed(2)} máx=${visMax.toFixed(2)}`);
-  console.log(`  ápice (fracción de altura): mín=${apMin.toFixed(2)} máx=${apMax.toFixed(2)}`);
-  return ok / N;
+  console.log(`  ápice máximo observado ${peorApex.toFixed(0)}px de ${VP.h} (${((100 * peorApex) / VP.h).toFixed(0)}%)`);
+  chk('ningún inferior cruza el techo', murioArriba === 0);
 }
-
-console.log('=== Simulación de 60 lanzamientos (20 por grupo) ===');
-
-// Inferior y laterales (flote lunar): vuelo visible 1.5–3.5s, ápice 20–80%.
-const evalArco = function (r) {
-  return r.visible >= 1.5 && r.visible <= 3.5 && r.apexFrac >= 0.20 && r.apexFrac <= 0.80;
-};
-const pInf = grupo('inferior', evalArco);
-const pLat = grupo('lateral', evalArco);
-
-// Superior: vuelo visible ≥0.6s con componente lateral (que cruce).
-const evalSup = function (r) { return r.visible >= 0.6 && Math.abs(r.vx0) >= 0.2; };
-const pSup = grupo('superior', evalSup);
-
-console.log('\n=== Criterios ===');
-console.log(`  inferior ≥80%: ${(pInf * 100).toFixed(0)}%  ${pInf >= 0.8 ? 'OK ✓' : 'NO ✗'}`);
-console.log(`  lateral  ≥80%: ${(pLat * 100).toFixed(0)}%  ${pLat >= 0.8 ? 'OK ✓' : 'NO ✗'}`);
-console.log(`  superior ≥80% (≥0.6s + lateral): ${(pSup * 100).toFixed(0)}%  ${pSup >= 0.8 ? 'OK ✓' : 'NO ✗'}`);

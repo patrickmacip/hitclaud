@@ -37,12 +37,6 @@
     TARGET_HW: 20,
     TARGET_HH: 16,
     RESTITUCION_GOLPE: 0.6,   // atenuación del rebote de la hitball
-    // Rebote contra los bordes. EXCEPCIÓN al mundo sin paredes: SOLO la bola
-    // chica (modo enojado) rebota, y SOLO en LATERALES (izq/der) y TECHO. El
-    // PISO (borde inferior) NO rebota: la bola MUERE al tocarlo. La bola normal
-    // muere al salir por cualquier lado.
-    RESTITUCION_PARED: 0.62,  // invierte la componente normal atenuada (no rebote plano)
-    REBOTES_MAX: 3,           // tope: máx 3 rebotes en paredes/techo; el 4º contacto mata
     MASA_TARGET: 2.5,         // "peso" de un target intacto (20 cubos); baja con el daño
     // Umbral de destrucción (rapidez normal de impacto, px/ms). Cuenta: la
     // salida a velSuelta≈0.68 px/ms (flick deliberado) es 2.26·tanh(0.619·0.68)
@@ -55,32 +49,36 @@
     DESMORONA_CUBOS: 4,       // ≤ este nº de cubos vivos tras un golpe → muere
   };
 
-  // Rangos de LANZAMIENTO de targets (px/ms, px). Los targets se lanzan como
-  // objetos aventados y reusan paso() con la MISMA gravedad — sin motor
-  // paralelo. Inferior/laterales SIEMPRE hacia arriba y hacia el interior.
-  // NOTA de física: con g=0.0035 y h=844, el vuelo visible máximo de una
-  // parábola es ~1.39s (subir 844px = 694ms ×2), con el ápice pegado al
-  // techo. El objetivo alcanzable es 0.8–1.4s con ápice al 20–80%.
+  // Rangos de LANZAMIENTO de targets (px/ms, px). SPAWN CAÓTICO MULTI-ORIGEN:
+  // los targets salen de los CUATRO lados (inferior, superior, lateral-izq,
+  // lateral-der) con VELOCIDAD VARIABLE por target (lentos y rápidos mezclados)
+  // dentro de rangos jugables. Reusan paso() con la MISMA gravedad (G_TARGET),
+  // sin motor paralelo. Física coherente por origen:
+  //   inferior     → sube en arco (ápice 0.36–0.80h, nunca cruza el techo).
+  //   superior     → entra desde arriba y cruza en diagonal hacia el centro.
+  //   lateral-izq  → entra por la izquierda cruzando a la derecha, en arco.
+  //   lateral-der  → espejo del izquierdo.
   const LANZA = {
-    PESO_INFERIOR: 0.40,
-    PESO_LATERAL: 0.45,
-    PESO_SUPERIOR: 0.15,
-    FUERZA: 1.0,              // sin recorte: el flote lunar (G_TARGET) ya alarga los arcos
-    MARGEN: 40,               // px fuera del borde donde nace el target (inferior)
-    LAT_MARGEN: 8,            // margen lateral menor: menos demora de entrada → vuelo ≥1.5s
-    SUP_MARGEN: 10,           // margen menor arriba: menos pre-aceleración → cruce ≥0.6s
-    INF_X: [0.05, 0.55],      // fracción de ancho (izq, lejos del hitmaker; deja pista)
-    INF_VX: [-0.05, 0.12],    // leve componente lateral
-    INF_VY: [1.66, 1.73],     // hacia arriba: con flote lunar → 1.5–1.6s, ápice 0.72–0.80
-    // Laterales: corredor ESTRECHO. Para llegar a 1.5s el ápice debe rozar
-    // el 80% (tope), así que vy e y quedan muy acotados y los laterales salen
-    // casi idénticos. Ampliar el ápice (≤0.90) o bajar G_TARGET daría variedad.
-    LAT_Y: [0.95, 0.975],     // fracción de altura (casi al fondo)
-    LAT_VX: [0.13, 0.20],     // hacia el interior, suave (no sale por el costado antes de 1.5s)
-    LAT_VY: [1.60, 1.63],     // hacia arriba
-    SUP_X_BORDE: [0.05, 0.22], // fracción de ancho cerca del borde de origen
-    SUP_VX: [0.22, 0.40],     // componente lateral (cruza en diagonal, pista completa)
-    SUP_VY: [0.02, 0.14],     // hacia abajo, casi nula: entra lento → cruce ≥0.6s
+    // Pesos de los 4 orígenes (suman 1): todos sustanciales → caos real.
+    PESO_INFERIOR: 0.30,
+    PESO_SUPERIOR: 0.22,
+    PESO_LAT_IZQ: 0.24,
+    PESO_LAT_DER: 0.24,
+    FUERZA: 1.0,
+    MARGEN: 40,               // px fuera del borde inferior donde nace
+    LAT_MARGEN: 8,            // margen lateral (entra rápido)
+    SUP_MARGEN: 10,           // margen superior
+    // VELOCIDAD VARIABLE: el ancho de cada rango da la mezcla lento↔rápido.
+    INF_X: [0.06, 0.80],      // fracción de ancho (evita la esquina del hitmaker)
+    INF_VX: [-0.18, 0.18],    // componente lateral variable (diagonales)
+    INF_VY: [1.15, 1.72],     // hacia arriba: ápice 0.36–0.80h (lento↔rápido)
+    LAT_Y: [0.45, 0.92],      // altura de entrada variable
+    LAT_VX: [0.14, 0.42],     // hacia el interior (magnitud; el signo lo pone el lado)
+    LAT_VY: [0.90, 1.62],     // arco hacia arriba variable
+    SUP_X: [0.06, 0.94],      // nace en cualquier x arriba
+    SUP_VX: [0.10, 0.30],     // cruza en diagonal suave (signo hacia el centro)
+    SUP_VY: [0.0, 0.14],      // entra MUY lento
+    SUP_GRAV_FRAC: 0.6,       // caída más lenta desde arriba → linger ≥1s, alcanzable
     VEL_ROT: [-0.003, 0.003], // rad/ms, ambos sentidos, giro constante sin torque
   };
 
@@ -164,33 +162,41 @@
   function crearTarget(limites) {
     const w = limites.w;
     const h = limites.h;
-    const M = LANZA.MARGEN;
     const d = Math.random();
+    const pI = LANZA.PESO_INFERIOR;
+    const pS = pI + LANZA.PESO_SUPERIOR;
+    const pLi = pS + LANZA.PESO_LAT_IZQ;
     let origen;
-    if (d < LANZA.PESO_INFERIOR) origen = 'inferior';
-    else if (d < LANZA.PESO_INFERIOR + LANZA.PESO_LATERAL) origen = 'lateral';
-    else origen = 'superior';
+    if (d < pI) origen = 'inferior';
+    else if (d < pS) origen = 'superior';
+    else if (d < pLi) origen = 'lateral-izq';
+    else origen = 'lateral-der';
 
     let x, y, vx, vy;
+    let gravedad = FISICA.G_TARGET;
     if (origen === 'inferior') {
       x = rango(LANZA.INF_X) * w;
-      y = h + M;
+      y = h + LANZA.MARGEN;
       vx = rango(LANZA.INF_VX);
       vy = -rango(LANZA.INF_VY);
-    } else if (origen === 'lateral') {
-      const izq = Math.random() < 0.5;
-      y = rango(LANZA.LAT_Y) * h;
-      x = izq ? -LANZA.LAT_MARGEN : w + LANZA.LAT_MARGEN;
-      vx = izq ? rango(LANZA.LAT_VX) : -rango(LANZA.LAT_VX);
-      vy = -rango(LANZA.LAT_VY);
-    } else {
-      // Superior: nace cerca de un borde y cruza en diagonal (pista completa)
-      // para no salir por el costado antes de 0.6 s.
-      const izq = Math.random() < 0.5;
-      x = (izq ? rango(LANZA.SUP_X_BORDE) : 1 - rango(LANZA.SUP_X_BORDE)) * w;
+    } else if (origen === 'superior') {
+      // Nace arriba y cruza en diagonal HACIA EL CENTRO (según su lado de origen).
+      // Gravedad reducida → cae despacio y da tiempo de acertarle.
+      x = rango(LANZA.SUP_X) * w;
       y = -LANZA.SUP_MARGEN;
-      vx = (izq ? 1 : -1) * rango(LANZA.SUP_VX);
+      vx = (x < w / 2 ? 1 : -1) * rango(LANZA.SUP_VX);
       vy = rango(LANZA.SUP_VY);
+      gravedad = FISICA.G_TARGET * LANZA.SUP_GRAV_FRAC;
+    } else if (origen === 'lateral-izq') {
+      x = -LANZA.LAT_MARGEN;
+      y = rango(LANZA.LAT_Y) * h;
+      vx = rango(LANZA.LAT_VX);     // hacia la derecha (interior)
+      vy = -rango(LANZA.LAT_VY);    // arco hacia arriba
+    } else { // lateral-der
+      x = w + LANZA.LAT_MARGEN;
+      y = rango(LANZA.LAT_Y) * h;
+      vx = -rango(LANZA.LAT_VX);    // hacia la izquierda (interior)
+      vy = -rango(LANZA.LAT_VY);
     }
 
     // celdas: máscara de 20 cubos vivos (idx = fila*5 + col). Los ojos son
@@ -200,7 +206,7 @@
     return {
       x: x, y: y, vx: vx * LANZA.FUERZA, vy: vy * LANZA.FUERZA,
       rot: 0, velRot: rango(LANZA.VEL_ROT),
-      radio: FISICA.RADIO_TARGET, gravedad: FISICA.G_TARGET,
+      radio: FISICA.RADIO_TARGET, gravedad: gravedad,
       celdas: celdas, vivos: 20, masa: FISICA.MASA_TARGET, golpeado: false,
       haEntrado: false, edad: 0, viva: true, origen: origen,
     };
@@ -233,28 +239,12 @@
       }
       if (onPaso) onPaso(); // colisión probada en CADA subpaso
 
-      // REBOTE en los bordes: SOLO si o.rebota (bola chica). Paredes LATERALES y
-      // TECHO invierten la componente NORMAL atenuada por RESTITUCION_PARED; la
-      // gravedad se sigue integrando arriba → tras rebotar la bola SIGUE CAYENDO
-      // (no rebote plano). El PISO NO rebota: MATA. Tope de 3 rebotes: el 4º
-      // contacto con pared/techo también mata (la bola se "gasta").
-      if (o.rebota) {
-        if (o.y > limites.h - r) { o.viva = false; break; } // el PISO mata
-        if ((o.rebotes || 0) < FISICA.REBOTES_MAX) {
-          let choco = false;
-          if (o.x < r) { o.x = r; o.vx = Math.abs(o.vx) * FISICA.RESTITUCION_PARED; choco = true; }
-          else if (o.x > limites.w - r) { o.x = limites.w - r; o.vx = -Math.abs(o.vx) * FISICA.RESTITUCION_PARED; choco = true; }
-          if (o.y < r) { o.y = r; o.vy = Math.abs(o.vy) * FISICA.RESTITUCION_PARED; choco = true; } // techo
-          if (choco) o.rebotes = (o.rebotes || 0) + 1;
-        } else if (o.x < r || o.x > limites.w - r || o.y < r) {
-          o.viva = false; break; // gastó los 3 rebotes: el siguiente contacto mata
-        }
-      }
-
+      // MUNDO SIN PAREDES: todo (bolitas y targets) muere al salir del viewport
+      // una vez que entró (los targets nacen fuera; haEntrado los protege en su
+      // primer cuadro). Válvula de vida por si algo queda flotando.
       const fuera =
         o.x < -r || o.x > limites.w + r || o.y < -r || o.y > limites.h + r;
-      // Sin rebote (bola normal): muere al salir. Con rebote no sale (lo clampa).
-      if (o.edad >= FISICA.VIDA_MAX_MS || (!o.rebota && o.haEntrado && fuera)) {
+      if (o.edad >= FISICA.VIDA_MAX_MS || (o.haEntrado && fuera)) {
         o.viva = false;
         break;
       }
@@ -315,11 +305,11 @@
   // prueba círculo vs rect eje-alineado (centrado en la caja de celdas vivas),
   // y devuelve normal y punto de contacto en mundo (rotación +rot).
   function colisionCirculoRect(bolita, t) {
-    // t.caja: caja fija en espacio local (estrella/moneda, sprite 36×36); si no,
-    // el bounding box de las celdas vivas (targets normales/enojados).
+    // t.caja: caja fija en espacio local si el target la define; si no, el
+    // bounding box de las celdas vivas (todos los targets del juego actual).
     const caja = t.caja || cajaLocal(t);
     if (!caja) return null;
-    const R = bolita.radio || FISICA.RADIO_BOLITA; // radio actual (debuff = 7)
+    const R = bolita.radio || FISICA.RADIO_BOLITA; // radio de la hitball
     const dx = bolita.x - t.x;
     const dy = bolita.y - t.y;
     const c = Math.cos(-t.rot);
@@ -388,7 +378,7 @@
     const base = { px: col.px, py: col.py, nx: nx, ny: ny, vImpact: vImpact };
 
     // PODER de destrucción escalado por el radio: poder = vImpact · radio/14.
-    // Con radio 7 (debuff) el poder cae a la mitad → casi nunca ≥ el umbral.
+    // Un radio menor reduce el poder proporcionalmente (poder = vImpact·R/14).
     const R = bolita.radio || FISICA.RADIO_BOLITA;
     const poder = vImpact * (R / FISICA.RADIO_BOLITA);
 

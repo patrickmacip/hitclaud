@@ -15,8 +15,8 @@
   // mitad, y el ratio ganancia/castigo pasa de 0.10 a 0.20 (constante entre tramos).
   const VALOR_DIV = 5; // ganancia = 20% del castigo (ratio 0.20): fallar pesa 5× acertar un cubo
   // Multiplicador de RACHA CONTINUA: un hit = hitball que toca ≥1 target; se
-  // rompe con el fallo de la hitball principal (no con dispersas ni contacto
-  // neutro). Desde el 3er hit, ×1.2, 4º ×1.4… +0.2/hit, tope ×3 (racha 12).
+  // rompe con el fallo de la hitball. Desde el 3er hit, ×1.2, 4º ×1.4… +0.2/hit,
+  // tope ×3 (racha 12).
   // REEMPLAZA los bonos de hito (dos sistemas de racha inflan la economía; la
   // racha ahora se siente en CADA hit, no solo en hitos).
   const RACHA_DESDE = 3;
@@ -123,11 +123,8 @@
   // por cubo lo fija el TRAMO (equilibrio con el castigo); la racha lo amplifica
   // DESPUÉS (premia el flujo sin distorsionar el ratio tramo↔castigo). Devuelve
   // los puntos ganados.
-  function anotarDestruidos(m, n, sinMult) {
-    // sinMult (modo bola-chica): sin multiplicador de racha (la ventaja no da
-    // puntos exagerados). Fuera de ese modo, la racha amplifica normal.
-    const mult = sinMult ? 1 : multRacha(m.racha);
-    const g = Math.round(n * valorCubo(m.puntos) * mult);
+  function anotarDestruidos(m, n) {
+    const g = Math.round(n * valorCubo(m.puntos) * multRacha(m.racha));
     m.puntos += g;
     subirPico(m);
     return g;
@@ -143,13 +140,10 @@
 
   // Fallo: castigo base interpolado (score ANTES de restar) × multiplicador
   // escalado por tramo, redondeado a entero. Piso en 0, rompe racha.
-  // ESPIRAL DEL DEBUFF: con opts.debuff, el fallo NO incrementa el contador de
-  // consecutivos (ya estás pagando con la bola chica; encadenar ambos es doble
-  // castigo). Devuelve el castigo aplicado.
-  function anotarFallo(m, opts) {
-    const debuff = !!(opts && opts.debuff);
+  // Devuelve el castigo aplicado.
+  function anotarFallo(m) {
     const base = penalBase(m.puntos);
-    if (!debuff) m.fallosSeguidos += 1;
+    m.fallosSeguidos += 1;
     const cuenta = Math.max(m.fallosSeguidos, 1);
     // El amortiguador se aplica al castigo FINAL (tras tramo y consecutivos).
     const pen = Math.round(base * multFallo(m.puntos, cuenta) * amortiguar(m.puntos, m.pico));
@@ -196,6 +190,53 @@
     return c;
   }
 
+  // ── Spawn CAÓTICO (cantidad variable: ráfagas y pausas) ────────────
+  // Sobre el rango base (rangoVigente por score) se superponen tres regímenes
+  // para romper toda cadencia fija: RÁFAGA (2–4 spawns muy juntos), PAUSA (hueco
+  // largo) y NORMAL. `estado` guarda los spawns pendientes de la ráfaga actual.
+  // `rnd` es una función [0,1) (inyectable → determinista en tests).
+  const CAOS = {
+    RAFAGA_GAP: [110, 300],   // ms entre spawns dentro de una ráfaga
+    RAFAGA_N: [2, 4],         // nº de spawns extra que dispara una ráfaga
+    PAUSA: [1400, 2600],      // ms de un hueco largo
+    P_RAFAGA: 0.34,           // prob. de arrancar ráfaga cuando no hay una en curso
+    P_PAUSA: 0.30,            // prob. de pausa larga (si no arrancó ráfaga)
+  };
+  function crearCaos() { return { rafaga: 0 }; }
+  function retardoCaotico(base, estado, rnd) {
+    if (estado.rafaga > 0) {                     // consumiendo una ráfaga: gaps cortos
+      estado.rafaga -= 1;
+      return CAOS.RAFAGA_GAP[0] + rnd() * (CAOS.RAFAGA_GAP[1] - CAOS.RAFAGA_GAP[0]);
+    }
+    const r = rnd();
+    if (r < CAOS.P_RAFAGA) {                      // arranca ráfaga (2–4 spawns extra, gap corto)
+      estado.rafaga = CAOS.RAFAGA_N[0] + Math.floor(rnd() * (CAOS.RAFAGA_N[1] - CAOS.RAFAGA_N[0] + 1));
+      return CAOS.RAFAGA_GAP[0] + rnd() * (CAOS.RAFAGA_GAP[1] - CAOS.RAFAGA_GAP[0]);
+    }
+    if (r < CAOS.P_RAFAGA + CAOS.P_PAUSA) {       // pausa larga
+      return CAOS.PAUSA[0] + rnd() * (CAOS.PAUSA[1] - CAOS.PAUSA[0]);
+    }
+    return base.min + rnd() * (base.max - base.min); // gap normal (base por score)
+  }
+
+  // ── Escalada de ROJOS (sube de nivel cada 5–10 s, sin tope) ────────
+  // El nivel arranca en 1 y sólo INCREMENTA: cada escalón (aleatorio 5–10 s)
+  // sube la cantidad/frecuencia de rojos. `intervaloRojo` traduce el nivel a un
+  // intervalo de aparición decreciente (más nivel → más seguido), con piso.
+  const ROJO_ESCALON = [5000, 10000]; // ms entre subidas de nivel
+  const ROJO_INTERVALO_BASE = 7000;   // ms de aparición en nivel 1
+  const ROJO_INTERVALO_MIN = 700;     // piso (por más nivel no baja de aquí)
+  function crearEscalada(now, rnd) { return { nivel: 1, proximo: now + ROJO_ESCALON[0] + rnd() * (ROJO_ESCALON[1] - ROJO_ESCALON[0]) }; }
+  function pasoEscalada(e, now, rnd) {
+    if (now >= e.proximo) {                       // sólo incrementa; sin tope
+      e.nivel += 1;
+      e.proximo = now + ROJO_ESCALON[0] + rnd() * (ROJO_ESCALON[1] - ROJO_ESCALON[0]);
+      return true;
+    }
+    return false;
+  }
+  function intervaloRojo(nivel) { return Math.max(ROJO_INTERVALO_MIN, ROJO_INTERVALO_BASE / nivel); }
+
   const P = {
     crearMarcador: crearMarcador,
     anotarDestruidos: anotarDestruidos,
@@ -216,6 +257,13 @@
     rangoVigente: rangoVigente,
     costoInactividad: costoInactividad,
     anotarInactividadSegundo: anotarInactividadSegundo,
+    crearCaos: crearCaos,
+    retardoCaotico: retardoCaotico,
+    CAOS: CAOS,
+    crearEscalada: crearEscalada,
+    pasoEscalada: pasoEscalada,
+    intervaloRojo: intervaloRojo,
+    ROJO_ESCALON: ROJO_ESCALON,
     TRAMOS: TRAMOS,
     VALOR_DIV: VALOR_DIV,
     RACHA_DESDE: RACHA_DESDE,

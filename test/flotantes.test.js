@@ -1,42 +1,20 @@
 // hitclaud — test de los números flotantes: node test/flotantes.test.js
-// Mapeo evento → texto/color (espejo de la lógica de main.js).
+// Tras la purga, los flotantes SÓLO son las GANANCIAS +N (la pérdida se muestra
+// con bordes/contador/monto, no como flotante). Aquí: color/tamaño de las
+// ganancias + agregación/tope (espejo de la lógica de main.js).
 
-const COL = { coralVivo: '--coral-vivo', morado: '--morado', apagado: '--texto-apagado' };
+const COL = { acentoVivo: '#FF8764' };
 
-// Muerte de una bolita: fallo de la hitball principal (−N morado), dispersa del
-// power-up sin impacto (0 apagado), o nada. (Las dispersas llevan flag `moneda`.)
-function floatMuerte(b, pen) {
-  if (b.moneda) { return !b.tocado ? { texto: '0', color: COL.apagado } : null; }
-  if (!b.tocado && !b.neutro) return { texto: '−' + pen, color: COL.morado };
-  return null;
-}
-// Cobro de inactividad por segundo (morado).
-function floatInactividad(c) { return { texto: '−' + c, color: COL.morado }; }
-// Positivo por demolición (coral vivo) — no se toca.
-function floatPositivo(g) { return { texto: '+' + g, color: COL.coralVivo }; }
+// Positivo por demolición (naranja vivo) — el único flotante que queda.
+function floatPositivo(g) { return { texto: '+' + g, color: COL.acentoVivo }; }
 
 function chk(nombre, obj, texto, color) {
   const ok = obj && obj.texto === texto && obj.color === color;
   console.log(`  ${nombre}: "${obj ? obj.texto : '∅'}" en ${obj ? obj.color : '—'}  ${ok ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('=== FALLO: número negativo en --morado ===');
-chk('bolita normal muere sin tocar (pen 250)', floatMuerte({ moneda: false, tocado: false, neutro: false }, 250), '−250', COL.morado);
-{
-  const noFlot = floatMuerte({ moneda: false, tocado: true, neutro: false }, 250);
-  console.log(`  bolita que tocó → sin flotante de fallo: ${noFlot === null ? 'OK ✓' : 'NO ✗'}`);
-}
-
-console.log('\n=== INACTIVIDAD: cobro por segundo en --morado, junto al marcador ===');
-chk('cobro de −125/s', floatInactividad(125), '−125', COL.morado);
-
-console.log('\n=== DISPERSA del power-up sin impacto: "0" en --texto-apagado (SIN −) ===');
-chk('dispersa muere sin tocar', floatMuerte({ moneda: true, tocado: false }, 0), '0', COL.apagado);
-const sinFlot = floatMuerte({ moneda: true, tocado: true }, 0);
-console.log(`  dispersa que SÍ tocó: ${sinFlot === null ? 'sin "0" (ya mostró +N) OK ✓' : 'NO ✗'}`);
-
-console.log('\n=== POSITIVOS: intactos en --coral-vivo ===');
-chk('demolición +30', floatPositivo(30), '+30', COL.coralVivo);
+console.log('=== POSITIVOS: la ganancia +N en el naranja vivo (único flotante) ===');
+chk('demolición +30', floatPositivo(30), '+30', COL.acentoVivo);
 
 // ── Tamaño de las ganancias (estilo app móvil: a más ganancia, más grande) ──
 const P = require('../js/puntuacion.js');
@@ -86,7 +64,7 @@ console.log('\n=== Agregación: un impacto = un flotante (suma), fusión de cerc
   console.log(`  lejano → ${fl.length} flotantes  ${fl.length === 2 ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('\n=== Tope estricto: nunca más de 8 vivos (fiesta+power-up) ===');
+console.log('\n=== Tope estricto: nunca más de 8 vivos (ráfagas de spawn) ===');
 {
   const MAX = 8;
   const fl = [];

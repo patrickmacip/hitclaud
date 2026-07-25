@@ -34,9 +34,9 @@ console.log('\n=== Toque mínimo → 1 cubo (10 pts) ===');
   console.log(`  arrancados=${r.destruidos} (≥1) = ${r.destruidos * 10} pts  ${r.destruidos >= 1 ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('\n=== PRESUPUESTO peor caso: POWER-UP + fiesta 16 + CloudOver + explosiones ===');
-// El CloudOver es 1 target más (coste despreciable); el peor caso lo domina el
-// flujo de cubos. Modelo por debajo (impactos frecuentes + premio/destrucción).
+console.log('\n=== PRESUPUESTO peor caso: ráfagas de spawn + impactos frecuentes + destrucciones ===');
+// El peor caso lo domina el flujo de cubos. Modelo por debajo (impactos muy
+// frecuentes de 24 bolitas + destrucciones totales periódicas).
 {
   const MAX_CUBOS = 240;
   const cubos = [];
@@ -47,15 +47,15 @@ console.log('\n=== PRESUPUESTO peor caso: POWER-UP + fiesta 16 + CloudOver + exp
     }
     while (cubos.length > MAX_CUBOS) cubos.shift(); // recicla los MÁS VIEJOS (ya saliendo)
   }
-  // Peor caso: power-up activo → cada impacto de la hitball (y de las 6 dispersas
-  // que impactan) arranca cubos. Modelo: ~1 impacto cada 2 cuadros (24 bolitas
-  // en fiesta), ~4 cubos por impacto; + una estrella/moneda (20) cada ~2.5s.
+  // Peor caso: ráfaga densa → muchos impactos de la hitball arrancan cubos.
+  // Modelo: ~1 impacto cada cuadro (24 bolitas activas), ~4 cubos por impacto;
+  // + una destrucción total (20 cubos) cada ~2.5s.
   let pico = 0, reciclados = 0;
   const FRAMES = 1800; // 30s
   const t0 = process.hrtime.bigint();
   for (let f = 0; f < FRAMES; f++) {
     if (f % 2 === 0) explotar(4, Math.random() * VP.w, Math.random() * VP.h * 0.7);   // impactos frecuentes
-    if (f % 6 === 0) explotar(4, Math.random() * VP.w, Math.random() * VP.h * 0.7);   // dispersas que impactan
+    if (f % 6 === 0) explotar(4, Math.random() * VP.w, Math.random() * VP.h * 0.7);   // segundo frente de impactos
     if (f % 150 === 0) explotar(20, Math.random() * VP.w, Math.random() * VP.h * 0.5); // premio/destrucción total
     const antes = cubos.length;
     for (let i = cubos.length - 1; i >= 0; i--) { pasoCubo(cubos[i]); if (!cubos[i].viva) cubos.splice(i, 1); }

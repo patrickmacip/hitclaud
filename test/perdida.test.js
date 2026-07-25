@@ -1,7 +1,7 @@
 // hitclaud — test de la PÉRDIDA (bordes + contador rojo + monto) + castigo −50%:
 // node test/perdida.test.js
 // Rediseño: los −N flotantes y el "0" se ELIMINARON. Al restar: palpita bordes,
-// contador rojo 400ms y monto agregado 600ms. En modo bola-chica nada se dispara.
+// contador rojo 400ms y monto agregado 600ms. Sólo el fallo real dispara pérdida.
 
 const fs = require('fs');
 const path = require('path');
@@ -32,7 +32,7 @@ const ROJO_BORDE = '#FF0055', ROJO_CONTADOR = '#FF4583', ROJO_MONTO = '#FF6D9E';
 console.log('=== Los flotantes de pérdida (−N) y el "0" están ELIMINADOS del código ===');
 {
   chk('sin flotante(... "−" ...) de pérdida', !/flotante\([^)]*['"]−['"]/.test(src) && !/flotante\([^)]*cloudoverB/.test(src));
-  chk('sin flotante(... "0" ...) de dispersa', !/flotante\([^)]*['"]0['"]/.test(src) && !/flotante\([^)]*textoApagado\)/.test(src));
+  chk('sin flotante(... "0" ...) apagado', !/flotante\([^)]*['"]0['"]/.test(src) && !/flotante\([^)]*textoApagado\)/.test(src));
   chk(`colores de feedback presentes (${ROJO_BORDE}/${ROJO_CONTADOR}/${ROJO_MONTO})`,
     src.indexOf(ROJO_BORDE) !== -1 && src.indexOf(ROJO_CONTADOR) !== -1 && src.indexOf(ROJO_MONTO) !== -1);
 }
@@ -61,20 +61,12 @@ console.log('\n=== Cobros consecutivos: un solo monto AGREGADO, pulso reiniciado
   chk('fuera de la ventana no agrega (monto = 20, no 30)', g.montoVisible(700) === 20);
 }
 
-console.log('\n=== En modo bola-chica NADA se dispara (sin pérdida) ===');
+console.log('\n=== La pérdida se dispara SOLO en fallo real (bolita que no tocó) ===');
 {
-  // Espejo del gate: el fallo llama registrar SOLO si !enChico && !chica && !moneda.
-  function disparaPerdida(enChico, chica, moneda, tocado, neutro) {
-    if (chica || enChico) return false;         // bola-chica: sin pérdida
-    if (moneda) return false;                    // dispersa: sin costo, sin "0"
-    return !tocado && !neutro;                    // fallo real
-  }
-  chk('tiro principal en modo chico → no dispara', !disparaPerdida(true, false, false, false, false));
-  chk('dispersa (moneda) → no dispara', !disparaPerdida(false, false, true, false, false));
-  chk('bola chica que muere tarde → no dispara', !disparaPerdida(false, true, false, false, false));
-  chk('fallo normal fuera del modo → SÍ dispara', disparaPerdida(false, false, false, false, false));
-  // Y la inactividad también se gatea por modo chico (t >= debuffHasta).
-  chk('la inactividad se gatea por !debuff (grep)', /!gesto\.activo\s*&&\s*t\s*>=\s*debuffHasta/.test(src));
+  // Espejo del death-loop simplificado: registrar SOLO si !tocado.
+  function disparaPerdida(tocado) { return !tocado; }
+  chk('bolita que falla (no tocó) → dispara', disparaPerdida(false));
+  chk('bolita que impactó (tocó) → no dispara', !disparaPerdida(true));
 }
 
 console.log('\n=== Tabla de castigo a la mitad (−50%) ===');

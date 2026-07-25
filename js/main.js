@@ -2,7 +2,8 @@
 // Shell + input táctil + bucle rAF + render en canvas.
 // Física en fisica.js y reglas (puntuación, dificultad) en puntuacion.js (puros).
 // Targets lanzados en flujo continuo (tope duro de rendimiento), con daño por
-// celdas, explosión de cubos, castigo escalado, ritmo progresivo, enojado+debuff.
+// celdas, explosión de cubos, castigo escalado, ritmo progresivo. Dos tipos de
+// target: NARANJA (puntúa) y ROJO (parpadea y termina la partida).
 // Todo se dibuja en canvas dentro de un solo rAF — cero layout thrashing.
 
 (function () {
@@ -22,51 +23,20 @@
   const COLOR = {
     crema: tk('--crema', '#FFD9CE'),
     negro: tk('--negro', '#000'),
-    indigo: tk('--indigo', '#5C5CC8'),
-    indigoVivo: tk('--indigo-vivo', '#7C7CFF'),
-    azul: tk('--azul', '#1F55C9'),        // castigo (antes azul)
-    dorado: tk('--dorado', '#FFC300'),
-    cian: tk('--cian', '#22D3EE'),
-    disperso: tk('--disperso', '#6FFF2C'), // dispersión de moneda (verde)
     cloudoverA: tk('--cloudover-a', '#B1003B'),
     cloudoverB: tk('--cloudover-b', '#FF0055'),
     textoApagado: tk('--texto-apagado', '#8989B1'),
     fuente: tk('--fuente', "'Inter', system-ui, -apple-system, sans-serif"),
   };
 
-  // BAÑO DE COLOR TOTAL POR MODO: al entrar a un modo, TODO se tiñe con una
-  // PALETA ARMÓNICA de 4 roles — targets (normales Y especiales), hitball,
-  // hitmaker, marcador, récord, toda la UI y el texto. Lo ÚNICO intocable: el
-  // FONDO #121216 y la SUPERFICIE de la barra #15151C. Los modos NO se suman: se
-  // REEMPLAZAN. Precedencia: castigo > bonanza > power-up > normal.
-  //   base     = targets / cuerpo principal.
-  //   vivo     = hitball, acentos (más brillante/saturado).
-  //   claro    = récord y jerarquía secundaria de UI/texto (tono más claro).
-  //   profundo = contraste dentro del modo (tono más oscuro; NUNCA fondo/superficie).
-  const MODOS = {
-    normal:  { base: '#E8704E', vivo: '#FF8764', claro: '#FFC9B8', profundo: '#A84A2E' },
-    bonanza: { base: '#FFC300', vivo: '#FFD84D', claro: '#FFEBA3', profundo: '#B88C00' },
-    power:   { base: '#6FFF2C', vivo: '#9CFF6B', claro: '#CBFFAD', profundo: '#3FA817' },
-    castigo: { base: '#1F55C9', vivo: '#4E82F5', claro: '#AFC6F7', profundo: '#143C8F' },
-  };
-  function modoActivo(t) {
-    if (t < debuffHasta) return MODOS.castigo;   // castigo (bola chica)
-    if (t < fiestaHasta) return MODOS.bonanza;   // bonanza / fiesta
-    if (t < powerupHasta) return MODOS.power;    // power-up (dispersión)
-    return MODOS.normal;                         // normal (naranja)
-  }
-  const raiz = document.documentElement;
-  let modoAplicado = null;
-  // Escribe las 4 vars CSS del modo SOLO cuando el modo cambia (deja que la
-  // transición CSS haga el degradado suave; reescribir cada cuadro la anularía).
-  function aplicarModoCSS(m) {
-    if (m === modoAplicado) return;
-    modoAplicado = m;
-    raiz.style.setProperty('--acento', m.base);
-    raiz.style.setProperty('--acento-vivo', m.vivo);
-    raiz.style.setProperty('--acento-claro', m.claro);
-    raiz.style.setProperty('--acento-profundo', m.profundo);
-  }
+  // ACENTO ÚNICO (naranja): el juego quedó con dos tipos de target — NARANJA (el
+  // que puntúa) y ROJO (parpadea y termina la partida). Sin power-ups, no hay más
+  // "modos": la paleta es fija. base = cuerpo del target naranja / debris; vivo =
+  // hitball, acentos, marcador; claro/profundo = jerarquía secundaria. Los tokens
+  // CSS --acento* ya traen estos valores por defecto (tokens.css), así que la UI
+  // en HTML no necesita que el JS los reescriba. El FONDO #121216 y la SUPERFICIE
+  // #15151C nunca se tocan.
+  const ACENTO = { base: '#E8704E', vivo: '#FF8764', claro: '#FFC9B8', profundo: '#A84A2E' };
 
   // Marcador (puntuación por demolición) + su celda en la barra superior.
   const marcador = P.crearMarcador();
@@ -85,7 +55,7 @@
   const elRecord = document.querySelector('.marcador--record .valor');
   function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record.valor); }
 
-  // Game over (CloudOver): congela la partida y muestra el overlay mínimo con
+  // Game over (target ROJO): congela la partida y muestra el overlay mínimo con
   // score final, marca de récord si aplica, y REINICIAR (recarga la página =
   // reset total; sin construir el ciclo de partida completo).
   const elGameOver = document.getElementById('gameover');
@@ -105,14 +75,14 @@
   function reiniciarPartida() {
     marcador.puntos = 0; marcador.racha = 0; marcador.fallosSeguidos = 0; marcador.pico = 0;
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
-    debuffHasta = 0; powerupHasta = 0; fiestaHasta = 0; fiestaFlashHasta = 0; powerFlashHasta = 0;
-    ultimoEnojado = false; ultimaBonanza = false; ultimaMoneda = false; pityEstrella = 0;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0;
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
     const ahora = performance.now();
+    caosSpawn.rafaga = 0;
     proximoSpawn = ahora;
-    cloudProximo = ahora + rnd(CLOUD_MIN, CLOUD_MAX);
+    escalada = P.crearEscalada(ahora, Math.random); // reinicia el nivel de rojos a 1
+    proximoRojo = ahora + P.intervaloRojo(escalada.nivel);
     gameOver = false;
     elGameOver.classList.add('oculto');
     actualizarMarcador();
@@ -121,11 +91,11 @@
   const elReiniciar = document.getElementById('reiniciar');
   if (elReiniciar) elReiniciar.addEventListener('click', reiniciarPartida);
 
-  // Retardo del próximo spawn: rango vigente (escala con el score; base en
-  // respiro) sorteado → tiempos variables. Hueco máx absoluto = 1200ms (base).
-  function retardoSpawn(ahora) {
-    const rg = P.rangoVigente(ritmo, marcador.puntos, ahora);
-    return rnd(rg.min, rg.max);
+  // Retardo del próximo spawn de NARANJAS: rango base por score (rangoVigente)
+  // con caos superpuesto (ráfagas y pausas) → nunca cadencia fija predecible.
+  function retardoNaranja(ahora) {
+    const base = P.rangoVigente(ritmo, marcador.puntos, ahora);
+    return P.retardoCaotico(base, caosSpawn, Math.random);
   }
 
   // Números flotantes de feedback (canvas puro): pop de escala + subida + fade.
@@ -204,61 +174,25 @@
   const MAX_BOLITAS = 24;     // tope de bolitas vivas simultáneas (rendimiento)
   const LAG_ESTELA = 3;       // muestreo hacia atrás por fantasma (×1,2,3)
 
-  // ── Constantes del spawner de targets ──────────────────────────────
-  // Flujo CONTINUO sin tope de diseño: se lanza en cuanto vence el retardo
-  // (ritmo progresivo de puntuacion.js). Hueco máx absoluto = 1200ms. El
-  // único límite es un tope DURO de rendimiento (válvula), no de diseño;
-  // con la vida y salida naturales no debería alcanzarse.
-  const MAX_TARGETS_DURO = 4;  // máximo 4 targets vivos (tiro preciso, no tapiz); NO aplica en fiesta
+  // ── Constantes del spawner de targets (dos tipos: NARANJA y ROJO) ──
+  // Spawn CAÓTICO: cantidad variable (ráfagas/pausas, retardoCaotico) desde los
+  // 4 orígenes, con velocidad variable por target. Topes = válvula de rendimiento.
+  const RADIO_NORMAL = 14;         // radio de la hitball
+  const MAX_NARANJA = 8;           // tope de naranjas vivos (el caos llena en ráfagas)
+  const MAX_TARGETS_DURO = 16;     // válvula dura total (naranjas + rojos)
 
-  // ── Enojado y debuff ───────────────────────────────────────────────
-  const ENOJADO_BASE = 0.08;      // prob. base del spawn
-  const ENOJADO_POR_EXTRA = 0.02; // +2% por cada target vivo por encima de 3
-  const ENOJADO_TOPE = 0.25;      // tope de probabilidad
-  const RADIO_NORMAL = 14;        // radio de la hitball
-  const RADIO_DEBIL = 7;          // radio bajo debuff (mitad → poder mitad)
-  const DEBUFF_MS = 5000;         // duración del debuff por tocar un enojado
-
-  // ── Bonanza / estrella (target de la fiesta) ───────────────────────
-  // Frecuencia con PITY TIMER: base 5% + 1% por cada spawn sin estrella (tope
-  // 15%), se resetea al salir una. Garantiza recompensa sin volverla predecible.
-  const ESTRELLA_BASE = 0.05;
-  const ESTRELLA_PITY = 0.01;
-  const ESTRELLA_TOPE = 0.15;
-
-  // ── Moneda (power-up de disparo explosivo) ─────────────────────────
-  const MONEDA_PROB = 0.05;    // 5% de los spawns; independiente de la estrella
-  const POWERUP_MS = 15000;    // duración del modo dispersión (rediseño: 15s, antes 10s)
-  const DISPERSION_SPAWN_FACTOR = 0.5; // durante el modo, la cadencia es ½ del intervalo → spawn ×2
-  const MONEDA_BOLAS = 6;      // dispersas que nacen por CADA impacto durante el power-up
-  const MONEDA_VEL = [0.8, 1.3]; // rango de velocidad del "puff" (px/ms)
-  const FIESTA_MS = 5000;         // duración de la fiesta
-  const FIESTA_MAX = 6;           // tope en fiesta −60% (16→6): la suerte también se modera
-  const FIESTA_RET_MIN = 200;     // ráfaga de fiesta, ajustada proporcional (era 80–220)
-  const FIESTA_RET_MAX = 550;
-  const FIESTA_FLASH_MS = 500;    // lavado suave de --crema al entrar
-
-  // ── CloudOver (game over) ──────────────────────────────────────────
-  const CLOUD_MIN = 5000;     // aparece cada 5–25s (aleatorio)
-  const CLOUD_MAX = 25000;
-  const CLOUD_LENTO = 0.5;    // 50% más lento: mitad de velocidad de lanzamiento…
-  const CLOUD_GRAV_FRAC = 0.25; // …Y gravedad a ¼ → MISMO apex que un normal (arco
-                              // completo y visible) pero ~2× de tiempo de vuelo
-                              // (apex ∝ v²/g: con v/2 y g/4, v²/g queda igual).
-  const CLOUD_ESCALA = 1.3;   // 1.3× el target normal (más visible, más ominoso)
-  const CLOUD_PARPADEO_MS = 100; // parpadeo entre cloudover-a/b (loop, afinable)
+  // ── ROJO (parpadea y termina la partida) ───────────────────────────
+  // Sale como cualquier target (crearTarget: 4 orígenes, velocidad del rango).
+  // Su CANTIDAD/FRECUENCIA escala con el nivel (P.escalada, sube cada 5–10s).
+  const ROJO_PARPADEO_MS = 100; // parpadeo entre cloudover-a/b (loop)
+  const ROJO_JITTER = [0.75, 1.25]; // ruido multiplicativo sobre el intervalo de aparición
 
   // ── Inactividad ────────────────────────────────────────────────────
   const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
 
-  // PREMIOS SIN ICONO PROPIO: la estrella y la moneda son el TARGET NORMAL
-  // (retícula 5×4, ojos), sólo que BRILLAN. Los distingue el COLOR DEL BRILLO
-  // (dorado = estrella, cian = moneda), no la forma.
-
   // ── Constantes de la explosión de cubos (animación pura) ───────────
-  // Los cubos caen hasta salir del viewport (viven más que antes). Al llenarse
-  // el pool se reciclan los MÁS VIEJOS (cubos.shift, ya saliendo), nunca los
-  // recién nacidos. Tope medido para el peor caso (fiesta + estrella).
+  // Los cubos caen hasta salir del viewport. Al llenarse el pool se reciclan los
+  // MÁS VIEJOS (cubos.shift, ya saliendo), nunca los recién nacidos.
   const MAX_CUBOS = 240;
   const CUBO_FUERZA = 0.5;    // escala del impulso radial por rapidez de impacto
   const CUBO_JITTER = 0.12;   // px/ms de ruido aleatorio por cubo
@@ -274,20 +208,12 @@
   const bolitas = [];   // cada una: {x,y,vx,vy,edad,viva, historia:[]}
   let ultimoDisparo = -Infinity;
   let quietoDesde = 0;  // timestamp del último instante en que el dedo se movió
-  // Targets lanzados (tope 3). SIN colisión con las bolitas: se atraviesan.
+  // Targets lanzados. SIN colisión con las bolitas: se atraviesan.
   const targets = [];
-  let ultimoOrigen = null;    // ritmo: no dos seguidos del mismo origen
-  let ultimoEnojado = false;  // nunca dos enojados seguidos
-  let ultimaBonanza = false;  // nunca dos estrellas seguidas
-  let ultimaMoneda = false;   // nunca dos monedas seguidas
-  let pityEstrella = 0;       // spawns sin estrella (sube la probabilidad)
-  let debuffHasta = 0;        // timestamp fin del debuff (radio a la mitad)
-  let powerupHasta = 0;       // timestamp fin del power-up de moneda (dispersión)
-  let cloudProximo = 0;       // timestamp del próximo CloudOver
-  let gameOver = false;       // partida terminada por CloudOver
-  let fiestaHasta = 0;        // timestamp fin de la fiesta (tope y ritmo altos)
-  let fiestaFlashHasta = 0;   // lavado suave al entrar a la fiesta
-  let powerFlashHasta = 0;    // destello cian al activar el power-up
+  const caosSpawn = P.crearCaos();  // estado de ráfagas del spawn caótico
+  let escalada = null;              // nivel de rojos (P.crearEscalada; init abajo)
+  let proximoRojo = 0;              // timestamp del próximo target rojo
+  let gameOver = false;             // partida terminada por un target rojo
   let proximoSpawn = 0;       // timestamp mínimo del próximo lanzamiento
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
@@ -328,112 +254,24 @@
         vx: tvx + dirx * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
         vy: tvy + diry * mag + rnd(-CUBO_JITTER, CUBO_JITTER),
         rot: rnd(0, Math.PI * 2), velRot: rnd(-0.01, 0.01),
-        color: color || MODOS.normal.base, tam: tam || 8, // respaldo: base naranja (nunca se alcanza; todos pasan color)
+        color: color || ACENTO.base, tam: tam || 8, // respaldo: base naranja (nunca se alcanza; todos pasan color)
       });
     }
     while (cubos.length > MAX_CUBOS) cubos.shift(); // descarta los más viejos
   }
 
-  // Centros de mundo de los 20 cubos de 8px vivos de un target (para la
-  // explosión de estrella/moneda, que son targets normales).
-  function cubos8Mundo(tg) {
-    const out = [];
-    const cw = Math.cos(tg.rot);
-    const sw = Math.sin(tg.rot);
-    for (let i = 0; i < 20; i++) {
-      if (!tg.celdas[i]) continue;
-      const l = F.celdaLocal(i);
-      out.push({ x: tg.x + l.x * cw - l.y * sw, y: tg.y + l.x * sw + l.y * cw });
-    }
-    return out;
+  // Lanza un target NARANJA (el que puntúa): crearTarget da el origen (uno de los
+  // 4) y la velocidad variable. Sin variantes: los especiales se eliminaron.
+  function generarNaranja() {
+    targets.push(F.crearTarget({ w: W, h: H }));
   }
 
-  // Lanza un target respetando el ritmo (origen distinto al anterior).
-  // BONANZA: 3% al azar, nunca dos seguidas, nunca si ya hay una viva, nunca en
-  // fiesta. ENOJADO (si no es bonanza): 8% + 2%/vivo>3, tope 25%, nunca dos
-  // seguidos, nunca en fiesta (la fiesta es alegría pura).
-  function generarTarget(ahora) {
-    let t;
-    for (let i = 0; i < 12; i++) {
-      t = F.crearTarget({ w: W, h: H });
-      if (t.origen !== ultimoOrigen) break;
-    }
-    ultimoOrigen = t.origen;
-    const enFiesta = ahora < fiestaHasta;
-    const hayBonanza = targets.some(function (x) { return x.bonanza; });
-    // Con el multiplicador de racha activo NO aparecen estrellas (no coexisten).
-    const probEstrella = Math.min(ESTRELLA_TOPE, ESTRELLA_BASE + ESTRELLA_PITY * pityEstrella);
-    if (!enFiesta && !hayBonanza && !ultimaBonanza && marcador.racha < P.RACHA_DESDE && Math.random() < probEstrella) {
-      t.bonanza = true; // target normal que BRILLA dorado
-      t.enojado = false;
-      ultimaBonanza = true;
-      ultimoEnojado = false;
-      pityEstrella = 0; // salió una estrella → resetea el pity
-    } else {
-      ultimaBonanza = false;
-      pityEstrella += 1; // spawn sin estrella → sube la probabilidad
-      const hayMoneda = targets.some(function (x) { return x.moneda; });
-      if (!enFiesta && !hayMoneda && !ultimaMoneda && Math.random() < MONEDA_PROB) {
-        // Moneda: target normal que BRILLA cian. Independiente de la estrella.
-        t.moneda = true;
-        t.enojado = false;
-        ultimaMoneda = true;
-        ultimoEnojado = false;
-      } else {
-        ultimaMoneda = false;
-        const prob = Math.min(ENOJADO_TOPE, ENOJADO_BASE + ENOJADO_POR_EXTRA * Math.max(0, targets.length - 3));
-        t.enojado = !enFiesta && !ultimoEnojado && Math.random() < prob;
-        ultimoEnojado = t.enojado;
-      }
-    }
-    targets.push(t);
-  }
-
-  // Al IMPACTAR un target durante el power-up nacen 6 hitballs de TAMAÑO NORMAL
-  // (radio 14, poder pleno) desde (px,py), en abanico ("puff"). Marcadas `moneda`
-  // (NO penalizan) y `dispersa` (no re-disparan → sin cascada). Si el tope de 24
-  // está lleno, nacen las que quepan. (Antes reusaban el radio 7 del castigo.)
-  function dispersarMoneda(px, py) {
-    const n = Math.min(MONEDA_BOLAS, Math.max(0, MAX_BOLITAS - bolitas.length));
-    for (let i = 0; i < n; i++) {
-      const ang = -Math.PI / 2 + ((i + 0.5) / MONEDA_BOLAS - 0.5) * (Math.PI * 1.1);
-      const vel = rnd(MONEDA_VEL[0], MONEDA_VEL[1]);
-      bolitas.push({
-        x: px, y: py,
-        vx: Math.cos(ang) * vel, vy: Math.sin(ang) * vel,
-        radio: RADIO_NORMAL, moneda: true, dispersa: true,
-        edad: 0, viva: true, tocado: false, neutro: false, historia: [],
-      });
-    }
-    return n;
-  }
-
-  // CloudOver: target normal marcado `cloud`, sin premios/enojado. Usa el MISMO
-  // spawner de orígenes que los demás (crearTarget: inferior/laterales/superior
-  // con sus ángulos) — sin spawner aparte. "50% más lento" = mitad de velocidad
-  // Y gravedad a ¼ (por-objeto, la global NO se toca): así conserva el MISMO
-  // apex que un target normal (arco completo, sube y cruza, no muere abajo) pero
-  // tarda ~2× en recorrerlo → tiempo de sobra para esquivar/decidir y acertarle.
-  function generarCloud() {
+  // Lanza un target ROJO (parpadea, termina la partida). Sale como cualquier otro
+  // (mismo crearTarget: 4 orígenes, velocidad del rango) — sólo marcado `rojo`.
+  function generarRojo() {
     const t = F.crearTarget({ w: W, h: H });
-    t.cloud = true;
-    t.enojado = false;
-    t.vx *= CLOUD_LENTO;
-    t.vy *= CLOUD_LENTO;
-    t.gravedad = F.FISICA.G_TARGET * CLOUD_GRAV_FRAC;
-    // Caja de colisión escalada 1.3× (coincide con el sprite agrandado).
-    t.caja = { cx: 0, cy: 0, hw: 20 * CLOUD_ESCALA, hh: 16 * CLOUD_ESCALA };
+    t.rojo = true;
     targets.push(t);
-  }
-
-  // Retardo del próximo spawn: en fiesta = ráfaga; si no, el ritmo del score.
-  // Durante el MODO DISPERSIÓN el intervalo se reduce a la mitad (spawn ×2), sin
-  // spawner paralelo: se reusa la misma cadencia parametrizada. Al terminar el
-  // modo, el factor desaparece → ritmo normal exacto, sin residuo.
-  function retardoActual(ahora) {
-    let r = ahora < fiestaHasta ? rnd(FIESTA_RET_MIN, FIESTA_RET_MAX) : retardoSpawn(ahora);
-    if (ahora < powerupHasta) r *= DISPERSION_SPAWN_FACTOR;
-    return r;
   }
 
   function reposo() {
@@ -503,7 +341,6 @@
       edad: 0,
       viva: true,
       tocado: false, // ¿tocó algún target? (para racha y fallo)
-      chica: performance.now() < debuffHasta, // disparada en modo bola-chica → rebota, no penaliza
       historia: [],
     });
     ultimoDisparo = performance.now();
@@ -575,8 +412,7 @@
     // del castigo del tramo actual. El reloj NO corre si el documento está
     // oculto (ya gateado) ni mientras hay un gesto activo. Piso en 0.
     cobrando = false;
-    // En MODO BOLA-CHICA no hay pérdida: la inactividad tampoco cobra (ni feedback).
-    if (!document.hidden && !gesto.activo && t >= debuffHasta) {
+    if (!document.hidden && !gesto.activo) {
       const idle = t - ultimoGesto;
       if (idle > GRACIA_MS) {
         const debidos = Math.floor((idle - GRACIA_MS) / 1000);
@@ -601,13 +437,11 @@
     }
 
     const limites = { w: W, h: H };
-    // Targets: misma física (sub-paseada); al morir uno, programa el siguiente.
+    // Targets: misma física (sub-paseada). Al salir del viewport mueren solos
+    // (paso() los marca); el spawn caótico gobierna el reemplazo por su reloj.
     for (let i = targets.length - 1; i >= 0; i--) {
       F.paso(targets[i], dt, limites);
-      if (!targets[i].viva) {
-        targets.splice(i, 1);
-        proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t)); // la muerte acelera el refill (nunca lo retrasa); hueco max = SPAWN_MAX
-      }
+      if (!targets[i].viva) targets.splice(i, 1);
     }
 
     // Prueba la colisión de UNA bolita contra todos los targets (llamado en
@@ -615,114 +449,54 @@
     function colisionar(b) {
       for (let ti = targets.length - 1; ti >= 0; ti--) {
         const tg = targets[ti];
-        if (tg.bonanza) {
-          // Bonanza: TODO O NADA. Cualquier contacto la activa (no se muerde).
-          // No puntúa; el premio es la fiesta. El contacto es neutro (no fallo).
+        if (tg.rojo) {
+          // ROJO: cualquier contacto de la hitball TERMINA la partida.
           if (!F.colisionCirculoRect(b, tg)) continue;
-          fiestaHasta = t + FIESTA_MS;
-          fiestaFlashHasta = t + FIESTA_FLASH_MS;
-          b.neutro = true;
-          // Celebración: la estrella (target normal) estalla en sus 20 cubos --dorado.
-          explotarCubos(cubos8Mundo(tg), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.dorado, 8);
-          sacudidaHasta = t + SACUDIDA_MS;
-          targets.splice(ti, 1);
-          proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t)); // arranca la ráfaga
-          continue;
-        }
-        if (tg.cloud) {
-          // CloudOver: SOLO la hitball PRINCIPAL lo activa. Las dispersas de
-          // moneda lo IGNORAN (ni game over ni daño). Y NO es letal mientras hay
-          // un estado de premio (fiesta o power-up): un CloudOver vivo se queda
-          // pero no mata hasta que el premio termine.
-          if (b.dispersa) continue;
-          if (!F.colisionCirculoRect(b, tg)) continue;
-          if (t < fiestaHasta || t < powerupHasta) continue; // no letal en premio
           terminarPartida();
           return; // corta el cuadro; el bucle se congela
         }
-        if (tg.moneda) {
-          // Moneda: TODO O NADA. Activa el POWER-UP explosivo por 10s (no
-          // dispersa al tocarla). Contacto neutro (ni hit ni fallo), no puntúa.
-          if (!F.colisionCirculoRect(b, tg)) continue;
-          b.neutro = true;
-          powerupHasta = t + POWERUP_MS;
-          powerFlashHasta = t + 400;           // destello verde de celebración
-          explotarCubos(cubos8Mundo(tg), tg.x, tg.y, 1.0, tg.vx, tg.vy, COLOR.disperso, 8);
-          sacudidaHasta = t + SACUDIDA_MS;
-          targets.splice(ti, 1);
-          proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t));
-          continue;
-        }
+        // NARANJA (el que puntúa): daño por cubos + ganancia × racha.
         const r = F.resolverImpacto(b, tg);
         if (!r) continue;
         tg.destelloHasta = t + DESTELLO_MS;    // destello en CUALQUIER contacto
-        if (tg.enojado) {
-          // Enojado: CUALQUIER contacto activa el debuff. NO es hit, NO puntúa,
-          // NO cuenta como fallo (neutro). Se muerde/destruye igual (visual).
-          debuffHasta = t + DEBUFF_MS;
-          b.neutro = true;
-        } else {
-          const enChico = t < debuffHasta;     // modo bola-chica: racha PAUSADA, sin multiplicador
-          if (!b.tocado) {                     // primer toque = hit (sube la racha continua)
-            b.tocado = true;
-            if (!enChico) {                    // en modo chico la racha se PAUSA (ni sube ni se resetea)
-              P.anotarHit(marcador);
-              P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, t); // respiro al 10º hit en dif. máx
-            }
-          }
-          if (r.destruidos > 0) {              // ganancia proporcional (SIN multiplicador en modo chico)
-            const g = P.anotarDestruidos(marcador, r.destruidos, enChico);
-            flotante(r.px, r.py, '+' + g, modoActivo(t).vivo, tamGanancia(g), g >= 300); // +N entra al color del modo
-            if (g >= 50) popMarcador();        // latido en ganancias fuertes
-          }
-          actualizarMarcador();
-          // POWER-UP: al impactar un target normal (y no siendo ya una dispersa)
-          // nacen 6 dispersas desde el punto de impacto (bono, sin cascada).
-          if (t < powerupHasta && !b.dispersa) dispersarMoneda(r.px, r.py);
+        if (!b.tocado) {                       // primer toque = hit (sube la racha continua)
+          b.tocado = true;
+          P.anotarHit(marcador);
+          P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, t); // respiro al 10º hit en dif. máx
         }
+        if (r.destruidos > 0) {                // ganancia proporcional × racha
+          const g = P.anotarDestruidos(marcador, r.destruidos);
+          flotante(r.px, r.py, '+' + g, ACENTO.vivo, tamGanancia(g), g >= 300);
+          if (g >= 50) popMarcador();          // latido en ganancias fuertes
+        }
+        actualizarMarcador();
         if (r.cubosLiberados.length > 0) {
-          explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy, modoActivo(t).base); // debris = color del modo
+          explotarCubos(r.cubosLiberados, r.px, r.py, r.vImpact, tg.vx, tg.vy, ACENTO.base); // debris naranja
         }
         if (r.muerto) {
           sacudidaHasta = t + SACUDIDA_MS;     // micro-sacudida solo en muerte
           targets.splice(ti, 1);
-          proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t)); // la muerte acelera el refill; hueco máx = 1200ms
         }
       }
     }
 
     // Avanza cada bolita en SUBPASOS, probando colisión en cada uno (fin del
     // túnel). No se retiran aún: la colisión debe verlas vivas (para el fallo).
-    const debuffActivo = t < debuffHasta;
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
-      // `chica` = disparada en modo bola-chica: radio 7 toda su vida y REBOTA en
-      // LATERALES y TECHO (el PISO la mata) MIENTRAS el modo dura, hasta 3 rebotes.
-      // Dispersas y normales = radio 14 sin paredes (mueren al salir). Al terminar
-      // el modo, la chica deja de rebotar.
-      b.radio = b.chica ? RADIO_DEBIL : RADIO_NORMAL;
-      b.rebota = b.chica && debuffActivo;
+      b.radio = RADIO_NORMAL;
       F.paso(b, dt, limites, function () { colisionar(b); });
       b.historia.unshift({ x: b.x, y: b.y }); // estela propia (3 fantasmas)
       if (b.historia.length > LAG_ESTELA * 3 + 1) b.historia.pop();
     }
-    // Retira las bolitas muertas: si no tocó nada (y no fue neutro por tocar un
-    // enojado) = FALLO (castigo del tramo, rompe racha).
+    // Retira las bolitas muertas: si no tocó nada = FALLO (castigo, rompe racha).
     for (let i = bolitas.length - 1; i >= 0; i--) {
       const b = bolitas[i];
       if (!b.viva) {
-        const enChico = t < debuffHasta;
-        if (b.chica || enChico) {
-          // MODO BOLA-CHICA: ningún fallo resta, ni rompe racha, ni cobra — ni el
-          // principal ni las dispersas. Sin feedback de pérdida (bordes/contador/
-          // monto). Las bolas `chica` nunca penalizan. ANULA la regla anterior.
-        } else if (b.moneda) {
-          // Dispersa sin impacto: NO cuesta y ya NO muestra "0" (rediseño):
-          // sin número, sin feedback.
-        } else if (!b.tocado && !b.neutro) {
+        if (!b.tocado) {
           // FALLO: resta y dispara el feedback de pérdida (bordes + contador rojo
           // + monto agregado). Sin flotante regado.
-          const pen = P.anotarFallo(marcador, {});
+          const pen = P.anotarFallo(marcador);
           actualizarMarcador();
           registrarPerdida(pen);
         }
@@ -744,31 +518,19 @@
       q.rot += q.velRot * dt;
       if (q.y > H + 8 || q.x < -8 || q.x > W + 8 || q.y < -400) cubos.splice(i, 1);
     }
-    // Flujo continuo: lanza en cuanto vence el retardo. En fiesta el tope sube
-    // a 16; al terminar vuelve a 12 y los sobrantes mueren por su vuelo (no se
-    // borran). Tope = válvula de rendimiento, no de diseño.
-    const enFiesta = t < fiestaHasta;
-    const capActual = enFiesta ? FIESTA_MAX : MAX_TARGETS_DURO;
-    if (targets.length < capActual && t >= proximoSpawn) {
-      generarTarget(t);
-      proximoSpawn = t + retardoActual(t);
+    // SPAWN CAÓTICO de NARANJAS: cantidad variable (ráfagas/pausas). El tope es
+    // válvula de diseño (no tapiz); el hard-cap protege el rendimiento total.
+    if (targets.length < MAX_NARANJA && t >= proximoSpawn) {
+      generarNaranja();
+      proximoSpawn = t + retardoNaranja(t);
     }
-    // CloudOver: cada 5–25s, nunca dos vivos, NUNCA durante fiesta NI power-up
-    // (ambos son estados de premio: meter la muerte ahí es injusto).
-    if (t >= cloudProximo && !enFiesta && t >= powerupHasta && !targets.some(function (x) { return x.cloud; })) {
-      generarCloud();
-      cloudProximo = t + rnd(CLOUD_MIN, CLOUD_MAX);
-    }
-    // Bonanza y multiplicador NO coexisten: con el multiplicador activo, toda
-    // estrella viva hace POP (breve estallido dorado) y se va, sin premio.
-    if (marcador.racha >= P.RACHA_DESDE) {
-      for (let i = targets.length - 1; i >= 0; i--) {
-        if (targets[i].bonanza) {
-          explotarCubos(cubos8Mundo(targets[i]), targets[i].x, targets[i].y, 0.8, targets[i].vx, targets[i].vy, COLOR.dorado, 8);
-          targets.splice(i, 1);
-          proximoSpawn = Math.min(proximoSpawn, t + retardoActual(t));
-        }
-      }
+    // ESCALADA de ROJOS: sube de nivel cada 5–10s (sin tope). El nivel acorta el
+    // intervalo de aparición → más rojos, más seguido, desde cualquier lado y a
+    // cualquier velocidad del rango. Hard-cap total como única válvula de perf.
+    P.pasoEscalada(escalada, t, Math.random);
+    if (t >= proximoRojo && targets.length < MAX_TARGETS_DURO) {
+      generarRojo();
+      proximoRojo = t + P.intervaloRojo(escalada.nivel) * rnd(ROJO_JITTER[0], ROJO_JITTER[1]);
     }
     // Récord EN VIVO: si el score superó el récord, sube ya (y escribe con throttle).
     if (record.considerar(marcador.puntos, t)) actualizarRecord();
@@ -801,23 +563,15 @@
     ctx.save();
     ctx.translate(ox, oy);
 
-    // MODO ACTIVO: una sola verdad para todo el cuadro (canvas + vars CSS).
-    const modo = modoActivo(performance.now());
-    aplicarModoCSS(modo);
-
-    // Targets lanzados, rotados sobre su centro. SIN colisión con los cubos.
-    // Baño de color: los targets NORMALES se tiñen del modo (modo.base). Los
-    // ESPECIALES son EXENTOS: color de IDENTIDAD fijo, SIN halo/aura (su color
-    // contrasta contra el baño y los distingue solos). El aura de "estás en un
-    // modo" vive SOLO en la hitball, nunca en el target.
+    // Targets lanzados, rotados sobre su centro. NARANJA = ACENTO.base; ROJO =
+    // parpadeo cloudover-a/b. El destello de contacto (crema) manda.
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
       const destella = t.destelloHasta && performance.now() < t.destelloHasta;
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.rotate(t.rot);
-      if (t.cloud) ctx.scale(CLOUD_ESCALA, CLOUD_ESCALA); // CloudOver más grande
-      dibujarSpriteTarget(t, destella, modo); // normal = modo.base; especial = identidad; destello = crema
+      dibujarSpriteTarget(t, destella);
       ctx.restore();
     }
     // Cubos de explosión (animación pura, sin fade: caen sólidos hasta salir).
@@ -835,57 +589,22 @@
     }
     ctx.globalAlpha = 1;
     const ahoraB = performance.now();
-    const remDebuff = debuffHasta - ahoraB;
-    const debil = remDebuff > 0;                 // debuff activo → hitball chica
-    const radioAhora = debil ? RADIO_DEBIL : RADIO_NORMAL;
-    // Hitball = tono VIVO del modo; su estela/glow es el AURA (va en la bola).
-    // Marcador Actual: rojo #FF4583 durante 400ms al restar; si no, el tono del modo.
-    if (elActual) elActual.style.color = (ahoraB < contadorRojoHasta) ? ROJO_CONTADOR : modo.vivo;
+    // Hitball = ACENTO.vivo; su estela/glow es el aura (va en la bola).
+    // Marcador Actual: rojo #FF4583 durante 400ms al restar; si no, el naranja vivo.
+    if (elActual) elActual.style.color = (ahoraB < contadorRojoHasta) ? ROJO_CONTADOR : ACENTO.vivo;
     for (let i = 0; i < bolitas.length; i++) {
       const b = bolitas[i];
       const rB = b.radio || RADIO_NORMAL;
-      dibujarEstela(b, rB, modo.vivo);           // estela = AURA viva del modo (va en la hitball)
-      dibujarBolita(b.x, b.y, rB, modo.vivo, false);
+      dibujarEstela(b, rB, ACENTO.vivo);         // estela = aura viva (va en la hitball)
+      dibujarBolita(b.x, b.y, rB, ACENTO.vivo, false);
     }
-    // Bolita principal (reposo/agarrada): tono vivo del modo + glow = aura viva.
+    // Bolita principal (reposo/agarrada): naranja vivo + glow = aura viva.
     if (gesto.activo) {
       const dedo = gesto.puntos[gesto.puntos.length - 1];
-      dibujarBolita(dedo.x, dedo.y, radioAhora, modo.vivo, true);
+      dibujarBolita(dedo.x, dedo.y, RADIO_NORMAL, ACENTO.vivo, true);
     } else if (ahoraB - ultimoDisparo >= CADENCIA_MS) {
       const r = reposo();
-      dibujarBolita(r.x, r.y, radioAhora, modo.vivo, true);
-    }
-
-    // Indicador de debuff: barra en el BORDE SUPERIOR que se DESCARGA (se
-    // encoge) con el tiempo restante. --azul RADIANTE: gradiente + glow por
-    // shadowBlur (parpadeo por alfa) = electricidad. Barato: un fillRect con
-    // sombra. Al vaciarse, el regreso al modo normal se ve entretenido.
-    if (debil) {
-      const w = W * (remDebuff / DEBUFF_MS);
-      // Barra en la paleta del modo: PROFUNDO → VIVO (barrido oscuro→brillante).
-      const grad = ctx.createLinearGradient(0, 0, w, 0);
-      grad.addColorStop(0, modo.profundo);
-      grad.addColorStop(1, modo.vivo);
-      ctx.save();
-      ctx.globalAlpha = 0.75 + 0.25 * Math.sin(performance.now() / 90); // chispazo
-      ctx.shadowColor = modo.base;
-      ctx.shadowBlur = 8;
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, w, 4);
-      ctx.restore();
-    }
-
-    // Indicador de POWER-UP (moneda): barra --disperso (verde) en el BORDE
-    // INFERIOR que se encoge con el tiempo restante (separada de la de debuff).
-    const remPower = powerupHasta - performance.now();
-    if (remPower > 0) {
-      ctx.save();
-      ctx.globalAlpha = 0.85;
-      ctx.shadowColor = modo.base;
-      ctx.shadowBlur = 8;
-      ctx.fillStyle = modo.vivo;      // barra del power-up en el tono vivo del modo
-      ctx.fillRect(0, H - 4, W * (remPower / POWERUP_MS), 4);
-      ctx.restore();
+      dibujarBolita(r.x, r.y, RADIO_NORMAL, ACENTO.vivo, true);
     }
 
     // Números flotantes: +N en el impacto (sube y se desvanece); bonos de
@@ -904,8 +623,8 @@
       ctx.globalAlpha = Math.max(0, 1 - p);
       ctx.translate(fl.x, fl.y - p * 34);
       ctx.scale(esc, esc);
-      if (fl.glow) { ctx.shadowColor = fl.color || modo.vivo; ctx.shadowBlur = 12; }
-      ctx.fillStyle = fl.color || modo.vivo;
+      if (fl.glow) { ctx.shadowColor = fl.color || ACENTO.vivo; ctx.shadowBlur = 12; }
+      ctx.fillStyle = fl.color || ACENTO.vivo;
       ctx.font = '700 ' + fl.tam + 'px ' + COLOR.fuente;
       ctx.fillText(fl.texto, 0, 0);
       ctx.restore();
@@ -914,16 +633,15 @@
 
     // BADGE del multiplicador de racha: "×N" prominente arriba-centro, crece con
     // la racha y pulsa. Solo cuando el multiplicador supera ×1 (racha ≥ 3).
-    // Badge OCULTO en modo bola-chica: el multiplicador está pausado (gains ×1).
     const mult = P.multRacha(marcador.racha);
-    if (mult > 1 && !debil) {
+    if (mult > 1) {
       const now = performance.now();
       ctx.save();
       ctx.translate(W / 2, H * 0.16);
       ctx.scale(1 + 0.06 * Math.sin(now / 150), 1 + 0.06 * Math.sin(now / 150));
-      ctx.shadowColor = modo.vivo;
+      ctx.shadowColor = ACENTO.vivo;
       ctx.shadowBlur = 12;
-      ctx.fillStyle = modo.vivo;
+      ctx.fillStyle = ACENTO.vivo;
       ctx.font = '800 ' + (26 + Math.min(20, marcador.racha)) + 'px ' + COLOR.fuente;
       ctx.fillText('×' + (mult % 1 === 0 ? mult.toFixed(0) : mult.toFixed(1)), 0, 0);
       ctx.restore();
@@ -938,32 +656,12 @@
       const prof = 1 - marcador.puntos / suelo; // 0 en el suelo → 1 en 0
       const alto = 90;
       const g = ctx.createLinearGradient(0, H, 0, H - alto);
-      g.addColorStop(0, modo.vivo);
+      g.addColorStop(0, ACENTO.vivo);
       g.addColorStop(1, 'transparent');
       ctx.save();
       ctx.globalAlpha = 0.12 * prof;
       ctx.fillStyle = g;
       ctx.fillRect(0, H - alto, W, alto);
-      ctx.restore();
-    }
-
-    // Entrada a la fiesta: lavado suave en el tono CLARO del modo (~500ms). Sin
-    // pantallazos agresivos (juego desestresante). Un fillRect por cuadro.
-    const flash = fiestaFlashHasta - performance.now();
-    if (flash > 0) {
-      ctx.save();
-      ctx.globalAlpha = 0.18 * (flash / FIESTA_FLASH_MS);
-      ctx.fillStyle = modo.claro;
-      ctx.fillRect(0, 0, W, H);
-      ctx.restore();
-    }
-    // Destello de celebración al activar el power-up (tono claro del modo).
-    const flashP = powerFlashHasta - performance.now();
-    if (flashP > 0) {
-      ctx.save();
-      ctx.globalAlpha = 0.16 * (flashP / 400);
-      ctx.fillStyle = modo.claro;
-      ctx.fillRect(0, 0, W, H);
       ctx.restore();
     }
 
@@ -1034,23 +732,19 @@
   // --coral, dibujando SOLO las celdas vivas (t.celdas) → el boquete se ve.
   // Cubos esquineros con la esquina exterior a 4px; ojos (celdas 6 y 8) en
   // --negro, cada uno solo si su celda sigue viva.
-  function dibujarSpriteTarget(t, destella, modo) {
+  function dibujarSpriteTarget(t, destella) {
     const CUBO = 8;
     const COLS = 5;
     const FILAS = 4;
     const RADIO_ESQ = 4;
     const x = -20;
     const y = -16;
-    // Baño de color: SOLO los targets NORMALES entran (cuerpo = modo.base). Los
-    // ESPECIALES son EXENTOS — color de IDENTIDAD FIJO en cualquier modo, sin
-    // halo: su color contrasta contra el baño y los distingue solos.
-    //   estrella #FFC300 · moneda #6FFF2C · enojado #1F55C9 · CloudOver parpadeo
-    //   #B1003B ↔ #FF0055 (cada 100ms). El destello de contacto (crema) manda.
-    let col = modo.base;                 // NORMAL: en el baño
-    if (t.enojado) col = COLOR.azul;     // identidad (exento)
-    if (t.bonanza) col = COLOR.dorado;   // identidad (exento)
-    if (t.moneda) col = COLOR.disperso;  // identidad (exento)
-    if (t.cloud) col = Math.floor(performance.now() / CLOUD_PARPADEO_MS) % 2 ? COLOR.cloudoverA : COLOR.cloudoverB;
+    // Dos tipos: NARANJA (el que puntúa, ACENTO.base) y ROJO (parpadea entre
+    // #B1003B ↔ #FF0055 cada 100ms → termina la partida). El destello de contacto
+    // (crema) manda sobre ambos.
+    let col = t.rojo
+      ? (Math.floor(performance.now() / ROJO_PARPADEO_MS) % 2 ? COLOR.cloudoverA : COLOR.cloudoverB)
+      : ACENTO.base;
     if (destella) col = COLOR.crema;
     ctx.fillStyle = col;
     for (let f = 0; f < FILAS; f++) {
@@ -1097,7 +791,8 @@
   actualizarMarcador();  // arranca en 0 (no el placeholder del HTML)
   actualizarRecord();    // muestra el récord persistido (o 0)
   marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
-  cloudProximo = performance.now() + rnd(CLOUD_MIN, CLOUD_MAX); // primer CloudOver
+  escalada = P.crearEscalada(performance.now(), Math.random); // nivel de rojos = 1
+  proximoRojo = performance.now() + P.intervaloRojo(escalada.nivel); // primer rojo
   arrancarBucle();       // el spawner de targets corre desde el arranque
 
   if ('serviceWorker' in navigator) {

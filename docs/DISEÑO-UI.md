@@ -26,64 +26,43 @@
 
 ## Idioma del color — regla del sistema
 
-**El MODO tiñe TODA la pantalla.** Al entrar a un modo (golpear un especial),
-**todo** se tiñe con la paleta del modo — targets (normales Y especiales),
-hitball, hitmaker, marcador, récord, toda la UI y el texto. Lo **ÚNICO** que NO
-cambia: el **FONDO** `#121216` y la **SUPERFICIE** de la barra `#15151C` (si se
-tiñeran, el juego sería ilegible). Los modos **NO se suman: se REEMPLAZAN** (entrar
-a uno nuevo cambia todo de golpe). Precedencia: **castigo > bonanza > power-up > normal**.
+**Dos tipos de target (purga):** el juego quedó con **NARANJA** (el que puntúa) y
+**ROJO** (parpadea y termina la partida). Se eliminaron de raíz los especiales de
+color (estrella/bonanza, moneda/power-up, enojado/bola-chica) y sus power-ups.
 
-### Paletas de modo (4 roles)
+Sin power-ups no hay más "modos": la paleta es **fija** (constante `ACENTO`, la
+familia naranja). El **FONDO** `#121216` y la **SUPERFICIE** `#15151C` nunca se tocan.
 
-Cada modo es una **familia armónica** de 4 tonos con roles:
-- **base** — targets / cuerpo principal.
-- **vivo** — hitball, acentos (más brillante/saturado).
-- **claro** — récord y jerarquía secundaria de UI/texto (tono más claro).
-- **profundo** — contraste dentro del modo (más oscuro; NUNCA el fondo/superficie).
+| Rol | Hex | Uso |
+|---|---|---|
+| **base** | `#E8704E` | cuerpo del target NARANJA / debris de cubos |
+| **vivo** | `#FF8764` | hitball, estela/aura, marcador Actual, badge ×N, amortiguador, flotante +N |
+| **claro** | `#FFC9B8` | récord, etiquetas, ícono de pausa (defaults en tokens.css) |
+| **profundo** | `#A84A2E` | reservado (jerarquía) |
 
-| Modo | base | vivo | claro | profundo |
-|---|---|---|---|---|
-| **normal** (naranja) | `#E8704E` | `#FF8764` | `#FFC9B8` | `#A84A2E` |
-| **bonanza** (dorado) | `#FFC300` | `#FFD84D` | `#FFEBA3` | `#B88C00` |
-| **power-up** (verde) | `#6FFF2C` | `#9CFF6B` | `#CBFFAD` | `#3FA817` |
-| **castigo** (azul) | `#1F55C9` | `#4E82F5` | `#AFC6F7` | `#143C8F` |
+El **ROJO** conserva su identidad: PARPADEA entre `#B1003B` ↔ `#FF0055` cada 100ms
+(`--cloudover-a/b`), sin brillo → peligro. Los ojos negros no cambian nunca. La UI
+en HTML (hitmaker, marcador, récord, pausa) toma los defaults `--acento*` de
+tokens.css; el JS ya no reescribe esas variables.
 
-Contraste del **claro** (texto del récord) sobre `#121216`: normal 12.7 · bonanza
-15.7 · power 16.4 · castigo 10.9 — legible en los 4. El **profundo** se usa como
-tope oscuro del barrido de la barra de debuff (no como texto).
+**Pérdida = BORDES + CONTADOR + MONTO** (sin números flotantes regados). Al restar
+puntos (fallo o inactividad):
+- **Palpitar de bordes:** los dos bordes laterales se iluminan en rojo `#FF0055` (franja de 28px difuminada), entra en 100ms y disipa en 350ms. Cobros seguidos RE-DISPARAN el pulso (no se apila).
+- **Contador rojo:** el marcador Actual se pinta `#FF4583` durante 400ms y vuelve al naranja vivo.
+- **Monto agregado:** bajo el marcador, un solo número `#FF6D9E` (~60% del tamaño) con el total restado, palpita y disipa en 600ms; cobros seguidos se AGREGAN y reinician el palpitar.
 
-Enrutado por token (var CSS `--acento`/`-vivo`/`-claro`/`-profundo`, JS reescribe
-las 4 por modo): hitball, hitmaker, marcador Actual, récord, etiquetas, ícono de
-pausa, cuerpos de targets, cubos, flotantes de ganancia, badge ×N, amortiguador,
-barras, flashes y botones de game-over. Transición **breve y suave** (CSS 0.25s;
-el canvas cambia en el límite del modo).
+## Spawn caótico y escalada de rojos
 
-### Distinción NORMAL vs ESPECIAL dentro del modo
-
-**Solo los targets NORMALES entran al baño** (cuerpo = `base` del modo). Los
-**ESPECIALES son EXENTOS**: se pintan SIEMPRE con su **color de identidad fijo**,
-en cualquier modo, **SIN halo ni aura** — su color contrasta contra el baño y los
-distingue solos (regla sellada del dueño):
-
-- **estrella (bonanza)** = `#FFC300` (--dorado).
-- **moneda (power-up)** = `#6FFF2C` (--disperso).
-- **enojado** = `#1F55C9` (--azul).
-- **CloudOver** = PARPADEA entre `#B1003B` ↔ `#FF0055` cada 100ms (su firma de peligro; único con parpadeo de cuerpo).
-
-Ningún target lleva halo/aura. El **aura/glow** de "estás en un modo" vive SOLO en
-la **HITBALL** (estela + glow del tono vivo). Los ojos negros NO cambian nunca.
-
-**Pérdida = BORDES + CONTADOR + MONTO** (rediseño: sin números flotantes regados).
-Al restar puntos (fallo o inactividad):
-- **Palpitar de bordes:** los dos bordes laterales del viewport se iluminan en rojo `#FF0055` (franja de 28px difuminada hacia adentro), entra en 100ms y disipa en 350ms. Cobros seguidos RE-DISPARAN el pulso (no se apila).
-- **Contador rojo:** el marcador Actual se pinta `#FF4583` durante 400ms y vuelve al tono de su modo.
-- **Monto agregado:** bajo el marcador, un solo número `#FF6D9E` (~60% del tamaño del marcador) con el total restado, palpita y disipa en 600ms; cobros seguidos se AGREGAN en un monto y reinician el palpitar.
-
-Se eliminaron los flotantes −N y el "0" de dispersa. En **modo bola-chica no hay
-pérdida**: nada de esto (bordes, contador rojo, monto) se dispara.
-
-La cara del target NO cambia (mismos ojos, sin cejas): la señal es el color del
-modo + la luz de firma, no la forma. Esto evita cortar la silueta sobre el fondo.
+- **Multi-origen:** los targets salen de los **4 lados** (inferior, superior,
+  lateral-izq, lateral-der) con **velocidad variable** por target. `crearTarget`
+  (fisica.js) elige origen y velocidad; superior cae con gravedad reducida para
+  ser alcanzable.
+- **Cantidad variable:** `retardoCaotico` (puntuacion.js) superpone **ráfagas**
+  (2–4 spawns muy juntos) y **pausas** largas sobre el rango base → nunca cadencia
+  fija predecible.
+- **Escalada de rojos:** `pasoEscalada` sube el nivel cada **5–10s** (sin tope);
+  `intervaloRojo(nivel)` acorta el intervalo de aparición (más rojos, más seguido)
+  con piso de 700ms. Los rojos salen desde cualquier lado y a cualquier velocidad.
 
 ## Tipografía
 

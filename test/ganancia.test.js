@@ -36,10 +36,10 @@ console.log('\n=== A score 0: 5/cubo (ganancia al 50%; target intacto = 100) ===
   console.log(`  20 cubos a score 0 = +${g}  ${g === 100 ? 'OK ✓ (target intacto = 100)' : 'NO ✗'}`);
 }
 
-console.log('\n=== Aplica también a dispersas de moneda (mismo anotarDestruidos) ===');
+console.log('\n=== Aplica a cualquier impacto parcial (mismo anotarDestruidos) ===');
 {
   const m = P.crearMarcador(); m.puntos = 30000;
-  const g = P.anotarDestruidos(m, 3); // 3 cubos arrancados por una dispersa
+  const g = P.anotarDestruidos(m, 3); // 3 cubos arrancados por un impacto parcial
   const esperado = Math.round(3 * P.valorCubo(30000));
   console.log(`  3 cubos a 30,000 = +${g} (=${esperado})  ${g === esperado ? 'OK ✓' : 'NO ✗'}`);
 }

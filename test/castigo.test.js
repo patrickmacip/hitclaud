@@ -12,21 +12,13 @@ console.log('=== 4 fallos seguidos → totales (abajo perdona, arriba no) ===');
   console.log(`  ${s0}: fallos −${pens.join('/−')}  total −${total}  → queda ${m.puntos}`);
 });
 
-console.log('\n=== Fallo durante DEBUFF no incrementa consecutivos ===');
+console.log('\n=== Fallos consecutivos ESCALAN (contador sube en cada fallo) ===');
 {
-  const m = P.crearMarcador();
-  m.puntos = 30000;
-  // 3 fallos en debuff: el contador NO sube → cada uno castiga como "1º" (×1).
-  const enDebuff = [];
-  for (let i = 0; i < 3; i++) enDebuff.push(P.anotarFallo(m, { debuff: true }));
-  const seguidos = m.fallosSeguidos;
-  console.log(`  3 fallos en debuff: −${enDebuff.join('/−')}  fallosSeguidos=${seguidos}`);
-  console.log(`  no escalan (todos ×1, mismo castigo base): ${enDebuff[0] === enDebuff[1] && enDebuff[1] === enDebuff[2] ? 'OK ✓' : 'aprox (score baja)'}   contador en 0: ${seguidos === 0 ? 'OK ✓' : 'NO ✗'}`);
-  // Comparación: 3 fallos SIN debuff sí escalan
-  const m2 = P.crearMarcador(); m2.puntos = 30000;
-  const normal = [];
-  for (let i = 0; i < 3; i++) normal.push(P.anotarFallo(m2));
-  console.log(`  vs 3 fallos normales: −${normal.join('/−')} (sí escalan)  ${normal[2] > normal[0] ? 'OK ✓' : 'NO ✗'}`);
+  const m = P.crearMarcador(); m.puntos = 30000;
+  const pens = [];
+  for (let i = 0; i < 3; i++) pens.push(P.anotarFallo(m));
+  console.log(`  3 fallos: −${pens.join('/−')}  fallosSeguidos=${m.fallosSeguidos}`);
+  console.log(`  escalan (2º<3º, contador=3): ${pens[2] > pens[0] && m.fallosSeguidos === 3 ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== Transición suave al cruzar 2,000 (sin salto) ===');
