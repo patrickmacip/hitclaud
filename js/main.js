@@ -67,6 +67,7 @@
     if (elActual) elActual.style.transform = 'scale(1)';
     const ahora = performance.now();
     caosSpawn.rafaga = 0;
+    ultimoSpawn = -Infinity;   // el primer target puede aparecer de inmediato
     proximoSpawn = ahora;
     proximoGrande = ahora + GRANDE_MIN_MS;
     escalada = P.crearEscalada(ahora, Math.random); // reinicia el nivel de rojos a 1
@@ -108,11 +109,11 @@
   if (btnLibre) btnLibre.addEventListener('click', function () { iniciarPartida('libre'); });
 
   // Retardo del próximo spawn de NARANJAS: rango base por score (rangoVigente)
-  // con caos superpuesto (ráfagas/pausas) → nunca cadencia fija. TOPE 500ms: la
-  // pantalla nunca queda más de medio segundo sin aparición de un target.
+  // con caos superpuesto (ráfagas/pausas). El piso global SPAWN_MIN_MS (gate en
+  // el bucle) garantiza ≥900ms entre apariciones de cualquier par de targets.
   function retardoNaranja(ahora) {
     const base = P.rangoVigente(ritmo, marcador.puntos, ahora);
-    return Math.min(SPAWN_GAP_MAX, P.retardoCaotico(base, caosSpawn, Math.random));
+    return P.retardoCaotico(base, caosSpawn, Math.random);
   }
 
   // Números flotantes de feedback (canvas puro): pop de escala + subida + fade.
@@ -199,9 +200,10 @@
   // JUNTOS). Si no hay lugar, el generador NO descarta el turno: espera con su
   // timer en el pasado y dispara en cuanto se libera (el ritmo se conserva).
   const MAX_EN_PANTALLA = 2;
-  // La pantalla nunca queda más de 500ms sin aparición de un target (tope del
-  // hueco del spawner de naranjas; las ráfagas cortas se conservan).
-  const SPAWN_GAP_MAX = 500;
+  // ESPERA MÍNIMA entre apariciones de targets (cualquier tipo): 900ms. Ningún
+  // target aparece a menos de 900ms del anterior (reemplaza el tope de hueco
+  // previo). El caos (ráfagas/pausas) queda por encima de este piso.
+  const SPAWN_MIN_MS = 900;
 
   // ── ROJO (parpadea y termina la partida) ───────────────────────────
   // Sale como cualquier target (crearTarget: 4 orígenes, velocidad del rango).
@@ -263,6 +265,7 @@
   let proximoRojo = 0;              // timestamp del próximo target rojo
   let proximoGrande = 0;            // timestamp del próximo target GRANDE
   let proximoSpawn = 0;             // timestamp mínimo del próximo naranja
+  let ultimoSpawn = -Infinity;      // timestamp de la última aparición (piso 900ms global)
   // Ciclo de partida: `jugando` false = overlay de inicio/fin arriba (congelado).
   let jugando = false;              // ¿hay una partida en curso?
   let modoJuego = null;             // '60' | 'libre'
@@ -407,17 +410,22 @@
       const idx = F.celdaEnPunto(tg, mx, my);
       if (idx < 0) continue;                 // la mira no está sobre un cubo vivo
       if (tg.rojo) { terminarPartida(); return; } // impacto en ROJO → game over
-      // NARANJA: destruye el cubito impactado (impacto inmediato, preciso).
-      const centro = F.celdaMundo(tg, idx);
-      tg.celdas[idx] = false;
-      tg.vivos = (tg.vivos || tg.celdas.length) - 1;
-      tg.masa = F.FISICA.MASA_TARGET * (tg.vivos / (tg.vivosMax || tg.celdas.length));
+      // NARANJA normal: destruye el cubito impactado (preciso, 1 cubo). GRANDE:
+      // más pesado + hitball chica → cada golpe demuele su ZONA (¼ = ceil(vivosMax/4))
+      // alrededor de la mira → exige MÍN. 4 golpes.
+      const arrancadas = tg.grande
+        ? F.celdasCercanas(tg, mx, my, Math.ceil(tg.vivosMax / 4))
+        : [idx];
+      const centros = [];
+      for (let k = 0; k < arrancadas.length; k++) { centros.push(F.celdaMundo(tg, arrancadas[k])); tg.celdas[arrancadas[k]] = false; }
+      tg.vivos -= arrancadas.length;
+      tg.masa = F.FISICA.MASA_TARGET * (tg.vivos / 20);
       tg.destelloHasta = ahora + DESTELLO_MS;
       P.anotarHit(marcador);                 // disparo certero = hit (sube la racha)
       P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, ahora);
-      const g = P.anotarDestruidos(marcador, 1); // 1 cubo × 5 × racha
-      explotarCubos([centro], mx, my, 1.0, tg.vx, tg.vy, ACENTO.base);
-      flotante(centro.x, centro.y, '+' + g, ACENTO.vivo, tamGanancia(g), g >= 300);
+      const g = P.anotarDestruidos(marcador, arrancadas.length); // cubos × 5 × racha
+      explotarCubos(centros, mx, my, 1.0, tg.vx, tg.vy, ACENTO.base);
+      flotante(centros[0].x, centros[0].y, '+' + g, ACENTO.vivo, tamGanancia(g), g >= 300);
       if (g >= 50) popMarcador();
       actualizarMarcador();
       if (tg.vivos <= 0) { targets.splice(ti, 1); sacudidaHasta = ahora + SACUDIDA_MS; }
@@ -632,25 +640,30 @@
       q.rot += q.velRot * dt;
       if (q.y > H + 8 || q.x < -8 || q.x > W + 8 || q.y < -400) cubos.splice(i, 1);
     }
-    // SPAWN CAÓTICO de NARANJAS bajo el TOPE DURO de 4 (naranjas + rojos juntos).
-    // Si está lleno, proximoSpawn queda vencido y dispara en cuanto se libere lugar
-    // (no se descarta el turno; el retardo caótico sólo se recalcula al spawnear).
-    if (targets.length < MAX_EN_PANTALLA && t >= proximoSpawn) {
+    // ESPERA MÍNIMA GLOBAL: ningún target aparece a menos de SPAWN_MIN_MS (900ms)
+    // del anterior, sea del tipo que sea (se evalúa FRESCO en cada spawner, así un
+    // spawn bloquea a los demás en ese cuadro). Con el tope de 2, aparición pausada.
+    // `puedeAparecer()` mira los valores ACTUALES tras cada spawn.
+    function puedeAparecer() { return targets.length < MAX_EN_PANTALLA && (t - ultimoSpawn) >= SPAWN_MIN_MS; }
+    // NARANJAS: si no hay lugar/no toca, proximoSpawn queda vencido y dispara al
+    // liberarse (no se descarta el turno; el retardo caótico sólo se recalcula al spawnear).
+    if (puedeAparecer() && t >= proximoSpawn) {
       generarNaranja();
+      ultimoSpawn = t;
       proximoSpawn = t + retardoNaranja(t);
     }
-    // ESCALADA de ROJOS: sube de nivel cada 5–10s (sin tope). El nivel acorta el
-    // intervalo de aparición → más rojos, más seguido. Comparte el TOPE DURO de 4:
-    // si no hay lugar, espera y dispara al liberarse (proximoRojo queda vencido).
+    // ESCALADA de ROJOS: sube de nivel cada 5–10s (sin tope); el nivel acorta su
+    // intervalo. Respeta el tope de 2 y la espera mínima global.
     P.pasoEscalada(escalada, t, Math.random);
-    if (t >= proximoRojo && targets.length < MAX_EN_PANTALLA) {
+    if (puedeAparecer() && t >= proximoRojo) {
       generarRojo();
+      ultimoSpawn = t;
       proximoRojo = t + P.intervaloRojo(escalada.nivel) * rnd(ROJO_JITTER[0], ROJO_JITTER[1]);
     }
-    // GRANDE: doble de tamaño, 3× más lento. Mínimo 8s entre apariciones; nunca
-    // dos a la vez; comparte el TOPE DURO de 4.
-    if (t >= proximoGrande && targets.length < MAX_EN_PANTALLA && !targets.some(function (x) { return x.grande; })) {
+    // GRANDE: mínimo 8s entre apariciones; nunca dos a la vez; tope de 2 + espera mínima.
+    if (puedeAparecer() && t >= proximoGrande && !targets.some(function (x) { return x.grande; })) {
       generarGrande();
+      ultimoSpawn = t;
       proximoGrande = t + GRANDE_MIN_MS + Math.random() * GRANDE_JITTER_MS;
     }
     // Récord EN VIVO: si el score superó el récord, sube ya (y escribe con throttle).

@@ -215,7 +215,9 @@
       rot: 0, velRot: rango(LANZA.VEL_ROT),
       radio: FISICA.RADIO_TARGET, gravedad: gravedad,
       celdas: celdas, cols: cols, filas: filas, vivos: total, vivosMax: total,
-      ojos: ojos, masa: FISICA.MASA_TARGET, golpeado: false,
+      // Masa PROPORCIONAL a la cantidad de cubos (ref: 20 = target normal → 1×).
+      // El target grande (80 cubos) pesa 4× → la hitball rebota más y lo empuja menos.
+      ojos: ojos, masa: FISICA.MASA_TARGET * total / 20, golpeado: false,
       haEntrado: false, edad: 0, viva: true, origen: origen,
     };
   }
@@ -412,9 +414,10 @@
     const R = bolita.radio || FISICA.RADIO_BOLITA;
     const poder = vImpact * (R / FISICA.RADIO_BOLITA);
 
-    if (poder >= FISICA.UMBRAL_DESTRUCCION) {
-      // Golpe fuerte: destrucción total. Rebote con restitución y frenado por
-      // la masa actual: la bolita conserva M/(1+M).
+    if (poder >= FISICA.UMBRAL_DESTRUCCION && !t.grande) {
+      // Golpe fuerte: destrucción total. NUNCA para el target grande (es más
+      // pesado y la hitball es chica → se demuele por zonas, mín. 4 golpes).
+      // Rebote con restitución y frenado por la masa actual: conserva M/(1+M).
       const e = FISICA.RESTITUCION_GOLPE;
       bolita.vx -= (1 + e) * vn * nx;
       bolita.vy -= (1 + e) * vn * ny;
@@ -432,15 +435,22 @@
     transferirMomento(bolita, t, nx, ny, vn);
     t.golpeado = true;
 
-    // Daño: SIEMPRE al menos 1 cubo (1 en el toque mínimo → 8 justo bajo umbral).
-    const rango01 = Math.min(1, poder / FISICA.UMBRAL_DESTRUCCION);
-    let n = Math.round(1 + rango01 * (FISICA.DANO_CUBOS_MAX - 1));
+    // Daño por ZONA alrededor del impacto. Target normal: 1 (toque mínimo) → 8
+    // (justo bajo umbral), según el poder. Target GRANDE: cada golpe demuele su
+    // zona = ¼ de sus cubos (ceil(vivosMax/4)) → destruirlo exige MÍN. 4 golpes.
+    let n;
+    if (t.grande) {
+      n = Math.ceil(t.vivosMax / 4);
+    } else {
+      const rango01 = Math.min(1, poder / FISICA.UMBRAL_DESTRUCCION);
+      n = Math.round(1 + rango01 * (FISICA.DANO_CUBOS_MAX - 1));
+    }
     n = Math.max(1, Math.min(n, t.vivos));
     const arrancadas = celdasCercanas(t, col.px, col.py, n);
     const libres = arrancadas.map(function (i) { return celdaMundo(t, i); });
     for (let k = 0; k < arrancadas.length; k++) t.celdas[arrancadas[k]] = false;
     t.vivos -= arrancadas.length;
-    t.masa = FISICA.MASA_TARGET * (t.vivos / (t.vivosMax || t.celdas.length)); // proporcional a cubos vivos
+    t.masa = FISICA.MASA_TARGET * (t.vivos / 20); // proporcional a cubos vivos (ref 20)
 
     let muerto = false;
     if (t.vivos <= FISICA.DESMORONA_CUBOS) {
@@ -467,6 +477,7 @@
     celdaLocal: celdaLocal,
     celdaMundo: celdaMundo,
     celdaEnPunto: celdaEnPunto,
+    celdasCercanas: celdasCercanas,
   };
 
   if (typeof module !== 'undefined' && module.exports) {

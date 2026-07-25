@@ -85,8 +85,9 @@ Detección por puntero (`matchMedia('(pointer: fine)')`):
 ## Spawn caótico y escalada de rojos
 
 - **Tope duro:** máximo **2 targets en pantalla** (naranjas + rojos + grande, JUNTOS).
-- **Hueco máximo 500ms:** el spawner de naranjas nunca deja la pantalla más de
-  medio segundo sin aparición de un target (las ráfagas cortas se conservan).
+- **Espera mínima 900ms:** ningún target aparece a menos de 900ms del anterior
+  (gate global `SPAWN_MIN_MS`, cualquier tipo). El caos (ráfagas/pausas) queda por
+  encima de ese piso → aparición pausada.
 - **Multi-origen:** los targets salen de los **4 lados** (inferior, superior,
   lateral-izq, lateral-der) con **velocidad variable** por target. `crearTarget`
   (fisica.js) elige origen y velocidad; superior cae con gravedad reducida para
@@ -96,9 +97,12 @@ Detección por puntero (`matchMedia('(pointer: fine)')`):
   cubos más grandes. El modelo (`cols×filas`) es genérico en fisica.js.
 - **Target GRANDE:** un naranja extra de **doble tamaño** hecho con más cubos de
   8px (**grilla 10×8 = 80 cubos**, el doble en cada eje del 5×4). **3× más lento**
-  (velocidad/3 + gravedad/9 → mismo arco, 3× de tiempo de vuelo; vida útil ×3).
-  Mínimo **8s** entre apariciones, nunca dos a la vez. Puntúa por cubo: 80 × 5 =
-  **400**. Cuenta dentro del tope de 2.
+  (velocidad/3 + gravedad/9 → mismo arco, 3× de tiempo de vuelo; vida útil ×3) y
+  **4× más pesado** (masa ∝ cubos). **NO se destruye de un hit**: cada golpe
+  demuele la **ZONA** que golpea (¼ = `ceil(vivosMax/4)` = 20 cubos cercanos al
+  impacto) → exige **mín. 4 golpes**. El one-shot por golpe fuerte se desactiva
+  sólo para el grande (el normal se sigue destruyendo de un tiro potente). Puntúa
+  por cubo: 4 × 20 × 5 = **400**. Mínimo **8s** entre apariciones, nunca dos a la vez.
 - **Cantidad variable:** `retardoCaotico` (puntuacion.js) superpone **ráfagas**
   (2–4 spawns muy juntos) y **pausas** largas sobre el rango base → nunca cadencia
   fija predecible.
