@@ -44,35 +44,22 @@
   const elActual = document.querySelector('.marcador--actual .valor');
   function actualizarMarcador() { elActual.textContent = U.abreviarNumero(marcador.puntos); }
 
-  // Récord = MÁXIMO HISTÓRICO EN VIVO (se actualiza en el cuadro en que se
-  // supera, no al terminar). Persistente con throttle + flush. El "último
-  // score" NO va en esta celda: es de la fase del ciclo de partida.
+  // Récord POR MODO: llaves separadas para 60 segundos y tiempo libre. `record`
+  // apunta al del modo ACTIVO; la celda "Record" muestra ese. Preferencias intactas.
   const almacen = (function () { try { return window.localStorage; } catch (e) { return null; } })();
-  // RESET de récord: llave VERSIONADA nueva (v3). Las viejas ('hitclaud.record',
-  // '.v2') quedan ignoradas → reset determinista sin migración. El resto del
-  // guardado (preferencias) NO se toca: sólo cambia esta llave.
-  const record = U.crearRecord(almacen, 'hitclaud.record.v3', 500);
+  const record60 = U.crearRecord(almacen, 'hitclaud.record.v3.60', 500);
+  const recordLibre = U.crearRecord(almacen, 'hitclaud.record.v3.libre', 500);
+  let record = record60; // activo (se ajusta al elegir modo)
   const elRecord = document.querySelector('.marcador--record .valor');
   function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record.valor); }
 
-  // Game over (target ROJO): congela la partida y muestra el overlay mínimo con
-  // score final, marca de récord si aplica, y REINICIAR (recarga la página =
-  // reset total; sin construir el ciclo de partida completo).
+  // ── Modo de juego + ciclo de partida ───────────────────────────────
+  // PANTALLA DE INICIO (overlay): elegís "60 segundos" o "Tiempo libre"; aparece
+  // al cargar y al terminar una partida. En 60s corre una cuenta regresiva y al
+  // llegar a 0 termina la partida. En libre, sólo termina al tocar un rojo.
   const elGameOver = document.getElementById('gameover');
-  function terminarPartida() {
-    if (gameOver) return;
-    gameOver = true;
-    record.flush(performance.now()); // asegura la marca guardada
-    const esRecord = marcador.puntos >= record.valor && marcador.puntos > 0;
-    elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(marcador.puntos); // último score abreviado
-    elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
-    elGameOver.classList.remove('oculto');
-  }
-  // Reinicio EN SITIO (no recarga → inmune al cache del SW; el toque llega
-  // porque el overlay es HTML encima del canvas (z-index 3) y el freeze solo
-  // detiene el rAF del canvas, no los eventos del DOM). Resetea TODO el estado
-  // de la partida (el récord persistente NO se toca) y reanuda el juego.
-  function reiniciarPartida() {
+  const DURACION_60 = 60000;
+  function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0;
@@ -81,21 +68,51 @@
     const ahora = performance.now();
     caosSpawn.rafaga = 0;
     proximoSpawn = ahora;
+    proximoGrande = ahora + GRANDE_MIN_MS;
     escalada = P.crearEscalada(ahora, Math.random); // reinicia el nivel de rojos a 1
     proximoRojo = ahora + P.intervaloRojo(escalada.nivel);
-    gameOver = false;
-    elGameOver.classList.add('oculto');
     actualizarMarcador();
     marcarActividad();
   }
-  const elReiniciar = document.getElementById('reiniciar');
-  if (elReiniciar) elReiniciar.addEventListener('click', reiniciarPartida);
+  function iniciarPartida(modo) {
+    modoJuego = modo;
+    record = (modo === '60') ? record60 : recordLibre;
+    actualizarRecord();
+    reiniciarEstado();
+    finPartida = (modo === '60') ? performance.now() + DURACION_60 : 0;
+    jugando = true;
+    elGameOver.classList.add('oculto');
+  }
+  // Fin de partida (rojo tocado o se acabaron los 60s): congela, guarda la marca,
+  // muestra el overlay con el score final + récord del modo y los botones de modo.
+  function terminarPartida() {
+    if (!jugando) return;
+    jugando = false;
+    record.flush(performance.now());
+    const esRecord = marcador.puntos >= record.valor && marcador.puntos > 0;
+    elGameOver.querySelector('.go-score').classList.remove('oculto');
+    elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(marcador.puntos);
+    elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
+    elGameOver.classList.remove('oculto');
+  }
+  // Pantalla de inicio al cargar (sin score todavía).
+  function mostrarInicio() {
+    jugando = false;
+    elGameOver.querySelector('.go-score').classList.add('oculto');
+    elGameOver.querySelector('.go-record').classList.add('oculto');
+    elGameOver.classList.remove('oculto');
+  }
+  const btn60 = document.getElementById('jugar60');
+  const btnLibre = document.getElementById('jugarLibre');
+  if (btn60) btn60.addEventListener('click', function () { iniciarPartida('60'); });
+  if (btnLibre) btnLibre.addEventListener('click', function () { iniciarPartida('libre'); });
 
   // Retardo del próximo spawn de NARANJAS: rango base por score (rangoVigente)
-  // con caos superpuesto (ráfagas y pausas) → nunca cadencia fija predecible.
+  // con caos superpuesto (ráfagas/pausas) → nunca cadencia fija. TOPE 500ms: la
+  // pantalla nunca queda más de medio segundo sin aparición de un target.
   function retardoNaranja(ahora) {
     const base = P.rangoVigente(ritmo, marcador.puntos, ahora);
-    return P.retardoCaotico(base, caosSpawn, Math.random);
+    return Math.min(SPAWN_GAP_MAX, P.retardoCaotico(base, caosSpawn, Math.random));
   }
 
   // Números flotantes de feedback (canvas puro): pop de escala + subida + fade.
@@ -178,16 +195,28 @@
   // Spawn CAÓTICO: cantidad variable (ráfagas/pausas, retardoCaotico) desde los
   // 4 orígenes, con velocidad variable por target.
   const RADIO_NORMAL = 14;         // radio de la hitball
-  // TOPE DURO: nunca más de 4 targets vivos en pantalla (naranjas + rojos JUNTOS).
-  // Si no hay lugar, el generador NO descarta el turno: espera con proximoSpawn/
-  // proximoRojo en el pasado y dispara en cuanto se libera (el ritmo se conserva).
+  // TOPE DURO: nunca más de 4 targets vivos en pantalla (naranjas + rojos + grande
+  // JUNTOS). Si no hay lugar, el generador NO descarta el turno: espera con su
+  // timer en el pasado y dispara en cuanto se libera (el ritmo se conserva).
   const MAX_EN_PANTALLA = 4;
+  // La pantalla nunca queda más de 500ms sin aparición de un target (tope del
+  // hueco del spawner de naranjas; las ráfagas cortas se conservan).
+  const SPAWN_GAP_MAX = 500;
 
   // ── ROJO (parpadea y termina la partida) ───────────────────────────
   // Sale como cualquier target (crearTarget: 4 orígenes, velocidad del rango).
   // Su CANTIDAD/FRECUENCIA escala con el nivel (P.escalada, sube cada 5–10s).
   const ROJO_PARPADEO_MS = 100; // parpadeo entre cloudover-a/b (loop)
   const ROJO_JITTER = [0.75, 1.25]; // ruido multiplicativo sobre el intervalo de aparición
+
+  // ── GRANDE (doble de tamaño, 3× más lento) ─────────────────────────
+  // Un target naranja EXTRA: escala 2× (sprite y colisión) y 3× más lento
+  // (velocidad/3 + gravedad/9 → mismo arco, 3× de tiempo de vuelo). Puntúa igual
+  // (20 cubos × 5 = 100). Mínimo 8s entre apariciones; nunca dos a la vez.
+  const GRANDE_ESCALA = 2;
+  const GRANDE_LENTO = 3;
+  const GRANDE_MIN_MS = 8000;   // tiempo MÍNIMO entre apariciones
+  const GRANDE_JITTER_MS = 4000; // variación extra (siempre ≥ mínimo)
 
   // ── Inactividad ────────────────────────────────────────────────────
   const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
@@ -229,8 +258,12 @@
   const caosSpawn = P.crearCaos();  // estado de ráfagas del spawn caótico
   let escalada = null;              // nivel de rojos (P.crearEscalada; init abajo)
   let proximoRojo = 0;              // timestamp del próximo target rojo
-  let gameOver = false;             // partida terminada por un target rojo
-  let proximoSpawn = 0;       // timestamp mínimo del próximo lanzamiento
+  let proximoGrande = 0;            // timestamp del próximo target GRANDE
+  let proximoSpawn = 0;             // timestamp mínimo del próximo naranja
+  // Ciclo de partida: `jugando` false = overlay de inicio/fin arriba (congelado).
+  let jugando = false;              // ¿hay una partida en curso?
+  let modoJuego = null;             // '60' | 'libre'
+  let finPartida = 0;               // timestamp de fin (modo 60s; 0 en libre)
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
   let sacudidaHasta = 0;      // timestamp fin de la micro-sacudida de pantalla
@@ -290,6 +323,20 @@
     targets.push(t);
   }
 
+  // Lanza un target GRANDE (naranja): doble de tamaño (escala 2×, sprite y
+  // colisión) y 3× más lento — velocidad/3 + gravedad/9 → mismo arco, 3× de
+  // tiempo de vuelo. Radio de salida acorde a su tamaño. Puntúa igual (100).
+  function generarGrande() {
+    const t = F.crearTarget({ w: W, h: H });
+    t.grande = true;
+    t.escala = GRANDE_ESCALA;
+    t.vx /= GRANDE_LENTO;
+    t.vy /= GRANDE_LENTO;
+    t.gravedad = F.FISICA.G_TARGET / (GRANDE_LENTO * GRANDE_LENTO); // g/9
+    t.radio = F.FISICA.RADIO_TARGET * GRANDE_ESCALA; // margen de salida más grande
+    targets.push(t);
+  }
+
   function reposo() {
     // Posición de descanso de la bolita, dentro del núcleo del hitmaker
     return { x: W - 52, y: H - 52 };
@@ -345,7 +392,7 @@
   // vivo de un target, lo destruye (1 cubito = precisión) y puntúa ×racha; si toca
   // un ROJO, game over; si no toca nada, es FALLO. Anti-spam por CADENCIA_MS.
   function dispararHitscan(mx, my) {
-    if (pausado || gameOver) return;
+    if (pausado || !jugando) return;
     const ahora = performance.now();
     if (ahora - ultimoDisparo < CADENCIA_MS) return;
     ultimoDisparo = ahora;
@@ -465,9 +512,12 @@
     const dt = Math.min(t - tPrev, 32); // techo: pestañas en segundo plano
     tPrev = t;
 
-    // Pausado o GAME OVER: congela toda actualización (física, spawn, colisión,
-    // cobro); solo re-dibuja el estado (rAF en el finally mantiene vivo el bucle).
-    if (pausado || gameOver) { cobrando = false; dibujar(); return; }
+    // Pausado o SIN PARTIDA (overlay de inicio/fin arriba): congela toda
+    // actualización (física, spawn, colisión, cobro); solo re-dibuja el estado.
+    if (pausado || !jugando) { cobrando = false; dibujar(); return; }
+
+    // Modo 60 SEGUNDOS: al agotarse el tiempo, termina la partida.
+    if (modoJuego === '60' && t >= finPartida) { terminarPartida(); dibujar(); return; }
 
     // Costo de INACTIVIDAD: tras la gracia, cada segundo quieto cuesta el 25%
     // del castigo del tramo actual. El reloj NO corre si el documento está
@@ -594,6 +644,12 @@
       generarRojo();
       proximoRojo = t + P.intervaloRojo(escalada.nivel) * rnd(ROJO_JITTER[0], ROJO_JITTER[1]);
     }
+    // GRANDE: doble de tamaño, 3× más lento. Mínimo 8s entre apariciones; nunca
+    // dos a la vez; comparte el TOPE DURO de 4.
+    if (t >= proximoGrande && targets.length < MAX_EN_PANTALLA && !targets.some(function (x) { return x.grande; })) {
+      generarGrande();
+      proximoGrande = t + GRANDE_MIN_MS + Math.random() * GRANDE_JITTER_MS;
+    }
     // Récord EN VIVO: si el score superó el récord, sube ya (y escribe con throttle).
     if (record.considerar(marcador.puntos, t)) actualizarRecord();
     // Fin del latido del marcador.
@@ -633,6 +689,7 @@
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.rotate(t.rot);
+      if (t.escala && t.escala !== 1) ctx.scale(t.escala, t.escala); // target grande
       dibujarSpriteTarget(t, destella);
       ctx.restore();
     }
@@ -784,6 +841,22 @@
       ctx.fillText('−' + montoPerdido, 0, 0);
       ctx.restore();
     }
+
+    // TEMPORIZADOR (modo 60s): cuenta regresiva "M:SS" top-center, bajo el
+    // marcador. Se pone rojo y pulsa en los últimos 10s. En libre no se dibuja.
+    if (jugando && modoJuego === '60') {
+      const restante = Math.max(0, finPartida - nowP);
+      const seg = Math.ceil(restante / 1000);
+      const txt = Math.floor(seg / 60) + ':' + (seg % 60 < 10 ? '0' + (seg % 60) : seg % 60);
+      const urgente = restante <= 10000;
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.globalAlpha = urgente ? (0.7 + 0.3 * Math.sin(nowP / 180)) : 0.85;
+      ctx.fillStyle = urgente ? ROJO_BORDE : COLOR.textoApagado;
+      ctx.font = '700 18px ' + COLOR.fuente;
+      ctx.fillText(txt, W / 2, 122);
+      ctx.restore();
+    }
   }
 
   // Estela de LUZ VIVA: 3 fantasmas en el color de modo (30/20/10% alfa). Los
@@ -868,11 +941,11 @@
   window.addEventListener('resize', redimensionar);
   redimensionar();
   actualizarMarcador();  // arranca en 0 (no el placeholder del HTML)
-  actualizarRecord();    // muestra el récord persistido (o 0)
+  actualizarRecord();    // récord del modo por defecto (60s) hasta elegir
   marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
-  escalada = P.crearEscalada(performance.now(), Math.random); // nivel de rojos = 1
-  proximoRojo = performance.now() + P.intervaloRojo(escalada.nivel); // primer rojo
-  arrancarBucle();       // el spawner de targets corre desde el arranque
+  escalada = P.crearEscalada(performance.now(), Math.random); // estado inicial válido
+  mostrarInicio();       // pantalla de inicio: elegí modo (60s / libre) para jugar
+  arrancarBucle();       // el bucle corre (congelado hasta elegir modo)
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');

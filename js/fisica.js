@@ -259,11 +259,15 @@
     return { x: c * 8 - 16, y: f * 8 - 12 }; // centro del cubo (sprite 40×32)
   }
 
+  // ESCALA del target (1 normal, 2 el target grande): agranda la retícula de
+  // cubos por igual. Los helpers de cubos la respetan → colisión/daño correctos.
   function celdaMundo(t, idx) {
+    const e = t.escala || 1;
     const l = celdaLocal(idx);
+    const lx = l.x * e, ly = l.y * e;
     const cw = Math.cos(t.rot);
     const sw = Math.sin(t.rot);
-    return { x: t.x + l.x * cw - l.y * sw, y: t.y + l.x * sw + l.y * cw };
+    return { x: t.x + lx * cw - ly * sw, y: t.y + lx * sw + ly * cw };
   }
 
   function cubosVivosMundo(t) {
@@ -276,10 +280,11 @@
   // mundo (px,py), o -1. Lleva el punto al espacio LOCAL del target (rotación
   // inversa) y ve en qué celda 8×8 de la retícula 5×4 (sprite 40×32) cae.
   function celdaEnPunto(t, px, py) {
+    const e = t.escala || 1;
     const dx = px - t.x, dy = py - t.y;
     const c = Math.cos(-t.rot), s = Math.sin(-t.rot);
-    const lx = dx * c - dy * s;          // local, centro del sprite en (0,0)
-    const ly = dx * s + dy * c;
+    const lx = (dx * c - dy * s) / e;    // local escala-1, centro del sprite en (0,0)
+    const ly = (dx * s + dy * c) / e;
     const col = Math.floor((lx + 20) / 8); // sprite va de -20..20 (x), -16..16 (y)
     const fil = Math.floor((ly + 16) / 8);
     if (col < 0 || col > 4 || fil < 0 || fil > 3) return -1;
@@ -300,7 +305,8 @@
       if (l.y + 4 > maxY) maxY = l.y + 4;
     }
     if (minX > maxX) return null;
-    return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, hw: (maxX - minX) / 2, hh: (maxY - minY) / 2 };
+    const e = t.escala || 1; // la caja crece con la escala (unidades de mundo)
+    return { cx: (minX + maxX) / 2 * e, cy: (minY + maxY) / 2 * e, hw: (maxX - minX) / 2 * e, hh: (maxY - minY) / 2 * e };
   }
 
   // Índices de las n celdas vivas más cercanas al punto de mundo (px,py).

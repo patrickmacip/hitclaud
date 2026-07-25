@@ -51,6 +51,17 @@ puntos (fallo o inactividad):
 - **Contador rojo:** el marcador Actual se pinta `#FF4583` durante 400ms y vuelve al naranja vivo.
 - **Monto agregado:** bajo el marcador, un solo número `#FF6D9E` (~60% del tamaño) con el total restado, palpita y disipa en 600ms; cobros seguidos se AGREGAN y reinician el palpitar.
 
+## Modos de partida (pantalla de inicio)
+
+Overlay al cargar y al terminar una partida, con dos botones:
+
+- **60 segundos** — cuenta regresiva (top-center "M:SS", roja y pulsante en los
+  últimos 10s); al llegar a 0, termina la partida y vuelve al overlay con el score.
+- **Tiempo libre** — sin reloj; sólo termina al tocar un rojo.
+
+El **récord es por modo** (llaves `hitclaud.record.v3.60` y `.libre`); la celda
+"Record" muestra la del modo activo.
+
 ## Plataformas (dos modos de tiro)
 
 Detección por puntero (`matchMedia('(pointer: fine)')`):
@@ -73,11 +84,17 @@ Detección por puntero (`matchMedia('(pointer: fine)')`):
 
 ## Spawn caótico y escalada de rojos
 
-- **Tope duro:** máximo **4 targets en pantalla** (naranjas + rojos juntos).
+- **Tope duro:** máximo **4 targets en pantalla** (naranjas + rojos + grande, JUNTOS).
+- **Hueco máximo 500ms:** el spawner de naranjas nunca deja la pantalla más de
+  medio segundo sin aparición de un target (las ráfagas cortas se conservan).
 - **Multi-origen:** los targets salen de los **4 lados** (inferior, superior,
   lateral-izq, lateral-der) con **velocidad variable** por target. `crearTarget`
   (fisica.js) elige origen y velocidad; superior cae con gravedad reducida para
   ser alcanzable.
+- **Target GRANDE:** un naranja extra de **doble tamaño** (escala 2× en sprite y
+  colisión) y **3× más lento** (velocidad/3 + gravedad/9 → mismo arco, 3× de
+  tiempo de vuelo). Mínimo **8s** entre apariciones, nunca dos a la vez; puntúa
+  igual (100). Cuenta dentro del tope de 4.
 - **Cantidad variable:** `retardoCaotico` (puntuacion.js) superpone **ráfagas**
   (2–4 spawns muy juntos) y **pausas** largas sobre el rango base → nunca cadencia
   fija predecible.

@@ -193,7 +193,7 @@ body {
 }
 
 .go-reiniciar {
-  margin-top: 20px;
+  margin-top: 12px;
   width: 100%;
   padding: 14px;
   border: none;
@@ -202,4 +202,11 @@ body {
   color: var(--negro);
   font: var(--texto-m);
   cursor: pointer;
+}
+
+/* Botón secundario (Tiempo libre): contorno, para distinguirlo del primario. */
+.go-modo-libre {
+  background: transparent;
+  border: 2px solid var(--acento, #E8704E);
+  color: var(--acento-vivo, #FF8764);
 }
