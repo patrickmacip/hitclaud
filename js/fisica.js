@@ -159,7 +159,9 @@
 
   // crearTarget(limites) → objeto lanzado que reusa paso().
   // Nace FUERA del viewport; haEntrado evita que muera en su primer cuadro.
-  function crearTarget(limites) {
+  function crearTarget(limites, cols, filas) {
+    cols = cols || 5;
+    filas = filas || 4;
     const w = limites.w;
     const h = limites.h;
     const d = Math.random();
@@ -199,15 +201,21 @@
       vy = -rango(LANZA.LAT_VY);
     }
 
-    // celdas: máscara de 20 cubos vivos (idx = fila*5 + col). Los ojos son
-    // las celdas 6 (f1,c1) y 8 (f1,c3): si mueren, ese ojo desaparece.
+    // celdas: retícula cols×filas de cubos de 8px (idx = fila*cols + col). El cubo
+    // de 8px es la UNIDAD ATÓMICA: todo target se compone de estos cubos, nunca
+    // de uno mayor. El target grande = MÁS cubos (grilla mayor), no cubos grandes.
+    // Los ojos son dos cubos interiores (si mueren, ese ojo desaparece).
+    const total = cols * filas;
     const celdas = [];
-    for (let i = 0; i < 20; i++) celdas.push(true);
+    for (let i = 0; i < total; i++) celdas.push(true);
+    const oy = Math.floor(filas * 0.35);
+    const ojos = [oy * cols + Math.floor(cols * 0.3), oy * cols + Math.floor(cols * 0.7)];
     return {
       x: x, y: y, vx: vx * LANZA.FUERZA, vy: vy * LANZA.FUERZA,
       rot: 0, velRot: rango(LANZA.VEL_ROT),
       radio: FISICA.RADIO_TARGET, gravedad: gravedad,
-      celdas: celdas, vivos: 20, masa: FISICA.MASA_TARGET, golpeado: false,
+      celdas: celdas, cols: cols, filas: filas, vivos: total, vivosMax: total,
+      ojos: ojos, masa: FISICA.MASA_TARGET, golpeado: false,
       haEntrado: false, edad: 0, viva: true, origen: origen,
     };
   }
@@ -244,7 +252,9 @@
       // primer cuadro). Sin rebote de paredes. Válvula de vida por si algo flota.
       const fuera =
         o.x < -r || o.x > limites.w + r || o.y < -r || o.y > limites.h + r;
-      if (o.edad >= FISICA.VIDA_MAX_MS || (o.haEntrado && fuera)) {
+      // Vida máx por objeto (o.vidaMax): el target grande vuela 3× más lento y
+      // necesita más tiempo antes de que la válvula lo mate; el resto usa el global.
+      if (o.edad >= (o.vidaMax || FISICA.VIDA_MAX_MS) || (o.haEntrado && fuera)) {
         o.viva = false;
         break;
       }
@@ -252,43 +262,43 @@
     return o;
   }
 
-  // ── Modelo de cubos del target ─────────────────────────────────────
-  function celdaLocal(idx) {
-    const c = idx % 5;
-    const f = (idx / 5) | 0;
-    return { x: c * 8 - 16, y: f * 8 - 12 }; // centro del cubo (sprite 40×32)
+  // ── Modelo de cubos del target (retícula cols×filas de cubos de 8px) ──
+  // El cubo de 8px es la unidad atómica; la grilla puede ser 5×4 (normal) o mayor
+  // (target grande = MÁS cubos). Centro local del cubo idx en una grilla cols×filas.
+  function celdaLocal(idx, cols, filas) {
+    cols = cols || 5;
+    filas = filas || 4;
+    const c = idx % cols;
+    const f = (idx / cols) | 0;
+    return { x: c * 8 - cols * 4 + 4, y: f * 8 - filas * 4 + 4 }; // centro del cubo 8px
   }
 
-  // ESCALA del target (1 normal, 2 el target grande): agranda la retícula de
-  // cubos por igual. Los helpers de cubos la respetan → colisión/daño correctos.
   function celdaMundo(t, idx) {
-    const e = t.escala || 1;
-    const l = celdaLocal(idx);
-    const lx = l.x * e, ly = l.y * e;
+    const l = celdaLocal(idx, t.cols, t.filas);
     const cw = Math.cos(t.rot);
     const sw = Math.sin(t.rot);
-    return { x: t.x + lx * cw - ly * sw, y: t.y + lx * sw + ly * cw };
+    return { x: t.x + l.x * cw - l.y * sw, y: t.y + l.x * sw + l.y * cw };
   }
 
   function cubosVivosMundo(t) {
     const out = [];
-    for (let i = 0; i < 20; i++) if (t.celdas[i]) out.push(celdaMundo(t, i));
+    for (let i = 0; i < t.celdas.length; i++) if (t.celdas[i]) out.push(celdaMundo(t, i));
     return out;
   }
 
   // HITSCAN (mira de desktop): índice de la celda VIVA que contiene el punto de
-  // mundo (px,py), o -1. Lleva el punto al espacio LOCAL del target (rotación
-  // inversa) y ve en qué celda 8×8 de la retícula 5×4 (sprite 40×32) cae.
+  // mundo (px,py), o -1. Lleva el punto al espacio LOCAL (rotación inversa) y ve
+  // en qué celda 8×8 de la retícula cols×filas cae.
   function celdaEnPunto(t, px, py) {
-    const e = t.escala || 1;
+    const cols = t.cols || 5, filas = t.filas || 4;
     const dx = px - t.x, dy = py - t.y;
     const c = Math.cos(-t.rot), s = Math.sin(-t.rot);
-    const lx = (dx * c - dy * s) / e;    // local escala-1, centro del sprite en (0,0)
-    const ly = (dx * s + dy * c) / e;
-    const col = Math.floor((lx + 20) / 8); // sprite va de -20..20 (x), -16..16 (y)
-    const fil = Math.floor((ly + 16) / 8);
-    if (col < 0 || col > 4 || fil < 0 || fil > 3) return -1;
-    const idx = fil * 5 + col;
+    const lx = dx * c - dy * s;
+    const ly = dx * s + dy * c;
+    const col = Math.floor((lx + cols * 4) / 8);
+    const fil = Math.floor((ly + filas * 4) / 8);
+    if (col < 0 || col >= cols || fil < 0 || fil >= filas) return -1;
+    const idx = fil * cols + col;
     return t.celdas[idx] ? idx : -1;
   }
 
@@ -296,23 +306,22 @@
   // chico = más difícil de acertar). {cx,cy} = centro, {hw,hh} = medios ejes.
   function cajaLocal(t) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < t.celdas.length; i++) {
       if (!t.celdas[i]) continue;
-      const l = celdaLocal(i);
+      const l = celdaLocal(i, t.cols, t.filas);
       if (l.x - 4 < minX) minX = l.x - 4;
       if (l.x + 4 > maxX) maxX = l.x + 4;
       if (l.y - 4 < minY) minY = l.y - 4;
       if (l.y + 4 > maxY) maxY = l.y + 4;
     }
     if (minX > maxX) return null;
-    const e = t.escala || 1; // la caja crece con la escala (unidades de mundo)
-    return { cx: (minX + maxX) / 2 * e, cy: (minY + maxY) / 2 * e, hw: (maxX - minX) / 2 * e, hh: (maxY - minY) / 2 * e };
+    return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, hw: (maxX - minX) / 2, hh: (maxY - minY) / 2 };
   }
 
   // Índices de las n celdas vivas más cercanas al punto de mundo (px,py).
   function celdasCercanas(t, px, py, n) {
     const arr = [];
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < t.celdas.length; i++) {
       if (!t.celdas[i]) continue;
       const w = celdaMundo(t, i);
       arr.push({ i: i, d: Math.hypot(w.x - px, w.y - py) });
@@ -413,7 +422,7 @@
       bolita.vx *= drag;
       bolita.vy *= drag;
       const libres = cubosVivosMundo(t);
-      for (let i = 0; i < 20; i++) t.celdas[i] = false;
+      for (let i = 0; i < t.celdas.length; i++) t.celdas[i] = false;
       t.vivos = 0;
       return Object.assign(base, { tipo: 'destruido', cubosLiberados: libres, destruidos: libres.length, muerto: true });
     }
@@ -431,14 +440,14 @@
     const libres = arrancadas.map(function (i) { return celdaMundo(t, i); });
     for (let k = 0; k < arrancadas.length; k++) t.celdas[arrancadas[k]] = false;
     t.vivos -= arrancadas.length;
-    t.masa = FISICA.MASA_TARGET * (t.vivos / 20); // masa proporcional a los cubos vivos
+    t.masa = FISICA.MASA_TARGET * (t.vivos / (t.vivosMax || t.celdas.length)); // proporcional a cubos vivos
 
     let muerto = false;
     if (t.vivos <= FISICA.DESMORONA_CUBOS) {
       // Desmoronamiento: los cubos restantes también explotan.
       const resto = cubosVivosMundo(t);
       for (let j = 0; j < resto.length; j++) libres.push(resto[j]);
-      for (let i = 0; i < 20; i++) t.celdas[i] = false;
+      for (let i = 0; i < t.celdas.length; i++) t.celdas[i] = false;
       t.vivos = 0;
       muerto = true;
     }

@@ -84,17 +84,21 @@ Detección por puntero (`matchMedia('(pointer: fine)')`):
 
 ## Spawn caótico y escalada de rojos
 
-- **Tope duro:** máximo **4 targets en pantalla** (naranjas + rojos + grande, JUNTOS).
+- **Tope duro:** máximo **2 targets en pantalla** (naranjas + rojos + grande, JUNTOS).
 - **Hueco máximo 500ms:** el spawner de naranjas nunca deja la pantalla más de
   medio segundo sin aparición de un target (las ráfagas cortas se conservan).
 - **Multi-origen:** los targets salen de los **4 lados** (inferior, superior,
   lateral-izq, lateral-der) con **velocidad variable** por target. `crearTarget`
   (fisica.js) elige origen y velocidad; superior cae con gravedad reducida para
   ser alcanzable.
-- **Target GRANDE:** un naranja extra de **doble tamaño** (escala 2× en sprite y
-  colisión) y **3× más lento** (velocidad/3 + gravedad/9 → mismo arco, 3× de
-  tiempo de vuelo). Mínimo **8s** entre apariciones, nunca dos a la vez; puntúa
-  igual (100). Cuenta dentro del tope de 4.
+- **Cubo atómico de 8px:** toda forma se compone de cubos de 8px; **nunca** se
+  inicia una forma con un cubo mayor. Un target más grande = **más cubos**, no
+  cubos más grandes. El modelo (`cols×filas`) es genérico en fisica.js.
+- **Target GRANDE:** un naranja extra de **doble tamaño** hecho con más cubos de
+  8px (**grilla 10×8 = 80 cubos**, el doble en cada eje del 5×4). **3× más lento**
+  (velocidad/3 + gravedad/9 → mismo arco, 3× de tiempo de vuelo; vida útil ×3).
+  Mínimo **8s** entre apariciones, nunca dos a la vez. Puntúa por cubo: 80 × 5 =
+  **400**. Cuenta dentro del tope de 2.
 - **Cantidad variable:** `retardoCaotico` (puntuacion.js) superpone **ráfagas**
   (2–4 spawns muy juntos) y **pausas** largas sobre el rango base → nunca cadencia
   fija predecible.

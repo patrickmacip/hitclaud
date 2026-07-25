@@ -195,10 +195,10 @@
   // Spawn CAÓTICO: cantidad variable (ráfagas/pausas, retardoCaotico) desde los
   // 4 orígenes, con velocidad variable por target.
   const RADIO_NORMAL = 14;         // radio de la hitball
-  // TOPE DURO: nunca más de 4 targets vivos en pantalla (naranjas + rojos + grande
+  // TOPE DURO: nunca más de 2 targets vivos en pantalla (naranjas + rojos + grande
   // JUNTOS). Si no hay lugar, el generador NO descarta el turno: espera con su
   // timer en el pasado y dispara en cuanto se libera (el ritmo se conserva).
-  const MAX_EN_PANTALLA = 4;
+  const MAX_EN_PANTALLA = 2;
   // La pantalla nunca queda más de 500ms sin aparición de un target (tope del
   // hueco del spawner de naranjas; las ráfagas cortas se conservan).
   const SPAWN_GAP_MAX = 500;
@@ -210,10 +210,13 @@
   const ROJO_JITTER = [0.75, 1.25]; // ruido multiplicativo sobre el intervalo de aparición
 
   // ── GRANDE (doble de tamaño, 3× más lento) ─────────────────────────
-  // Un target naranja EXTRA: escala 2× (sprite y colisión) y 3× más lento
-  // (velocidad/3 + gravedad/9 → mismo arco, 3× de tiempo de vuelo). Puntúa igual
-  // (20 cubos × 5 = 100). Mínimo 8s entre apariciones; nunca dos a la vez.
-  const GRANDE_ESCALA = 2;
+  // Un target naranja EXTRA de DOBLE tamaño hecho con MÁS cubos de 8px (grilla
+  // 10×8 = 80 cubos, el doble en cada eje del 5×4 normal). El cubo de 8px es la
+  // unidad atómica: no se agranda el cubo, se agrega más. 3× más lento
+  // (velocidad/3 + gravedad/9 → mismo arco, 3× de tiempo de vuelo). Puntúa por
+  // cubo (80 × 5 = 400). Mínimo 8s entre apariciones; nunca dos a la vez.
+  const GRANDE_COLS = 10;
+  const GRANDE_FILAS = 8;
   const GRANDE_LENTO = 3;
   const GRANDE_MIN_MS = 8000;   // tiempo MÍNIMO entre apariciones
   const GRANDE_JITTER_MS = 4000; // variación extra (siempre ≥ mínimo)
@@ -323,17 +326,17 @@
     targets.push(t);
   }
 
-  // Lanza un target GRANDE (naranja): doble de tamaño (escala 2×, sprite y
-  // colisión) y 3× más lento — velocidad/3 + gravedad/9 → mismo arco, 3× de
-  // tiempo de vuelo. Radio de salida acorde a su tamaño. Puntúa igual (100).
+  // Lanza un target GRANDE (naranja): grilla 10×8 de cubos de 8px (doble de
+  // tamaño, MÁS cubos, no cubos más grandes) y 3× más lento — velocidad/3 +
+  // gravedad/9 → mismo arco, 3× de tiempo de vuelo. Radio de salida acorde.
   function generarGrande() {
-    const t = F.crearTarget({ w: W, h: H });
+    const t = F.crearTarget({ w: W, h: H }, GRANDE_COLS, GRANDE_FILAS);
     t.grande = true;
-    t.escala = GRANDE_ESCALA;
     t.vx /= GRANDE_LENTO;
     t.vy /= GRANDE_LENTO;
     t.gravedad = F.FISICA.G_TARGET / (GRANDE_LENTO * GRANDE_LENTO); // g/9
-    t.radio = F.FISICA.RADIO_TARGET * GRANDE_ESCALA; // margen de salida más grande
+    t.radio = Math.max(GRANDE_COLS, GRANDE_FILAS) * 4 + 12; // margen de salida ≈ media diagonal
+    t.vidaMax = F.FISICA.VIDA_MAX_MS * GRANDE_LENTO; // vuela 3× más lento → vive 3× más
     targets.push(t);
   }
 
@@ -407,8 +410,8 @@
       // NARANJA: destruye el cubito impactado (impacto inmediato, preciso).
       const centro = F.celdaMundo(tg, idx);
       tg.celdas[idx] = false;
-      tg.vivos = (tg.vivos || 20) - 1;
-      tg.masa = F.FISICA.MASA_TARGET * (tg.vivos / 20);
+      tg.vivos = (tg.vivos || tg.celdas.length) - 1;
+      tg.masa = F.FISICA.MASA_TARGET * (tg.vivos / (tg.vivosMax || tg.celdas.length));
       tg.destelloHasta = ahora + DESTELLO_MS;
       P.anotarHit(marcador);                 // disparo certero = hit (sube la racha)
       P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, ahora);
@@ -689,8 +692,7 @@
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.rotate(t.rot);
-      if (t.escala && t.escala !== 1) ctx.scale(t.escala, t.escala); // target grande
-      dibujarSpriteTarget(t, destella);
+      dibujarSpriteTarget(t, destella); // la grilla (cols×filas) ya define el tamaño
       ctx.restore();
     }
     // Cubos de explosión (animación pura, sin fade: caen sólidos hasta salir).
@@ -786,7 +788,7 @@
     if (mult > 1) {
       const now = performance.now();
       ctx.save();
-      ctx.translate(W / 2, H * 0.16);
+      ctx.translate(W / 2, Math.max(158, H * 0.16)); // bajo la banda del temporizador
       ctx.scale(1 + 0.06 * Math.sin(now / 150), 1 + 0.06 * Math.sin(now / 150));
       ctx.shadowColor = ACENTO.vivo;
       ctx.shadowBlur = 12;
@@ -833,7 +835,7 @@
       else if (dtM < 200) esc = 1.1 - 0.1 * ((dtM - 90) / 110);
       ctx.save();
       ctx.globalAlpha = Math.max(0, 1 - dtM / MONTO_MS); // disipa en 600ms
-      ctx.translate(W / 2, 92);                     // bajo el marcador Actual
+      ctx.translate(W / 2, 124);                    // bajo el temporizador (sin encimarse)
       ctx.scale(esc, esc);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = ROJO_MONTO;
@@ -842,8 +844,9 @@
       ctx.restore();
     }
 
-    // TEMPORIZADOR (modo 60s): cuenta regresiva "M:SS" top-center, bajo el
-    // marcador. Se pone rojo y pulsa en los últimos 10s. En libre no se dibuja.
+    // TEMPORIZADOR (modo 60s): cuenta regresiva "M:SS" GRANDE top-center, en su
+    // propia banda (bajo la barra, encima del badge y del monto → sin encimarse).
+    // Se pone rojo y pulsa en los últimos 10s. En libre no se dibuja.
     if (jugando && modoJuego === '60') {
       const restante = Math.max(0, finPartida - nowP);
       const seg = Math.ceil(restante / 1000);
@@ -851,10 +854,14 @@
       const urgente = restante <= 10000;
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.globalAlpha = urgente ? (0.7 + 0.3 * Math.sin(nowP / 180)) : 0.85;
-      ctx.fillStyle = urgente ? ROJO_BORDE : COLOR.textoApagado;
-      ctx.font = '700 18px ' + COLOR.fuente;
-      ctx.fillText(txt, W / 2, 122);
+      const esc = urgente ? 1 + 0.08 * Math.sin(nowP / 180) : 1;
+      ctx.translate(W / 2, 88);
+      ctx.scale(esc, esc);
+      ctx.shadowColor = urgente ? ROJO_BORDE : ACENTO.base;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = urgente ? ROJO_BORDE : ACENTO.claro;
+      ctx.font = '800 32px ' + COLOR.fuente;
+      ctx.fillText(txt, 0, 0);
       ctx.restore();
     }
   }
@@ -882,14 +889,14 @@
   // --negro, cada uno solo si su celda sigue viva.
   function dibujarSpriteTarget(t, destella) {
     const CUBO = 8;
-    const COLS = 5;
-    const FILAS = 4;
     const RADIO_ESQ = 4;
-    const x = -20;
-    const y = -16;
+    const COLS = t.cols || 5;
+    const FILAS = t.filas || 4;
+    const x = -COLS * 4; // esquina sup-izq local (grilla centrada)
+    const y = -FILAS * 4;
     // Dos tipos: NARANJA (el que puntúa, ACENTO.base) y ROJO (parpadea entre
     // #B1003B ↔ #FF0055 cada 100ms → termina la partida). El destello de contacto
-    // (crema) manda sobre ambos.
+    // (crema) manda sobre ambos. La grilla puede ser 5×4 o mayor (target grande).
     let col = t.rojo
       ? (Math.floor(performance.now() / ROJO_PARPADEO_MS) % 2 ? COLOR.cloudoverA : COLOR.cloudoverB)
       : ACENTO.base;
@@ -911,10 +918,14 @@
         ctx.fill();
       }
     }
-    // Ojos: celdas 6 (f1,c1) y 8 (f1,c3), cada una si sigue viva.
+    // Ojos (dos cubos interiores, t.ojos), cada uno sólo si su celda sigue viva.
     ctx.fillStyle = COLOR.negro;
-    if (t.celdas[6]) ctx.fillRect(x + 1 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
-    if (t.celdas[8]) ctx.fillRect(x + 3 * CUBO + 2, y + 1 * CUBO + 2, 4, 4);
+    const ojos = t.ojos || [6, 8];
+    for (let k = 0; k < ojos.length; k++) {
+      const oi = ojos[k];
+      if (!t.celdas[oi]) continue;
+      ctx.fillRect(x + (oi % COLS) * CUBO + 2, y + ((oi / COLS) | 0) * CUBO + 2, 4, 4);
+    }
   }
 
   // Bolita: disco sólido en el COLOR del modo (SIN parpadeo — el acento es
