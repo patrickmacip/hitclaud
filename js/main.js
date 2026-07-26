@@ -67,6 +67,15 @@
     nombre = U.nombreLimpio(elNombre ? elNombre.value : nombre);
     try { if (almacen) almacen.setItem(NOMBRE_KEY, nombre); } catch (e) { /* privado/cuota */ }
   }
+  // El nombre se registra al presionar ENTER, al salir del campo (blur) o al
+  // cambiar — no sólo al elegir modo. Enter también cierra el teclado en móvil.
+  if (elNombre) {
+    elNombre.addEventListener('change', guardarNombre);
+    elNombre.addEventListener('blur', guardarNombre);
+    elNombre.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); guardarNombre(); elNombre.blur(); }
+    });
+  }
   // Dibuja el top-5 (con nombre) del modo en el overlay.
   function renderTablero(modo) {
     if (!elTablero) return;
@@ -141,8 +150,8 @@
   if (btnLibre) btnLibre.addEventListener('click', function () { iniciarPartida('libre'); });
 
   // Retardo del próximo spawn de NARANJAS: rango base por score (rangoVigente)
-  // con caos superpuesto (ráfagas/pausas), recortado a ≤600ms (SPAWN_GAP_MAX): la
-  // pantalla nunca queda más de 600ms sin aparición de un target (habiendo lugar).
+  // con caos superpuesto (ráfagas/pausas), recortado a ≤800ms (SPAWN_GAP_MAX): la
+  // pantalla nunca queda más de 800ms sin aparición de un target (habiendo lugar).
   function retardoNaranja(ahora) {
     const base = P.rangoVigente(ritmo, marcador.puntos, ahora);
     return Math.min(SPAWN_GAP_MAX, P.retardoCaotico(base, caosSpawn, Math.random));
@@ -232,9 +241,9 @@
   // JUNTOS). Si no hay lugar, el generador NO descarta el turno: espera con su
   // timer en el pasado y dispara en cuanto se libera (el ritmo se conserva).
   const MAX_EN_PANTALLA = 2;
-  // TIEMPO entre apariciones de naranjas: hasta 600ms (duplicado de 300 → menos
-  // acelerado). La pantalla no queda más de 600ms sin un target (habiendo lugar).
-  const SPAWN_GAP_MAX = 600;
+  // TIEMPO entre apariciones de naranjas: hasta 800ms (menos acelerado). La
+  // pantalla no queda más de 800ms sin un target (habiendo lugar).
+  const SPAWN_GAP_MAX = 800;
 
   // ── ROJO (parpadea y termina la partida) ───────────────────────────
   // Sale como cualquier target (crearTarget: 4 orígenes, velocidad del rango).
@@ -1022,6 +1031,18 @@
   arrancarBucle();       // el bucle corre (congelado hasta elegir modo)
 
   if ('serviceWorker' in navigator) {
+    // AUTO-ACTUALIZACIÓN: cuando un SW NUEVO toma el control (tras skipWaiting +
+    // clients.claim), recargamos UNA vez para servir el código fresco. Sin esto,
+    // la página seguía corriendo el JS viejo cacheado (parecía que nada cambiaba).
+    // Guarda: sólo recarga si YA había un SW controlando (actualización, no la
+    // primera instalación) y una sola vez.
+    const habiaControlador = !!navigator.serviceWorker.controller;
+    let recargando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!habiaControlador || recargando) return;
+      recargando = true;
+      window.location.reload();
+    });
     navigator.serviceWorker.register('sw.js');
   }
 })();

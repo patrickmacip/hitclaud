@@ -156,9 +156,9 @@ console.log('\n=== Mínimo 8s entre apariciones del grande ===');
   chk(`hueco mínimo ${peor.toFixed(0)}ms ≥ 8000`, peor >= 8000);
 }
 
-console.log('\n=== Tiempo MÁXIMO entre apariciones de naranjas: 300ms ===');
+console.log('\n=== Tiempo MÁXIMO entre apariciones de naranjas: 800ms ===');
 {
-  const SPAWN_GAP_MAX = 300;
+  const SPAWN_GAP_MAX = 800;
   const caos = P.crearCaos();
   let seed = 99; const rnd = function () { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
   let peor = 0;
@@ -166,7 +166,7 @@ console.log('\n=== Tiempo MÁXIMO entre apariciones de naranjas: 300ms ===');
     const base = P.rangoVigente(P.crearRitmo(), 0, 0);
     peor = Math.max(peor, Math.min(SPAWN_GAP_MAX, P.retardoCaotico(base, caos, rnd)));
   }
-  chk(`hueco máximo ${peor.toFixed(0)}ms ≤ 300`, peor <= 300);
+  chk(`hueco máximo ${peor.toFixed(0)}ms ≤ 800`, peor <= 800);
 }
 
 console.log('\n=== Máx 2 en pantalla (naranjas + rojos + grande juntos) ===');
