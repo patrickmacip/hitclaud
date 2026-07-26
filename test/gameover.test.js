@@ -25,6 +25,15 @@ console.log('\n=== Menú de PAUSA (Continuar / Reiniciar) ===');
   console.log(`  #pausa: ${p}   #continuar: ${cont}   #reiniciar: ${rei}  ${p === 1 && cont === 1 && rei === 1 ? 'OK ✓' : 'NO ✗'}`);
 }
 
+console.log('\n=== Login: campo de nombre + botón OK (enter) + mensaje de confirmación ===');
+{
+  const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
+  const nom = (html.match(/id="nombre"/g) || []).length;
+  const ok = (html.match(/id="nombreOk"/g) || []).length;
+  const msg = (html.match(/id="nombreMsg"/g) || []).length;
+  console.log(`  #nombre: ${nom}   #nombreOk: ${ok}   #nombreMsg: ${msg}  ${nom === 1 && ok === 1 && msg === 1 ? 'OK ✓' : 'NO ✗'}`);
+}
+
 console.log('\n=== Reiniciar estado: resetea el marcador (record intacto) ===');
 {
   const marcador = P.crearMarcador();
