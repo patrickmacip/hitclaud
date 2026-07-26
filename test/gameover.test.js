@@ -13,7 +13,7 @@ console.log('=== Overlay de inicio/fin con los dos botones de modo ===');
   console.log(`  #gameover: ${n}   #jugar60: ${b60}   #jugarLibre: ${bLibre}  ${n === 1 && b60 === 1 && bLibre === 1 ? 'OK ✓' : 'NO ✗'}`);
   const et60 = /id="jugar60"[^>]*>([^<]+)</.exec(html);
   const etLibre = /id="jugarLibre"[^>]*>([^<]+)</.exec(html);
-  console.log(`  etiquetas: "${et60 && et60[1]}" / "${etLibre && etLibre[1]}"  ${et60 && et60[1] === '60 min' && etLibre && etLibre[1] === 'Relax mode' ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  etiquetas: "${et60 && et60[1]}" / "${etLibre && etLibre[1]}"  ${et60 && et60[1] === '60 seg' && etLibre && etLibre[1] === 'Relax mode' ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== Menú de PAUSA (Continuar / Reiniciar) ===');

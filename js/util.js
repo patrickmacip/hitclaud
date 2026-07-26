@@ -72,7 +72,35 @@
     return (m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)) + 'M';
   }
 
-  const U = { leerToken: leerToken, crearRecord: crearRecord, abreviarNumero: abreviarNumero };
+  // ── Tabla de scores local CON NOMBRE (leaderboard por dispositivo) ──
+  // Sin backend (hosting estático): los scores viven en localStorage como JSON
+  // [{nombre, puntos}]. Robusto: nunca lanza; devuelve [] si algo falla.
+  function nombreLimpio(n) { return String(n == null ? '' : n).trim().slice(0, 12) || 'Player'; }
+  function leerScores(almacen, clave) {
+    try {
+      if (!almacen) return [];
+      const raw = almacen.getItem(clave);
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      return arr.filter(function (e) { return e && typeof e.puntos === 'number'; });
+    } catch (e) { return []; }
+  }
+  // Inserta {nombre, puntos}, ordena desc por puntos, recorta a `tope` (def 5),
+  // guarda y devuelve la lista. El nombre se limpia (trim, máx 12, o 'Player').
+  function guardarScore(almacen, clave, nombre, puntos, tope) {
+    const lista = leerScores(almacen, clave);
+    lista.push({ nombre: nombreLimpio(nombre), puntos: Math.max(0, Math.round(puntos || 0)) });
+    lista.sort(function (a, b) { return b.puntos - a.puntos; });
+    const top = lista.slice(0, tope || 5);
+    try { if (almacen) almacen.setItem(clave, JSON.stringify(top)); } catch (e) { /* cuota/privado */ }
+    return top;
+  }
+
+  const U = {
+    leerToken: leerToken, crearRecord: crearRecord, abreviarNumero: abreviarNumero,
+    nombreLimpio: nombreLimpio, leerScores: leerScores, guardarScore: guardarScore,
+  };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = U;
   } else {

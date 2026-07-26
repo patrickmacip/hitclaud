@@ -192,6 +192,38 @@ body {
   margin-bottom: 8px;
 }
 
+/* Login: campo de nombre para registrar los scores. */
+.go-nombre {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 2px solid var(--acento, #E8704E);
+  border-radius: var(--radio);
+  background: var(--bg);
+  color: var(--acento-claro, #FFC9B8);
+  font: var(--texto-m);
+  text-align: center;
+}
+.go-nombre::placeholder { color: var(--texto-apagado); }
+
+/* Tabla de mejores puntajes (con nombre). */
+.go-tablero {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  width: 100%;
+  text-align: left;
+}
+.go-tablero li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font: var(--texto-s);
+  color: var(--texto-apagado-fuerte);
+  padding: 3px 2px;
+}
+.go-tablero li .p { color: var(--acento-vivo, #FF8764); font-variant-numeric: tabular-nums; }
+
 .go-reiniciar {
   margin-top: 12px;
   width: 100%;

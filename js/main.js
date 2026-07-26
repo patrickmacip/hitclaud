@@ -44,7 +44,7 @@
   const elActual = document.querySelector('.marcador--actual .valor');
   function actualizarMarcador() { elActual.textContent = U.abreviarNumero(marcador.puntos); }
 
-  // Récord POR MODO: llaves separadas para 60 min y Relax mode. `record`
+  // Récord POR MODO: llaves separadas para 60 seg y Relax mode. `record`
   // apunta al del modo ACTIVO; la celda "Record" muestra ese. Preferencias intactas.
   const almacen = (function () { try { return window.localStorage; } catch (e) { return null; } })();
   const record60 = U.crearRecord(almacen, 'hitclaud.record.v3.60', 500);
@@ -53,12 +53,40 @@
   const elRecord = document.querySelector('.marcador--record .valor');
   function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record.valor); }
 
+  // LOGIN por NOMBRE (sin backend: local). El nombre se guarda y los scores se
+  // registran con él en un tablero local por modo (hosting estático).
+  const NOMBRE_KEY = 'hitclaud.nombre';
+  const elNombre = document.getElementById('nombre');
+  const elTablero = document.getElementById('tablero');
+  let nombre = '';
+  try { nombre = U.nombreLimpio(almacen && almacen.getItem(NOMBRE_KEY)); } catch (e) { nombre = 'Player'; }
+  // Muestra el nombre guardado (si el jugador ya jugó); si es el default, deja el placeholder.
+  if (elNombre && nombre && nombre !== 'Player') elNombre.value = nombre;
+  function claveScores(modo) { return 'hitclaud.scores.v1.' + modo; }
+  function guardarNombre() {
+    nombre = U.nombreLimpio(elNombre ? elNombre.value : nombre);
+    try { if (almacen) almacen.setItem(NOMBRE_KEY, nombre); } catch (e) { /* privado/cuota */ }
+  }
+  // Dibuja el top-5 (con nombre) del modo en el overlay.
+  function renderTablero(modo) {
+    if (!elTablero) return;
+    const lista = U.leerScores(almacen, claveScores(modo));
+    elTablero.innerHTML = '';
+    for (let i = 0; i < lista.length; i++) {
+      const li = document.createElement('li');
+      const n = document.createElement('span'); n.textContent = (i + 1) + '. ' + U.nombreLimpio(lista[i].nombre);
+      const p = document.createElement('span'); p.className = 'p'; p.textContent = U.abreviarNumero(lista[i].puntos);
+      li.appendChild(n); li.appendChild(p); elTablero.appendChild(li);
+    }
+    elTablero.classList.toggle('oculto', lista.length === 0);
+  }
+
   // ── Modo de juego + ciclo de partida ───────────────────────────────
-  // PANTALLA DE INICIO (overlay): elegís "60 min" o "Relax mode"; aparece al
-  // cargar y al terminar una partida. En 60 min corre una cuenta regresiva y al
+  // PANTALLA DE INICIO (overlay): elegís "60 seg" o "Relax mode"; aparece al
+  // cargar y al terminar una partida. En 60 seg corre una cuenta regresiva y al
   // llegar a 0 termina la partida. En Relax mode, sólo termina al tocar un rojo.
   const elGameOver = document.getElementById('gameover');
-  const DURACION_60 = 60 * 60 * 1000; // "60 min" = 60 minutos
+  const DURACION_60 = 60 * 1000; // modo cronometrado = 60 SEGUNDOS
   function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
@@ -75,6 +103,7 @@
     marcarActividad();
   }
   function iniciarPartida(modo) {
+    guardarNombre();              // fija el nombre del jugador para esta partida
     modoJuego = modo;
     record = (modo === '60') ? record60 : recordLibre;
     actualizarRecord();
@@ -90,16 +119,20 @@
     jugando = false;
     record.flush(performance.now());
     const esRecord = marcador.puntos >= record.valor && marcador.puntos > 0;
+    // Registra el score CON NOMBRE en el tablero local del modo y lo muestra.
+    if (marcador.puntos > 0) U.guardarScore(almacen, claveScores(modoJuego), nombre, marcador.puntos, 5);
+    renderTablero(modoJuego);
     elGameOver.querySelector('.go-score').classList.remove('oculto');
     elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(marcador.puntos);
     elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
     elGameOver.classList.remove('oculto');
   }
-  // Pantalla de inicio al cargar (sin score todavía).
+  // Pantalla de inicio al cargar (sin score ni tablero todavía).
   function mostrarInicio() {
     jugando = false;
     elGameOver.querySelector('.go-score').classList.add('oculto');
     elGameOver.querySelector('.go-record').classList.add('oculto');
+    if (elTablero) elTablero.classList.add('oculto');
     elGameOver.classList.remove('oculto');
   }
   const btn60 = document.getElementById('jugar60');
@@ -108,8 +141,8 @@
   if (btnLibre) btnLibre.addEventListener('click', function () { iniciarPartida('libre'); });
 
   // Retardo del próximo spawn de NARANJAS: rango base por score (rangoVigente)
-  // con caos superpuesto (ráfagas/pausas), recortado a ≤300ms (SPAWN_GAP_MAX): la
-  // pantalla nunca queda más de 300ms sin aparición de un target (habiendo lugar).
+  // con caos superpuesto (ráfagas/pausas), recortado a ≤600ms (SPAWN_GAP_MAX): la
+  // pantalla nunca queda más de 600ms sin aparición de un target (habiendo lugar).
   function retardoNaranja(ahora) {
     const base = P.rangoVigente(ritmo, marcador.puntos, ahora);
     return Math.min(SPAWN_GAP_MAX, P.retardoCaotico(base, caosSpawn, Math.random));
@@ -199,10 +232,9 @@
   // JUNTOS). Si no hay lugar, el generador NO descarta el turno: espera con su
   // timer en el pasado y dispara en cuanto se libera (el ritmo se conserva).
   const MAX_EN_PANTALLA = 2;
-  // TIEMPO MÁXIMO entre apariciones de naranjas: 300ms. La pantalla nunca queda
-  // más de 300ms sin aparición de un target (cuando hay lugar). Las ráfagas cortas
-  // se conservan; las pausas se recortan a 300.
-  const SPAWN_GAP_MAX = 300;
+  // TIEMPO entre apariciones de naranjas: hasta 600ms (duplicado de 300 → menos
+  // acelerado). La pantalla no queda más de 600ms sin un target (habiendo lugar).
+  const SPAWN_GAP_MAX = 600;
 
   // ── ROJO (parpadea y termina la partida) ───────────────────────────
   // Sale como cualquier target (crearTarget: 4 orígenes, velocidad del rango).
@@ -268,7 +300,7 @@
   // Ciclo de partida: `jugando` false = overlay de inicio/fin arriba (congelado).
   let jugando = false;              // ¿hay una partida en curso?
   let modoJuego = null;             // '60' | 'libre'
-  let tiempoRestante = 0;           // ms restantes (modo 60 min) — se decrementa con dt SOLO jugando
+  let tiempoRestante = 0;           // ms restantes (modo 60 seg) — se decrementa con dt SOLO jugando
                                     // (así la pausa DETIENE el reloj de verdad; 0/N-A en Relax).
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
@@ -338,7 +370,9 @@
     t.grande = true;
     t.vx /= GRANDE_LENTO;
     t.vy /= GRANDE_LENTO;
-    t.gravedad = F.FISICA.G_TARGET / (GRANDE_LENTO * GRANDE_LENTO); // g/9
+    // Divide la gravedad YA existente (que crearTarget dejó con el factor de −40%)
+    // por 9 → conserva el MISMO arco pero 3× de tiempo de vuelo respecto a un normal.
+    t.gravedad = t.gravedad / (GRANDE_LENTO * GRANDE_LENTO);
     t.radio = Math.max(GRANDE_COLS, GRANDE_FILAS) * 4 + 12; // margen de salida ≈ media diagonal
     t.vidaMax = F.FISICA.VIDA_MAX_MS * GRANDE_LENTO; // vuela 3× más lento → vive 3× más
     t.pesoExtra = GRANDE_PESO;                       // masa ×80 → el impacto casi no lo desvía
@@ -513,7 +547,7 @@
   if (btnReiniciar) btnReiniciar.addEventListener('click', function () {
     pausado = false;
     if (elPausa) elPausa.classList.add('oculto');
-    mostrarInicio(); // jugando = false → overlay de selección (60 min / Relax mode)
+    mostrarInicio(); // jugando = false → overlay de selección (60 seg / Relax mode)
   });
 
   // FUNDACIONAL: "puedes bloquear sin temor a perder tu progreso". Al ocultarse
@@ -873,7 +907,7 @@
       ctx.restore();
     }
 
-    // TEMPORIZADOR (modo 60 min): cuenta regresiva "M:SS" GRANDE top-center, en su
+    // TEMPORIZADOR (modo 60 seg): cuenta regresiva "M:SS" GRANDE top-center, en su
     // propia banda (bajo la barra, encima del badge y del monto → sin encimarse).
     // Se pone rojo y pulsa en los últimos 10s. En libre no se dibuja.
     if (jugando && modoJuego === '60') {
@@ -981,10 +1015,10 @@
   window.addEventListener('resize', redimensionar);
   redimensionar();
   actualizarMarcador();  // arranca en 0 (no el placeholder del HTML)
-  actualizarRecord();    // récord del modo por defecto (60 min) hasta elegir
+  actualizarRecord();    // récord del modo por defecto (60 seg) hasta elegir
   marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
   escalada = P.crearEscalada(performance.now(), Math.random); // estado inicial válido
-  mostrarInicio();       // pantalla de inicio: elegí modo (60 min / Relax) para jugar
+  mostrarInicio();       // pantalla de inicio: elegí modo (60 seg / Relax) para jugar
   arrancarBucle();       // el bucle corre (congelado hasta elegir modo)
 
   if ('serviceWorker' in navigator) {

@@ -55,10 +55,12 @@ console.log('\n=== ARCO DENTRO DE LA PANTALLA: ningún target cruza el techo ===
   }
   console.log(`  ápice más alto (min y): ${apexMasAlto.toFixed(0)}px · cruzaron el techo: ${cruzaron}`);
   chk('ninguno cruza el techo (sube y baja en pantalla)', cruzaron === 0);
-  // El grande también (el recorte de ápice se conserva con v/3, g/9).
-  const g = F.crearTarget(VP, 10, 8); g.vx /= 3; g.vy /= 3; g.gravedad = F.FISICA.G_TARGET / 9; g.vidaMax = 18000; g.radio = 52;
+  // El grande inferior también arquea DENTRO de la pantalla (espejo de generarGrande:
+  // divide la gravedad YA factorizada por 9, no la hardcodea).
+  let g; do { g = F.crearTarget(VP, 10, 8); } while (g.origen !== 'inferior');
+  g.vx /= 3; g.vy /= 3; g.gravedad = g.gravedad / 9; g.vidaMax = 18000; g.radio = 52;
   let minYg = g.y, tt = 0; while (g.viva && tt < 30000) { F.paso(g, 16, VP); minYg = Math.min(minYg, g.y); tt += 16; }
-  chk(`el grande también arquea en pantalla (ápice y=${minYg.toFixed(0)} > 0)`, minYg > 0);
+  chk(`el grande inferior arquea en pantalla (ápice y=${minYg.toFixed(0)} > 0)`, minYg > 0);
 }
 
 console.log('\n=== TODO LO QUE SUBE, BAJA: el target no muere al salir por ARRIBA ===');
@@ -136,8 +138,9 @@ console.log('\n=== 3× más lento: mismo arco, ~3× de tiempo de vuelo ===');
 {
   let base; do { base = F.crearTarget(VP); } while (base.origen !== 'inferior');
   const normal = Object.assign({}, base, { celdas: base.celdas.slice() });
+  // Espejo de generarGrande: v/3 y la gravedad YA existente /9 (misma que el normal).
   const grande = Object.assign({}, base, { celdas: base.celdas.slice(),
-    vx: base.vx / 3, vy: base.vy / 3, gravedad: F.FISICA.G_TARGET / 9, vidaMax: F.FISICA.VIDA_MAX_MS * 3 });
+    vx: base.vx / 3, vy: base.vy / 3, gravedad: base.gravedad / 9, vidaMax: F.FISICA.VIDA_MAX_MS * 3 });
   function vuelo(o) { let apex = o.y, t = 0; while (o.viva && t < 30000) { F.paso(o, 16, VP); apex = Math.min(apex, o.y); t += 16; } return { t: t, apex: VP.h - apex }; }
   const vn = vuelo(normal), vg = vuelo(grande);
   chk('mismo arco (apex Δ<40)', Math.abs(vn.apex - vg.apex) < 40);

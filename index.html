@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#121216">
-  <title>hitclaud</title>
+  <title>hitcloude</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -38,10 +38,13 @@
 
   <div id="gameover" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
-      <p class="go-titulo">hitclaud</p>
+      <p class="go-titulo">hitcloude</p>
       <p class="go-score oculto"><span class="etiqueta">Score</span><span class="valor">0</span></p>
       <p class="go-record oculto">¡Nuevo récord!</p>
-      <button id="jugar60" class="go-reiniciar">60 min</button>
+      <input id="nombre" class="go-nombre" type="text" maxlength="12" autocomplete="off"
+             placeholder="Tu nombre" aria-label="Tu nombre">
+      <ol id="tablero" class="go-tablero oculto" aria-label="Mejores puntajes"></ol>
+      <button id="jugar60" class="go-reiniciar">60 seg</button>
       <button id="jugarLibre" class="go-reiniciar go-modo-libre">Relax mode</button>
     </div>
   </div>

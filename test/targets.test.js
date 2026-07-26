@@ -25,6 +25,9 @@ console.log('\n=== Velocidad VARIABLE por target (lentos y rápidos mezclados) =
   console.log(`  velocidad px/ms: min ${min.toFixed(2)} · mediana ${med.toFixed(2)} · max ${max.toFixed(2)}`);
   chk('hay spread real (max ≥ 2× min)', max >= 2 * min);
   chk('todas dentro de un rango jugable (0.05–2.0 px/ms)', min > 0.05 && max < 2.0);
+  // −40%: VEL_FACTOR aplicado → velocidades notablemente más lentas (max < 1.2).
+  chk('VEL_FACTOR = 0.6 (−40%)', F.LANZA.VEL_FACTOR === 0.6);
+  chk('velocidades reducidas (max < 1.2, "van más lento")', max < 1.2);
 }
 
 console.log('\n=== Cada origen ENTRA al área jugable y es VISIBLE ≥700ms (alcanzable) ===');

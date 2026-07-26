@@ -84,6 +84,10 @@
     // que el ÁPICE quede al menos APEX_MARGEN px por debajo del techo → el arco
     // (subir y bajar) sucede DENTRO del rango visual, nunca se va por arriba.
     APEX_MARGEN: 40,
+    // VELOCIDAD −40%: cada target va 40% más lento. Se escala la velocidad ×0.6 y
+    // la gravedad ×0.36 (=0.6²) → el ARCO no cambia (ápice ∝ v²/g inalterado), pero
+    // se recorre 40% más lento (tiempo ∝ v/g → ×1/0.6). Se ve claramente más lento.
+    VEL_FACTOR: 0.6,
   };
 
   function largoTrazo(puntos) {
@@ -204,6 +208,11 @@
       vx = -rango(LANZA.LAT_VX);    // hacia la izquierda (interior)
       vy = -rango(LANZA.LAT_VY);
     }
+
+    // VELOCIDAD −40%: escala v×0.6 y gravedad×0.36 → mismo arco, 40% más lento.
+    vx *= LANZA.VEL_FACTOR;
+    vy *= LANZA.VEL_FACTOR;
+    gravedad *= LANZA.VEL_FACTOR * LANZA.VEL_FACTOR;
 
     // RECORTE DE ÁPICE: si sube (vy<0), limita la velocidad para que el punto más
     // alto quede al menos APEX_MARGEN px bajo el techo → el arco sube y baja DENTRO

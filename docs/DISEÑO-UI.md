@@ -53,18 +53,21 @@ puntos (fallo o inactividad):
 
 ## Modos de partida (pantalla de inicio)
 
-Overlay al cargar y al terminar una partida, con dos botones:
+Overlay al cargar y al terminar una partida, con **campo de nombre** (login) y dos botones:
 
-- **60 min** — cuenta regresiva (top-center "M:SS", roja y pulsante en los
+- **60 seg** — cuenta regresiva (top-center "M:SS", roja y pulsante en los
   últimos 10s); al llegar a 0, termina la partida y vuelve al overlay con el score.
 - **Relax mode** — sin reloj; sólo termina al tocar un rojo.
 
-El **récord es por modo** (llaves `hitclaud.record.v3.60` y `.libre`); la celda
-"Record" muestra la del modo activo.
+**Login por nombre + tabla de scores (local):** el jugador escribe su nombre
+(`hitclaud.nombre`); al terminar, el score se registra CON el nombre en un tablero
+top-5 por modo (`hitclaud.scores.v1.<modo>`) que se muestra en el overlay. Sin
+backend (hosting estático) → el tablero es por dispositivo. El **récord** por modo
+(`hitclaud.record.v3.*`) sigue en la celda "Record".
 
 **Menú de PAUSA:** el botón de pausa (barra) congela la partida y abre un menú con
 **Continuar** (reanuda) y **Reiniciar** (vuelve al overlay de selección de modo).
-La pausa **detiene el reloj** de verdad: en 60 min el tiempo se guarda como
+La pausa **detiene el reloj** de verdad: en 60 seg el tiempo se guarda como
 `tiempoRestante` y sólo decrementa mientras se juega (no consume el tiempo pausado).
 
 ## Plataformas (dos modos de tiro)
@@ -90,9 +93,10 @@ Detección por puntero (`matchMedia('(pointer: fine)')`):
 ## Spawn caótico y escalada de rojos
 
 - **Tope duro:** máximo **2 targets en pantalla** (naranjas + rojos + grande, JUNTOS).
-- **Tiempo máximo 300ms:** el spawner de naranjas se recorta a ≤300ms
-  (`SPAWN_GAP_MAX`) → la pantalla nunca queda más de 300ms sin aparición de un
-  target (habiendo lugar). Las ráfagas cortas se conservan.
+- **Tiempo entre apariciones ≤600ms:** el spawner de naranjas se recorta a ≤600ms
+  (`SPAWN_GAP_MAX`, duplicado de 300 → menos acelerado). Las ráfagas se conservan.
+- **Velocidad −40%:** cada target va 40% más lento (`LANZA.VEL_FACTOR` 0.6 en la
+  velocidad y 0.36 en la gravedad → mismo arco, recorrido 40% más lento).
 - **Todo lo que sube, baja EN PANTALLA:** el ápice de cada lanzamiento se recorta
   (`APEX_MARGEN` 40px) para que el arco (subir y bajar) suceda DENTRO del rango
   visual — ningún target cruza el techo. Como red de seguridad, un target empujado
