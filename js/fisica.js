@@ -80,6 +80,10 @@
     SUP_VY: [0.0, 0.14],      // entra MUY lento
     SUP_GRAV_FRAC: 0.6,       // caída más lenta desde arriba → linger ≥1s, alcanzable
     VEL_ROT: [-0.003, 0.003], // rad/ms, ambos sentidos, giro constante sin torque
+    // TODO LO QUE SUBE, BAJA EN PANTALLA: se recorta la velocidad hacia arriba para
+    // que el ÁPICE quede al menos APEX_MARGEN px por debajo del techo → el arco
+    // (subir y bajar) sucede DENTRO del rango visual, nunca se va por arriba.
+    APEX_MARGEN: 40,
   };
 
   function largoTrazo(puntos) {
@@ -199,6 +203,20 @@
       y = rango(LANZA.LAT_Y) * h;
       vx = -rango(LANZA.LAT_VX);    // hacia la izquierda (interior)
       vy = -rango(LANZA.LAT_VY);
+    }
+
+    // RECORTE DE ÁPICE: si sube (vy<0), limita la velocidad para que el punto más
+    // alto quede al menos APEX_MARGEN px bajo el techo → el arco sube y baja DENTRO
+    // de la pantalla (no se va por arriba). Con la gravedad reducida del grande
+    // (v/3, g/9) el ápice se conserva, así que el recorte sirve para ambos.
+    if (vy < 0) {
+      const subidaMax = y - LANZA.APEX_MARGEN; // px que puede subir sin cruzar el techo
+      if (subidaMax <= 0) {
+        vy = 0;
+      } else {
+        const vyMax = Math.sqrt(2 * gravedad * subidaMax);
+        if (-vy > vyMax) vy = -vyMax;
+      }
     }
 
     // celdas: retícula cols×filas de cubos de 8px (idx = fila*cols + col). El cubo

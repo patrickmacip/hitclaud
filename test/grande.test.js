@@ -20,7 +20,7 @@ console.log('=== Doble de tamaño = MÁS cubos de 8px (grilla 10×8), no cubos g
 
 console.log('\n=== MUCHO más PESADO: el impacto casi no lo desvía (no como globo) ===');
 {
-  const GRANDE_PESO = 40;
+  const GRANDE_PESO = 80;
   // Grande moviéndose; recibe un golpe frontal FUERTE. El desvío debe ser mínimo.
   const g = F.crearTarget(VP, GRANDE_COLS, GRANDE_FILAS); g.x = 200; g.y = 300; g.rot = 0; g.grande = true;
   g.vx = 0.5; g.vy = -0.5;
@@ -40,7 +40,25 @@ console.log('\n=== MUCHO más PESADO: el impacto casi no lo desvía (no como glo
   F.resolverImpacto(b2, gl);
   const desvioL = Math.abs(Math.hypot(gl.vx, gl.vy) - v0l);
   console.log(`  grande liviano: Δ${desvioL.toFixed(3)} px/ms`);
-  chk('el peso extra reduce mucho el desvío (pesado ≪ liviano)', desvio < desvioL * 0.3);
+  chk('el peso extra reduce mucho el desvío (pesado ≪ liviano)', desvio < desvioL * 0.2);
+}
+
+console.log('\n=== ARCO DENTRO DE LA PANTALLA: ningún target cruza el techo ===');
+{
+  let cruzaron = 0, apexMasAlto = Infinity;
+  for (let i = 0; i < 6000; i++) {
+    const t = F.crearTarget(VP);
+    let minY = t.y, tt = 0;
+    while (t.viva && tt < 12000) { F.paso(t, 16, VP); minY = Math.min(minY, t.y); tt += 16; }
+    apexMasAlto = Math.min(apexMasAlto, minY);
+    if (minY < -t.radio - 1) cruzaron++;   // se fue por arriba del todo
+  }
+  console.log(`  ápice más alto (min y): ${apexMasAlto.toFixed(0)}px · cruzaron el techo: ${cruzaron}`);
+  chk('ninguno cruza el techo (sube y baja en pantalla)', cruzaron === 0);
+  // El grande también (el recorte de ápice se conserva con v/3, g/9).
+  const g = F.crearTarget(VP, 10, 8); g.vx /= 3; g.vy /= 3; g.gravedad = F.FISICA.G_TARGET / 9; g.vidaMax = 18000; g.radio = 52;
+  let minYg = g.y, tt = 0; while (g.viva && tt < 30000) { F.paso(g, 16, VP); minYg = Math.min(minYg, g.y); tt += 16; }
+  chk(`el grande también arquea en pantalla (ápice y=${minYg.toFixed(0)} > 0)`, minYg > 0);
 }
 
 console.log('\n=== TODO LO QUE SUBE, BAJA: el target no muere al salir por ARRIBA ===');

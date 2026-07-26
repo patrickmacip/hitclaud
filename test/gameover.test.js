@@ -44,3 +44,26 @@ console.log('\n=== Récord POR MODO: llaves separadas, arrancan en 0 ===');
   console.log(`  60s=${almacen._d['hitclaud.record.v3.60']}  libre=${almacen._d['hitclaud.record.v3.libre']}  ${almacen._d['hitclaud.record.v3.60'] === '500' && almacen._d['hitclaud.record.v3.libre'] === '80' ? 'OK ✓' : 'NO ✗'}`);
   console.log(`  son independientes (una no pisa a la otra): ${r60.valor === 500 && rLibre.valor === 80 ? 'OK ✓' : 'NO ✗'}`);
 }
+
+console.log('\n=== La PAUSA detiene el reloj (modo 60 min) ===');
+{
+  // Espejo de la lógica: tiempoRestante SÓLO decrementa cuando jugando && !pausado.
+  function tick(estado, dt) {
+    if (estado.pausado || !estado.jugando) return; // el bucle retorna antes (freeze)
+    if (estado.modo === '60') estado.tiempoRestante -= dt;
+  }
+  const e = { jugando: true, pausado: false, modo: '60', tiempoRestante: 60000 };
+  for (let i = 0; i < 60; i++) tick(e, 16);            // ~1s jugando
+  const trasJugar = e.tiempoRestante;
+  e.pausado = true;
+  for (let i = 0; i < 600; i++) tick(e, 16);           // ~10s en pausa
+  const trasPausa = e.tiempoRestante;
+  console.log(`  tras 1s jugando: ${trasJugar}ms · tras 10s en pausa: ${trasPausa}ms`);
+  chk('el reloj corrió jugando', trasJugar < 60000 && trasJugar >= 60000 - 16 * 61);
+  chk('la pausa NO consume tiempo (reloj congelado)', trasPausa === trasJugar);
+  e.pausado = false;
+  tick(e, 16);
+  chk('al continuar, el reloj vuelve a correr', e.tiempoRestante < trasPausa);
+}
+
+function chk(nombre, ok) { console.log(`  ${nombre}  ${ok ? 'OK ✓' : 'NO ✗'}`); }

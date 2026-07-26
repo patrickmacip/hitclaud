@@ -64,6 +64,8 @@ El **récord es por modo** (llaves `hitclaud.record.v3.60` y `.libre`); la celda
 
 **Menú de PAUSA:** el botón de pausa (barra) congela la partida y abre un menú con
 **Continuar** (reanuda) y **Reiniciar** (vuelve al overlay de selección de modo).
+La pausa **detiene el reloj** de verdad: en 60 min el tiempo se guarda como
+`tiempoRestante` y sólo decrementa mientras se juega (no consume el tiempo pausado).
 
 ## Plataformas (dos modos de tiro)
 
@@ -91,10 +93,11 @@ Detección por puntero (`matchMedia('(pointer: fine)')`):
 - **Tiempo máximo 300ms:** el spawner de naranjas se recorta a ≤300ms
   (`SPAWN_GAP_MAX`) → la pantalla nunca queda más de 300ms sin aparición de un
   target (habiendo lugar). Las ráfagas cortas se conservan.
-- **Todo lo que sube, baja:** un target que sale por ARRIBA no muere — la gravedad
-  lo hace caer de vuelta a la pantalla (mientras su x siga sobre ella). Muere sólo
-  al salir por los LADOS o por ABAJO (su caída ya no cruzaría la pantalla), o por
-  vida máx. Las bolitas/hitballs sí mueren al salir por cualquier borde.
+- **Todo lo que sube, baja EN PANTALLA:** el ápice de cada lanzamiento se recorta
+  (`APEX_MARGEN` 40px) para que el arco (subir y bajar) suceda DENTRO del rango
+  visual — ningún target cruza el techo. Como red de seguridad, un target empujado
+  por encima del techo (golpe) no muere: la gravedad lo hace caer de vuelta si su
+  x sigue sobre la pantalla (muere por lados/abajo). Las hitballs sí mueren al salir.
 - **Multi-origen:** los targets salen de los **4 lados** (inferior, superior,
   lateral-izq, lateral-der) con **velocidad variable** por target. `crearTarget`
   (fisica.js) elige origen y velocidad; superior cae con gravedad reducida para
@@ -105,8 +108,8 @@ Detección por puntero (`matchMedia('(pointer: fine)')`):
 - **Target GRANDE:** un naranja extra de **doble tamaño** hecho con más cubos de
   8px (**grilla 10×8 = 80 cubos**, el doble en cada eje del 5×4). **3× más lento**
   (velocidad/3 + gravedad/9 → mismo arco, 3× de tiempo de vuelo; vida útil ×3) y
-  **MUY pesado** (`pesoExtra` 40 → masa ~300: el impacto casi no lo desvía, se
-  siente pesado, no como globo). **NO se destruye de un hit**: cada golpe
+  **EXTREMADAMENTE pesado** (`pesoExtra` 80 → masa ~600: el impacto casi no lo
+  desvía, se siente pesado, no como globo). **NO se destruye de un hit**: cada golpe
   demuele la **ZONA** que golpea (¼ = `ceil(vivosMax/4)` = 20 cubos cercanos al
   impacto) → exige **mín. 4 golpes**. El one-shot por golpe fuerte se desactiva
   sólo para el grande (el normal se sigue destruyendo de un tiro potente). Puntúa

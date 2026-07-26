@@ -79,7 +79,7 @@
     record = (modo === '60') ? record60 : recordLibre;
     actualizarRecord();
     reiniciarEstado();
-    finPartida = (modo === '60') ? performance.now() + DURACION_60 : 0;
+    tiempoRestante = (modo === '60') ? DURACION_60 : 0;
     jugando = true;
     elGameOver.classList.add('oculto');
   }
@@ -219,7 +219,7 @@
   const GRANDE_COLS = 10;
   const GRANDE_FILAS = 8;
   const GRANDE_LENTO = 3;
-  const GRANDE_PESO = 40;       // factor de masa extra: MUY pesado (desvío del impacto mínimo)
+  const GRANDE_PESO = 80;       // factor de masa extra: EXTREMADAMENTE pesado (el impacto casi no lo desvía)
   const GRANDE_MIN_MS = 8000;   // tiempo MÍNIMO entre apariciones
   const GRANDE_JITTER_MS = 4000; // variación extra (siempre ≥ mínimo)
 
@@ -268,7 +268,8 @@
   // Ciclo de partida: `jugando` false = overlay de inicio/fin arriba (congelado).
   let jugando = false;              // ¿hay una partida en curso?
   let modoJuego = null;             // '60' | 'libre'
-  let finPartida = 0;               // timestamp de fin (modo 60 min; 0 en libre)
+  let tiempoRestante = 0;           // ms restantes (modo 60 min) — se decrementa con dt SOLO jugando
+                                    // (así la pausa DETIENE el reloj de verdad; 0/N-A en Relax).
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
   let sacudidaHasta = 0;      // timestamp fin de la micro-sacudida de pantalla
@@ -340,7 +341,7 @@
     t.gravedad = F.FISICA.G_TARGET / (GRANDE_LENTO * GRANDE_LENTO); // g/9
     t.radio = Math.max(GRANDE_COLS, GRANDE_FILAS) * 4 + 12; // margen de salida ≈ media diagonal
     t.vidaMax = F.FISICA.VIDA_MAX_MS * GRANDE_LENTO; // vuela 3× más lento → vive 3× más
-    t.pesoExtra = GRANDE_PESO;                       // masa ×40 → desvío del impacto mínimo
+    t.pesoExtra = GRANDE_PESO;                       // masa ×80 → el impacto casi no lo desvía
     t.masa = F.FISICA.MASA_TARGET * (t.vivos / 20) * GRANDE_PESO;
     targets.push(t);
   }
@@ -545,8 +546,12 @@
     // actualización (física, spawn, colisión, cobro); solo re-dibuja el estado.
     if (pausado || !jugando) { cobrando = false; dibujar(); return; }
 
-    // Modo 60 MIN: al agotarse el tiempo, termina la partida.
-    if (modoJuego === '60' && t >= finPartida) { terminarPartida(); dibujar(); return; }
+    // Modo 60 MIN: el reloj SÓLO corre cuando se juega (esta línea no se alcanza si
+    // está pausado → la pausa lo detiene). Al agotarse, termina la partida.
+    if (modoJuego === '60') {
+      tiempoRestante -= dt;
+      if (tiempoRestante <= 0) { tiempoRestante = 0; terminarPartida(); dibujar(); return; }
+    }
 
     // Costo de INACTIVIDAD: tras la gracia, cada segundo quieto cuesta el 25%
     // del castigo del tramo actual. El reloj NO corre si el documento está
@@ -872,7 +877,7 @@
     // propia banda (bajo la barra, encima del badge y del monto → sin encimarse).
     // Se pone rojo y pulsa en los últimos 10s. En libre no se dibuja.
     if (jugando && modoJuego === '60') {
-      const restante = Math.max(0, finPartida - nowP);
+      const restante = Math.max(0, tiempoRestante);
       const seg = Math.ceil(restante / 1000);
       const txt = Math.floor(seg / 60) + ':' + (seg % 60 < 10 ? '0' + (seg % 60) : seg % 60);
       const urgente = restante <= 10000;
