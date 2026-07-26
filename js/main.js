@@ -76,19 +76,43 @@
       if (e.key === 'Enter') { e.preventDefault(); guardarNombre(); elNombre.blur(); }
     });
   }
-  // Dibuja el top-5 (con nombre) del modo en el overlay.
-  function renderTablero(modo) {
-    if (!elTablero) return;
-    const lista = U.leerScores(almacen, claveScores(modo));
-    elTablero.innerHTML = '';
+  // Pinta una lista <ol> con [{nombre, puntos}] (fuente única). `vacioTxt` opcional
+  // para páginas donde el vacío debe verse ("— sin puntajes —").
+  function pintarLista(el, lista, vacioTxt) {
+    if (!el) return;
+    el.innerHTML = '';
+    if (lista.length === 0 && vacioTxt) {
+      const li = document.createElement('li'); li.textContent = vacioTxt; el.appendChild(li); return;
+    }
     for (let i = 0; i < lista.length; i++) {
       const li = document.createElement('li');
       const n = document.createElement('span'); n.textContent = (i + 1) + '. ' + U.nombreLimpio(lista[i].nombre);
       const p = document.createElement('span'); p.className = 'p'; p.textContent = U.abreviarNumero(lista[i].puntos);
-      li.appendChild(n); li.appendChild(p); elTablero.appendChild(li);
+      li.appendChild(n); li.appendChild(p); el.appendChild(li);
     }
+  }
+  // Tablero del overlay de fin (top-5 del modo jugado); se oculta si está vacío.
+  function renderTablero(modo) {
+    if (!elTablero) return;
+    const lista = U.leerScores(almacen, claveScores(modo));
+    pintarLista(elTablero, lista);
     elTablero.classList.toggle('oculto', lista.length === 0);
   }
+
+  // PÁGINA GENERAL DE RECORDS: top-5 con nombre de AMBOS modos.
+  const elRecords = document.getElementById('records');
+  const elRec60 = document.getElementById('rec60');
+  const elRecLibre = document.getElementById('recLibre');
+  function mostrarRecords() {
+    pintarLista(elRec60, U.leerScores(almacen, claveScores('60')), '— sin puntajes —');
+    pintarLista(elRecLibre, U.leerScores(almacen, claveScores('libre')), '— sin puntajes —');
+    elGameOver.classList.add('oculto');
+    if (elRecords) elRecords.classList.remove('oculto');
+  }
+  const btnVerRecords = document.getElementById('verRecords');
+  const btnVolverRecords = document.getElementById('volverRecords');
+  if (btnVerRecords) btnVerRecords.addEventListener('click', mostrarRecords);
+  if (btnVolverRecords) btnVolverRecords.addEventListener('click', function () { if (elRecords) elRecords.classList.add('oculto'); mostrarInicio(); });
 
   // ── Modo de juego + ciclo de partida ───────────────────────────────
   // PANTALLA DE INICIO (overlay): elegís "60 seg" o "Relax mode"; aparece al

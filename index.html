@@ -46,6 +46,7 @@
       <ol id="tablero" class="go-tablero oculto" aria-label="Mejores puntajes"></ol>
       <button id="jugar60" class="go-reiniciar">60 seg</button>
       <button id="jugarLibre" class="go-reiniciar go-modo-libre">Relax mode</button>
+      <button id="verRecords" class="go-link" type="button">Ver records</button>
     </div>
   </div>
 
@@ -54,6 +55,17 @@
       <p class="go-titulo">Pausa</p>
       <button id="continuar" class="go-reiniciar">Continuar</button>
       <button id="reiniciar" class="go-reiniciar go-modo-libre">Reiniciar</button>
+    </div>
+  </div>
+
+  <div id="records" class="oculto" role="dialog" aria-modal="true">
+    <div class="go-panel">
+      <p class="go-titulo">Records</p>
+      <p class="rec-modo">60 seg</p>
+      <ol id="rec60" class="go-tablero"></ol>
+      <p class="rec-modo">Relax mode</p>
+      <ol id="recLibre" class="go-tablero"></ol>
+      <button id="volverRecords" class="go-reiniciar">Volver</button>
     </div>
   </div>
 

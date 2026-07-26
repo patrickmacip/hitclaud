@@ -143,9 +143,9 @@ body {
 .oculto { display: none; }
 /* Una clase utilitaria (0-0-1-0) NO puede anular #gameover{display:flex}
    (ID, 0-1-0-0). Regla ID+clase (0-1-1-0) para que ocultar gane. */
-#gameover.oculto, #pausa.oculto { display: none; }
+#gameover.oculto, #pausa.oculto, #records.oculto { display: none; }
 
-#gameover, #pausa {
+#gameover, #pausa, #records {
   position: fixed;
   inset: 0;
   z-index: 3;
@@ -163,7 +163,31 @@ body {
   text-align: center;
   max-width: 320px;
   width: 100%;
+  max-height: 90vh;      /* la página de records puede ser larga → scrollea dentro */
+  overflow-y: auto;
 }
+
+/* Enlace secundario (Ver records): discreto, sin competir con los botones de modo. */
+.go-link {
+  margin-top: 14px;
+  width: 100%;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  color: var(--acento-claro, #FFC9B8);
+  font: var(--texto-s);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Encabezado de cada modo en la página de records. */
+.rec-modo {
+  margin: 16px 0 6px;
+  font: var(--texto-m);
+  color: var(--acento-vivo, #FF8764);
+  text-align: left;
+}
+.rec-modo:first-of-type { margin-top: 8px; }
 
 .go-titulo {
   font: var(--texto-xl);

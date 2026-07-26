@@ -25,6 +25,17 @@ console.log('\n=== Menú de PAUSA (Continuar / Reiniciar) ===');
   console.log(`  #pausa: ${p}   #continuar: ${cont}   #reiniciar: ${rei}  ${p === 1 && cont === 1 && rei === 1 ? 'OK ✓' : 'NO ✗'}`);
 }
 
+console.log('\n=== Página GENERAL de records (ambos modos) accesible desde el menú ===');
+{
+  const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
+  const rec = (html.match(/id="records"/g) || []).length;
+  const ver = (html.match(/id="verRecords"/g) || []).length;
+  const volver = (html.match(/id="volverRecords"/g) || []).length;
+  const r60 = (html.match(/id="rec60"/g) || []).length;
+  const rLibre = (html.match(/id="recLibre"/g) || []).length;
+  console.log(`  #records:${rec} #verRecords:${ver} #volverRecords:${volver} #rec60:${r60} #recLibre:${rLibre}  ${rec===1&&ver===1&&volver===1&&r60===1&&rLibre===1 ? 'OK ✓' : 'NO ✗'}`);
+}
+
 console.log('\n=== Login: SÓLO campo de nombre con Enter del teclado (sin botón ni leyenda) ===');
 {
   const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');

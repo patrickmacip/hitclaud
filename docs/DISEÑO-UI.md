@@ -60,10 +60,14 @@ Overlay al cargar y al terminar una partida, con **campo de nombre** (login) y d
 - **Relax mode** — sin reloj; sólo termina al tocar un rojo.
 
 **Login por nombre + tabla de scores (local):** el jugador escribe su nombre
-(`hitclaud.nombre`); al terminar, el score se registra CON el nombre en un tablero
-top-5 por modo (`hitclaud.scores.v1.<modo>`) que se muestra en el overlay. Sin
-backend (hosting estático) → el tablero es por dispositivo. El **récord** por modo
+(`hitclaud.nombre`); el **Enter azul del teclado** (`enterkeyhint="done"`) lo
+registra. Al terminar, el score se registra CON el nombre en un tablero top-5 por
+modo (`hitclaud.scores.v1.<modo>`) que se muestra en el overlay de fin. Sin backend
+(hosting estático) → el tablero es por dispositivo. El **récord** por modo
 (`hitclaud.record.v3.*`) sigue en la celda "Record".
+
+**Página GENERAL de records:** botón "Ver records" en el menú → overlay `#records`
+con el top-5 (nombre + puntaje) de **ambos modos** (60 seg y Relax mode) y "Volver".
 
 **Menú de PAUSA:** el botón de pausa (barra) congela la partida y abre un menú con
 **Continuar** (reanuda) y **Reiniciar** (vuelve al overlay de selección de modo).
