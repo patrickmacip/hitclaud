@@ -57,8 +57,6 @@
   // registran con él en un tablero local por modo (hosting estático).
   const NOMBRE_KEY = 'hitclaud.nombre';
   const elNombre = document.getElementById('nombre');
-  const elNombreOk = document.getElementById('nombreOk');
-  const elNombreMsg = document.getElementById('nombreMsg');
   const elTablero = document.getElementById('tablero');
   let nombre = '';
   try { nombre = U.nombreLimpio(almacen && almacen.getItem(NOMBRE_KEY)); } catch (e) { nombre = 'Player'; }
@@ -69,25 +67,15 @@
     nombre = U.nombreLimpio(elNombre ? elNombre.value : nombre);
     try { if (almacen) almacen.setItem(NOMBRE_KEY, nombre); } catch (e) { /* privado/cuota */ }
   }
-  // Muestra el nombre REGISTRADO (feedback). `explicito` = el jugador acaba de
-  // confirmar (botón OK / Enter) → siempre muestra; si no, sólo si hay nombre real.
-  function refrescarNombreMsg(explicito) {
-    if (!elNombreMsg) return;
-    const hay = explicito || (nombre && nombre !== 'Player');
-    elNombreMsg.textContent = hay ? '✓ Registrado: ' + nombre : '';
-    elNombreMsg.classList.toggle('oculto', !hay);
-  }
-  // CONFIRMAR el nombre (botón azul OK o Enter): guarda y muestra la confirmación.
-  function confirmarNombre() { guardarNombre(); refrescarNombreMsg(true); }
-  if (elNombreOk) elNombreOk.addEventListener('click', function () { confirmarNombre(); if (elNombre) elNombre.blur(); });
+  // El Enter AZUL del teclado (enterkeyhint="done") registra el nombre y cierra el
+  // teclado. También se guarda al salir del campo o al cambiar (y al elegir modo).
   if (elNombre) {
     elNombre.addEventListener('change', guardarNombre);
     elNombre.addEventListener('blur', guardarNombre);
     elNombre.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); confirmarNombre(); elNombre.blur(); }
+      if (e.key === 'Enter') { e.preventDefault(); guardarNombre(); elNombre.blur(); }
     });
   }
-  refrescarNombreMsg(false); // al cargar, muestra el nombre ya registrado (si existe)
   // Dibuja el top-5 (con nombre) del modo en el overlay.
   function renderTablero(modo) {
     if (!elTablero) return;
@@ -154,7 +142,6 @@
     elGameOver.querySelector('.go-score').classList.add('oculto');
     elGameOver.querySelector('.go-record').classList.add('oculto');
     if (elTablero) elTablero.classList.add('oculto');
-    refrescarNombreMsg(false); // muestra el nombre ya registrado (si existe)
     elGameOver.classList.remove('oculto');
   }
   const btn60 = document.getElementById('jugar60');
