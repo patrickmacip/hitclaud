@@ -11,7 +11,18 @@ console.log('=== Overlay de inicio/fin con los dos botones de modo ===');
   const b60 = (html.match(/id="jugar60"/g) || []).length;
   const bLibre = (html.match(/id="jugarLibre"/g) || []).length;
   console.log(`  #gameover: ${n}   #jugar60: ${b60}   #jugarLibre: ${bLibre}  ${n === 1 && b60 === 1 && bLibre === 1 ? 'OK ✓' : 'NO ✗'}`);
-  console.log(`  el botón viejo #reiniciar ya no existe: ${(html.match(/id="reiniciar"/g) || []).length === 0 ? 'OK ✓' : 'NO ✗'}`);
+  const et60 = /id="jugar60"[^>]*>([^<]+)</.exec(html);
+  const etLibre = /id="jugarLibre"[^>]*>([^<]+)</.exec(html);
+  console.log(`  etiquetas: "${et60 && et60[1]}" / "${etLibre && etLibre[1]}"  ${et60 && et60[1] === '60 min' && etLibre && etLibre[1] === 'Relax mode' ? 'OK ✓' : 'NO ✗'}`);
+}
+
+console.log('\n=== Menú de PAUSA (Continuar / Reiniciar) ===');
+{
+  const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
+  const p = (html.match(/id="pausa"/g) || []).length;
+  const cont = (html.match(/id="continuar"/g) || []).length;
+  const rei = (html.match(/id="reiniciar"/g) || []).length;
+  console.log(`  #pausa: ${p}   #continuar: ${cont}   #reiniciar: ${rei}  ${p === 1 && cont === 1 && rei === 1 ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== Reiniciar estado: resetea el marcador (record intacto) ===');

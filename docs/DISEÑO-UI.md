@@ -55,12 +55,15 @@ puntos (fallo o inactividad):
 
 Overlay al cargar y al terminar una partida, con dos botones:
 
-- **60 segundos** — cuenta regresiva (top-center "M:SS", roja y pulsante en los
+- **60 min** — cuenta regresiva (top-center "M:SS", roja y pulsante en los
   últimos 10s); al llegar a 0, termina la partida y vuelve al overlay con el score.
-- **Tiempo libre** — sin reloj; sólo termina al tocar un rojo.
+- **Relax mode** — sin reloj; sólo termina al tocar un rojo.
 
 El **récord es por modo** (llaves `hitclaud.record.v3.60` y `.libre`); la celda
 "Record" muestra la del modo activo.
+
+**Menú de PAUSA:** el botón de pausa (barra) congela la partida y abre un menú con
+**Continuar** (reanuda) y **Reiniciar** (vuelve al overlay de selección de modo).
 
 ## Plataformas (dos modos de tiro)
 
@@ -85,9 +88,13 @@ Detección por puntero (`matchMedia('(pointer: fine)')`):
 ## Spawn caótico y escalada de rojos
 
 - **Tope duro:** máximo **2 targets en pantalla** (naranjas + rojos + grande, JUNTOS).
-- **Espera mínima 900ms:** ningún target aparece a menos de 900ms del anterior
-  (gate global `SPAWN_MIN_MS`, cualquier tipo). El caos (ráfagas/pausas) queda por
-  encima de ese piso → aparición pausada.
+- **Tiempo máximo 300ms:** el spawner de naranjas se recorta a ≤300ms
+  (`SPAWN_GAP_MAX`) → la pantalla nunca queda más de 300ms sin aparición de un
+  target (habiendo lugar). Las ráfagas cortas se conservan.
+- **Todo lo que sube, baja:** un target que sale por ARRIBA no muere — la gravedad
+  lo hace caer de vuelta a la pantalla (mientras su x siga sobre ella). Muere sólo
+  al salir por los LADOS o por ABAJO (su caída ya no cruzaría la pantalla), o por
+  vida máx. Las bolitas/hitballs sí mueren al salir por cualquier borde.
 - **Multi-origen:** los targets salen de los **4 lados** (inferior, superior,
   lateral-izq, lateral-der) con **velocidad variable** por target. `crearTarget`
   (fisica.js) elige origen y velocidad; superior cae con gravedad reducida para
@@ -98,7 +105,8 @@ Detección por puntero (`matchMedia('(pointer: fine)')`):
 - **Target GRANDE:** un naranja extra de **doble tamaño** hecho con más cubos de
   8px (**grilla 10×8 = 80 cubos**, el doble en cada eje del 5×4). **3× más lento**
   (velocidad/3 + gravedad/9 → mismo arco, 3× de tiempo de vuelo; vida útil ×3) y
-  **4× más pesado** (masa ∝ cubos). **NO se destruye de un hit**: cada golpe
+  **MUY pesado** (`pesoExtra` 40 → masa ~300: el impacto casi no lo desvía, se
+  siente pesado, no como globo). **NO se destruye de un hit**: cada golpe
   demuele la **ZONA** que golpea (¼ = `ceil(vivosMax/4)` = 20 cubos cercanos al
   impacto) → exige **mín. 4 golpes**. El one-shot por golpe fuerte se desactiva
   sólo para el grande (el normal se sigue destruyendo de un tiro potente). Puntúa

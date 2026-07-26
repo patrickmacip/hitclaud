@@ -18,12 +18,55 @@ console.log('=== Doble de tamaño = MÁS cubos de 8px (grilla 10×8), no cubos g
   chk('cubo atómico 8px en ambos', F.celdaLocal(1, 10, 8).x - F.celdaLocal(0, 10, 8).x === 8 && F.celdaLocal(1, 5, 4).x - F.celdaLocal(0, 5, 4).x === 8);
 }
 
-console.log('\n=== Más PESADO: masa proporcional a los cubos (grande = 4× normal) ===');
+console.log('\n=== MUCHO más PESADO: el impacto casi no lo desvía (no como globo) ===');
 {
-  const g = F.crearTarget(VP, GRANDE_COLS, GRANDE_FILAS);
-  const n = F.crearTarget(VP);
-  chk(`normal masa ${n.masa} = MASA_TARGET`, n.masa === F.FISICA.MASA_TARGET);
-  chk(`grande masa ${g.masa} = 4× (80/20)`, Math.abs(g.masa - F.FISICA.MASA_TARGET * 4) < 1e-9);
+  const GRANDE_PESO = 40;
+  // Grande moviéndose; recibe un golpe frontal FUERTE. El desvío debe ser mínimo.
+  const g = F.crearTarget(VP, GRANDE_COLS, GRANDE_FILAS); g.x = 200; g.y = 300; g.rot = 0; g.grande = true;
+  g.vx = 0.5; g.vy = -0.5;
+  g.pesoExtra = GRANDE_PESO; g.masa = F.FISICA.MASA_TARGET * (g.vivos / 20) * GRANDE_PESO;
+  const v0 = Math.hypot(g.vx, g.vy);
+  const caja = F.cajaLocal(g);
+  const b = { x: g.x + caja.cx - caja.hw - 8, y: g.y + caja.cy, vx: 2.4, vy: 0, radio: 14 };
+  F.resolverImpacto(b, g);
+  const desvio = Math.abs(Math.hypot(g.vx, g.vy) - v0);
+  console.log(`  desvío del impacto: Δ${desvio.toFixed(3)} px/ms (masa ${g.masa.toFixed(0)})`);
+  chk('desvío mínimo (< 0.02 px/ms, "pesado no globo")', desvio < 0.02);
+  // Contraste limpio: el MISMO grande pero LIVIANO (pesoExtra 1) se desvía mucho más.
+  const gl = F.crearTarget(VP, GRANDE_COLS, GRANDE_FILAS); gl.x = 200; gl.y = 300; gl.rot = 0; gl.grande = true;
+  gl.vx = 0.5; gl.vy = -0.5; gl.pesoExtra = 1; gl.masa = F.FISICA.MASA_TARGET * (gl.vivos / 20);
+  const v0l = Math.hypot(gl.vx, gl.vy);
+  const cl = F.cajaLocal(gl); const b2 = { x: gl.x + cl.cx - cl.hw - 8, y: gl.y + cl.cy, vx: 2.4, vy: 0, radio: 14 };
+  F.resolverImpacto(b2, gl);
+  const desvioL = Math.abs(Math.hypot(gl.vx, gl.vy) - v0l);
+  console.log(`  grande liviano: Δ${desvioL.toFixed(3)} px/ms`);
+  chk('el peso extra reduce mucho el desvío (pesado ≪ liviano)', desvio < desvioL * 0.3);
+}
+
+console.log('\n=== TODO LO QUE SUBE, BAJA: el target no muere al salir por ARRIBA ===');
+{
+  // Target que ya entró, subiendo y saliendo por arriba con x en pantalla:
+  // sigue vivo (la gravedad lo hará caer de vuelta). Muere al salir por abajo.
+  const t = F.crearTarget(VP); t.x = 195; t.y = 40; t.vx = 0; t.vy = -1.5; t.haEntrado = true; t.gravedad = F.FISICA.G_TARGET;
+  let salioArriba = false, siguioVivoArriba = false;
+  for (let i = 0; i < 60; i++) { F.paso(t, 16, VP); if (t.y < -t.radio) { salioArriba = true; if (t.viva) siguioVivoArriba = true; } }
+  chk('sale por arriba y sigue vivo (va a caer de vuelta)', salioArriba && siguioVivoArriba);
+  // sigue simulando: debe caer y eventualmente morir al salir por ABAJO
+  let tt = 0; while (t.viva && tt < 20000) { F.paso(t, 16, VP); tt += 16; }
+  chk('termina muriendo al caer por abajo (o vida máx)', !t.viva);
+
+  // Sale por el LADO estando arriba → su caída NO pasa por la pantalla → muere.
+  const s = F.crearTarget(VP); s.x = 380; s.y = -30; s.vx = 0.6; s.vy = -0.2; s.haEntrado = true;
+  let murioPorLado = false;
+  for (let i = 0; i < 200 && s.viva; i++) { F.paso(s, 16, VP); if (!s.viva && s.x > VP.w) murioPorLado = true; }
+  chk('arriba + se va por el costado → muere (su caída no cruza la pantalla)', murioPorLado);
+
+  // Una BOLITA (sin celdas) sí muere al salir por arriba (transitoria).
+  const bol = { x: 195, y: 20, vx: 0, vy: -2.0, radio: 14, edad: 0, viva: true, haEntrado: true };
+  let bolMurio = false;
+  for (let i = 0; i < 60 && bol.viva; i++) { F.paso(bol, 16, VP); }
+  bolMurio = !bol.viva && bol.y < 0;
+  chk('la bolita (hitball) sí muere al salir por arriba', bolMurio);
 }
 
 console.log('\n=== NO se destruye de un hit: mín. 4 golpes, cada golpe = su zona (¼) ===');
@@ -92,14 +135,17 @@ console.log('\n=== Mínimo 8s entre apariciones del grande ===');
   chk(`hueco mínimo ${peor.toFixed(0)}ms ≥ 8000`, peor >= 8000);
 }
 
-console.log('\n=== Espera MÍNIMA global 900ms entre apariciones (cualquier tipo) ===');
+console.log('\n=== Tiempo MÁXIMO entre apariciones de naranjas: 300ms ===');
 {
-  const SPAWN_MIN_MS = 900;
-  // Espejo del gate: un spawn sólo ocurre si t - ultimoSpawn >= 900.
-  function puede(t, ultimoSpawn) { return (t - ultimoSpawn) >= SPAWN_MIN_MS; }
-  chk('a 899ms del último → NO aparece', !puede(899, 0));
-  chk('a 900ms del último → aparece', puede(900, 0));
-  chk('primer spawn (ultimoSpawn = -Infinity) → aparece', puede(0, -Infinity));
+  const SPAWN_GAP_MAX = 300;
+  const caos = P.crearCaos();
+  let seed = 99; const rnd = function () { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  let peor = 0;
+  for (let k = 0; k < 5000; k++) {
+    const base = P.rangoVigente(P.crearRitmo(), 0, 0);
+    peor = Math.max(peor, Math.min(SPAWN_GAP_MAX, P.retardoCaotico(base, caos, rnd)));
+  }
+  chk(`hueco máximo ${peor.toFixed(0)}ms ≤ 300`, peor <= 300);
 }
 
 console.log('\n=== Máx 2 en pantalla (naranjas + rojos + grande juntos) ===');

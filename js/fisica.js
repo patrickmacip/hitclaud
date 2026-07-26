@@ -252,10 +252,16 @@
       // MUNDO SIN PAREDES: todo (bolitas y targets) muere al salir del viewport
       // una vez que entró (los targets nacen fuera; haEntrado los protege en su
       // primer cuadro). Sin rebote de paredes. Válvula de vida por si algo flota.
-      const fuera =
-        o.x < -r || o.x > limites.w + r || o.y < -r || o.y > limites.h + r;
-      // Vida máx por objeto (o.vidaMax): el target grande vuela 3× más lento y
-      // necesita más tiempo antes de que la válvula lo mate; el resto usa el global.
+      // TODO LO QUE SUBE, BAJA: un TARGET que sale por ARRIBA no muere — la
+      // gravedad lo hará caer de vuelta a la pantalla, siempre que su x siga sobre
+      // ella. Muere si sale por los LADOS o por ABAJO (su caída ya no pasará por
+      // la pantalla). Las bolitas (sin celdas, transitorias) mueren al salir por
+      // cualquier borde. Vida máx por objeto (o.vidaMax) como válvula.
+      const fueraLados = o.x < -r || o.x > limites.w + r;
+      const fueraAbajo = o.y > limites.h + r;
+      const fueraArriba = o.y < -r;
+      const esTarget = !!o.celdas;
+      const fuera = fueraLados || fueraAbajo || (!esTarget && fueraArriba);
       if (o.edad >= (o.vidaMax || FISICA.VIDA_MAX_MS) || (o.haEntrado && fuera)) {
         o.viva = false;
         break;
@@ -450,7 +456,9 @@
     const libres = arrancadas.map(function (i) { return celdaMundo(t, i); });
     for (let k = 0; k < arrancadas.length; k++) t.celdas[arrancadas[k]] = false;
     t.vivos -= arrancadas.length;
-    t.masa = FISICA.MASA_TARGET * (t.vivos / 20); // proporcional a cubos vivos (ref 20)
+    // Masa ∝ cubos vivos (ref 20) × pesoExtra (el grande es MUCHO más pesado →
+    // el impacto casi no lo desvía; se siente pesado, no como globo).
+    t.masa = FISICA.MASA_TARGET * (t.vivos / 20) * (t.pesoExtra || 1);
 
     let muerto = false;
     if (t.vivos <= FISICA.DESMORONA_CUBOS) {
