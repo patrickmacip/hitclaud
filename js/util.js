@@ -19,45 +19,108 @@
     return v;
   }
 
-  // Récord = MÁXIMO HISTÓRICO EN VIVO, persistente y a prueba de fallos.
-  // `almacen` es un storage tipo localStorage (o null si no hay). Escribe CON
-  // THROTTLE (una vez cada `throttleMs`) + flush forzado (visibilitychange/
-  // pagehide). Si el storage falla (modo privado iOS, cuota), sigue en memoria:
-  // NUNCA lanza (una excepción aquí mataría el rAF).
-  function crearRecord(almacen, clave, throttleMs) {
-    let valor = 0;
-    let sucio = false;      // hay un valor nuevo sin escribir
-    let ultima = -Infinity; // timestamp de la última escritura
-    let escrituras = 0;     // contador (para el test del throttle)
+  // ── PERSISTENCIA MÍNIMA Y RESISTENTE (FASE 10) ─────────────────────────────
+  // Regla del dueño: NO se guarda historial de partidas. Se guardan EXACTAMENTE
+  // dos datos por modo bajo una sola llave versionada (hitclaud.record.v2.<modo>):
+  //   - record:      el score más alto alcanzado (solo se sobrescribe al superarse).
+  //   - ultimoScore: el score de la última partida terminada (siempre se sobrescribe).
+  //
+  // RESISTENCIA: los dos datos se escriben a la vez en DOS almacenes distintos —
+  // localStorage (síncrono) e IndexedDB (asíncrono) — bajo la misma llave. Al
+  // arrancar, reconciliar() lee ambos y se queda con el record MÁS ALTO; si a un
+  // almacén le falta o quedó por debajo, lo repuebla desde el otro.
+  //
+  // ESCRITURA solo al TERMINAR partida y al ROMPER récord (con throttle, para no
+  // escribir en cada cuadro). Nunca en cada punto.
+  //
+  // ROBUSTEZ: todo con try/catch. Si un almacén falla (modo privado iOS, cuota,
+  // IDB ausente), el juego NO se rompe: los datos viven en memoria (lección de
+  // congelamiento previa — una excepción aquí mataría el rAF).
+  //
+  // HONESTIDAD: esta persistencia sigue siendo BORRABLE si el usuario limpia los
+  // datos del navegador. La indelebilidad real requiere ranking en servidor.
+  //
+  // `local`: KV síncrono estilo localStorage (getItem/setItem) o null.
+  // `idb`:   KV asíncrono {get(k)->Promise<string|null>, set(k,v)->Promise} o null.
+  function saneo(v) { v = parseInt(v, 10); return isNaN(v) || v < 0 ? 0 : v; }
+  function parseEntrada(raw) {
     try {
-      if (almacen) {
-        const v = parseInt(almacen.getItem(clave), 10);
-        if (!isNaN(v)) valor = v;
-      }
-    } catch (e) { /* storage no disponible → récord en memoria */ }
+      const o = JSON.parse(raw);
+      if (o && typeof o === 'object') return { record: saneo(o.record), ultimoScore: saneo(o.ultimoScore) };
+    } catch (e) { /* corrupto/ausente */ }
+    return null;
+  }
+  function crearPersistencia(local, idb, clave, throttleMs) {
+    let record = 0, ultimoScore = 0;
+    let sucio = false;      // hay un record nuevo sin persistir (durante el juego)
+    let ultima = -Infinity; // timestamp de la última escritura (throttle)
+    let escrituras = 0;     // contador de escrituras a localStorage (para tests)
 
-    function escribir(ahora) {
-      if (!sucio) return;
-      try { if (almacen) { almacen.setItem(clave, String(valor)); escrituras++; } }
+    function serial() { return JSON.stringify({ record: record, ultimoScore: ultimoScore }); }
+    function escribirLocal() {
+      try { if (local) { local.setItem(clave, serial()); escrituras++; } }
       catch (e) { /* cuota/privado → seguimos en memoria */ }
-      sucio = false;
-      ultima = ahora;
     }
+    function escribirIdb() {
+      try { if (idb) { const p = idb.set(clave, serial()); if (p && p.catch) p.catch(function () {}); } }
+      catch (e) { /* IDB caído → seguimos en memoria */ }
+    }
+    function persistir() { escribirLocal(); escribirIdb(); sucio = false; }
+
+    // Lectura síncrona inicial de localStorage: pinta el récord al instante, antes
+    // de que la reconciliación asíncrona con IndexedDB termine.
+    try { if (local) { const o = parseEntrada(local.getItem(clave)); if (o) { record = o.record; ultimoScore = o.ultimoScore; } } }
+    catch (e) { /* storage no disponible → memoria */ }
 
     return {
-      get valor() { return valor; },
+      get valor() { return record; },        // "valor" = record (compat con el display)
+      get record() { return record; },
+      get ultimoScore() { return ultimoScore; },
       get escrituras() { return escrituras; },
-      // Cada cuadro: sube el récord EN VIVO si el score lo supera y escribe con
-      // throttle. Devuelve true si el récord subió en este cuadro.
+
+      // RECONCILIACIÓN al arrancar (async, porque IDB lo es). Lee ambos almacenes,
+      // se queda con el record MÁS ALTO y el ultimoScore que lo acompaña, y repuebla
+      // ambos con el resultado (arregla el almacén faltante o por debajo). Nunca lanza.
+      reconciliar: function () {
+        const leerIdb = (function () {
+          try { if (idb) return Promise.resolve(idb.get(clave)); } catch (e) {}
+          return Promise.resolve(null);
+        })();
+        return leerIdb.then(function (rawIdb) {
+          const cand = [];
+          try { if (local) { const o = parseEntrada(local.getItem(clave)); if (o) cand.push(o); } } catch (e) {}
+          const oi = parseEntrada(rawIdb); if (oi) cand.push(oi);
+          if (record > 0 || ultimoScore > 0) cand.push({ record: record, ultimoScore: ultimoScore });
+          if (cand.length) {
+            let base = cand[0];
+            for (let i = 1; i < cand.length; i++) if (cand[i].record > base.record) base = cand[i];
+            record = base.record;
+            ultimoScore = base.ultimoScore;
+            persistir(); // repuebla ambos almacenes con el valor reconciliado
+          }
+          return { record: record, ultimoScore: ultimoScore };
+        }, function () { return { record: record, ultimoScore: ultimoScore }; });
+      },
+
+      // Durante el juego: sube el récord EN VIVO para el display si el score lo
+      // supera; persiste con throttle SOLO al romper récord (no en cada punto).
+      // Devuelve true si el récord subió en este cuadro.
       considerar: function (score, ahora) {
         let subio = false;
-        if (score > valor) { valor = score; sucio = true; subio = true; }
-        if (sucio && ahora - ultima >= throttleMs) escribir(ahora);
+        if (score > record) { record = score; sucio = true; subio = true; }
+        if (sucio && ahora - ultima >= throttleMs) { persistir(); ultima = ahora; }
         return subio;
       },
-      // Escritura forzada (visibilitychange/pagehide): la marca queda guardada
-      // desde el instante en que se tocó, aunque el jugador bloquee o cierre.
-      flush: function (ahora) { escribir(ahora); },
+      // Fin de partida: ultimoScore = score (SIEMPRE se sobrescribe); si el score
+      // rompe el récord, sube record. Persiste YA en ambos almacenes.
+      terminar: function (score, ahora) {
+        ultimoScore = saneo(score);
+        if (ultimoScore > record) record = ultimoScore;
+        persistir(); ultima = ahora; sucio = false;
+      },
+      // Escritura forzada (visibilitychange/pagehide): asegura un récord tocado
+      // aunque el jugador bloquee o cierre a mitad de partida.
+      flush: function (ahora) { if (sucio) { persistir(); ultima = ahora; } },
     };
   }
 
@@ -72,34 +135,9 @@
     return (m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)) + 'M';
   }
 
-  // ── Tabla de scores local CON NOMBRE (leaderboard por dispositivo) ──
-  // Sin backend (hosting estático): los scores viven en localStorage como JSON
-  // [{nombre, puntos}]. Robusto: nunca lanza; devuelve [] si algo falla.
-  function nombreLimpio(n) { return String(n == null ? '' : n).trim().slice(0, 12) || 'Player'; }
-  function leerScores(almacen, clave) {
-    try {
-      if (!almacen) return [];
-      const raw = almacen.getItem(clave);
-      if (!raw) return [];
-      const arr = JSON.parse(raw);
-      if (!Array.isArray(arr)) return [];
-      return arr.filter(function (e) { return e && typeof e.puntos === 'number'; });
-    } catch (e) { return []; }
-  }
-  // Inserta {nombre, puntos}, ordena desc por puntos, recorta a `tope` (def 5),
-  // guarda y devuelve la lista. El nombre se limpia (trim, máx 12, o 'Player').
-  function guardarScore(almacen, clave, nombre, puntos, tope) {
-    const lista = leerScores(almacen, clave);
-    lista.push({ nombre: nombreLimpio(nombre), puntos: Math.max(0, Math.round(puntos || 0)) });
-    lista.sort(function (a, b) { return b.puntos - a.puntos; });
-    const top = lista.slice(0, tope || 5);
-    try { if (almacen) almacen.setItem(clave, JSON.stringify(top)); } catch (e) { /* cuota/privado */ }
-    return top;
-  }
-
   const U = {
-    leerToken: leerToken, crearRecord: crearRecord, abreviarNumero: abreviarNumero,
-    nombreLimpio: nombreLimpio, leerScores: leerScores, guardarScore: guardarScore,
+    leerToken: leerToken, crearPersistencia: crearPersistencia,
+    parseEntrada: parseEntrada, abreviarNumero: abreviarNumero,
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = U;

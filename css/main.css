@@ -143,9 +143,9 @@ body {
 .oculto { display: none; }
 /* Una clase utilitaria (0-0-1-0) NO puede anular #gameover{display:flex}
    (ID, 0-1-0-0). Regla ID+clase (0-1-1-0) para que ocultar gane. */
-#gameover.oculto, #pausa.oculto, #records.oculto { display: none; }
+#gameover.oculto, #pausa.oculto { display: none; }
 
-#gameover, #pausa, #records {
+#gameover, #pausa {
   position: fixed;
   inset: 0;
   z-index: 3;
@@ -163,31 +163,9 @@ body {
   text-align: center;
   max-width: 320px;
   width: 100%;
-  max-height: 90vh;      /* la página de records puede ser larga → scrollea dentro */
+  max-height: 90vh;      /* si el panel crece, scrollea dentro */
   overflow-y: auto;
 }
-
-/* Enlace secundario (Ver records): discreto, sin competir con los botones de modo. */
-.go-link {
-  margin-top: 14px;
-  width: 100%;
-  padding: 10px;
-  border: none;
-  background: transparent;
-  color: var(--acento-claro, #FFC9B8);
-  font: var(--texto-s);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-/* Encabezado de cada modo en la página de records. */
-.rec-modo {
-  margin: 16px 0 6px;
-  font: var(--texto-m);
-  color: var(--acento-vivo, #FF8764);
-  text-align: left;
-}
-.rec-modo:first-of-type { margin-top: 8px; }
 
 .go-titulo {
   font: var(--texto-xl);
@@ -215,50 +193,6 @@ body {
   color: var(--dorado);
   margin-bottom: 8px;
 }
-
-/* Login: campo de nombre. Toque ≥48px (Material) y 16px+ de fuente (evita el
-   zoom automático de iOS al enfocar). El Enter azul del teclado registra el
-   nombre (enterkeyhint="done" + handler keydown). */
-.go-nombre {
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 52px;
-  margin-top: 16px;
-  padding: 14px 16px;
-  border: 2px solid var(--acento, #E8704E);
-  border-radius: var(--radio);
-  background: var(--superficie);
-  color: var(--acento-claro, #FFC9B8);
-  font: 600 18px/1.3 var(--fuente);
-  text-align: center;
-  -webkit-appearance: none;
-  appearance: none;
-}
-.go-nombre::placeholder { color: var(--texto-apagado); font-weight: 400; }
-.go-nombre:focus {
-  outline: none;
-  border-color: var(--acento-vivo, #FF8764);
-  box-shadow: 0 0 0 3px rgba(255, 135, 100, 0.28);
-}
-
-/* Tabla de mejores puntajes (con nombre). */
-.go-tablero {
-  list-style: none;
-  margin: 14px 0 0;
-  padding: 0;
-  width: 100%;
-  text-align: left;
-}
-.go-tablero li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font: var(--texto-s);
-  color: var(--texto-apagado-fuerte);
-  padding: 3px 2px;
-}
-.go-tablero li .p { color: var(--acento-vivo, #FF8764); font-variant-numeric: tabular-nums; }
 
 .go-reiniciar {
   margin-top: 12px;

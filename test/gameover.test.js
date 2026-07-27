@@ -25,25 +25,14 @@ console.log('\n=== Menú de PAUSA (Continuar / Reiniciar) ===');
   console.log(`  #pausa: ${p}   #continuar: ${cont}   #reiniciar: ${rei}  ${p === 1 && cont === 1 && rei === 1 ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('\n=== Página GENERAL de records (ambos modos) accesible desde el menú ===');
+console.log('\n=== FASE 10: SIN historial en el DOM (login/tableros/página de records fuera) ===');
 {
   const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
-  const rec = (html.match(/id="records"/g) || []).length;
+  const records = (html.match(/id="records"/g) || []).length;
   const ver = (html.match(/id="verRecords"/g) || []).length;
-  const volver = (html.match(/id="volverRecords"/g) || []).length;
-  const r60 = (html.match(/id="rec60"/g) || []).length;
-  const rLibre = (html.match(/id="recLibre"/g) || []).length;
-  console.log(`  #records:${rec} #verRecords:${ver} #volverRecords:${volver} #rec60:${r60} #recLibre:${rLibre}  ${rec===1&&ver===1&&volver===1&&r60===1&&rLibre===1 ? 'OK ✓' : 'NO ✗'}`);
-}
-
-console.log('\n=== Login: SÓLO campo de nombre con Enter del teclado (sin botón ni leyenda) ===');
-{
-  const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
-  const nom = (html.match(/id="nombre"/g) || []).length;
-  const enterkey = /id="nombre"[^>]*enterkeyhint="done"/.test(html);
-  const sinBoton = (html.match(/id="nombreOk"/g) || []).length === 0;
-  const sinMsg = (html.match(/id="nombreMsg"/g) || []).length === 0;
-  console.log(`  #nombre: ${nom} · enterkeyhint: ${enterkey} · sin #nombreOk: ${sinBoton} · sin #nombreMsg: ${sinMsg}  ${nom === 1 && enterkey && sinBoton && sinMsg ? 'OK ✓' : 'NO ✗'}`);
+  const nombre = (html.match(/id="nombre"/g) || []).length;
+  const tablero = (html.match(/id="tablero"/g) || []).length;
+  console.log(`  #records:${records} #verRecords:${ver} #nombre:${nombre} #tablero:${tablero} (todos 0)  ${records===0&&ver===0&&nombre===0&&tablero===0 ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== Reiniciar estado: resetea el marcador (record intacto) ===');
@@ -55,14 +44,16 @@ console.log('\n=== Reiniciar estado: resetea el marcador (record intacto) ===');
   console.log(`  marcador tras reiniciar: puntos=${marcador.puntos} racha=${marcador.racha}  ${limpio ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('\n=== Récord POR MODO: llaves separadas, arrancan en 0 ===');
+console.log('\n=== Récord POR MODO: llaves separadas v2, independientes, arrancan en 0 ===');
 {
   const almacen = (function () { const d = {}; return { getItem: function (k) { return k in d ? d[k] : null; }, setItem: function (k, v) { d[k] = String(v); }, _d: d }; })();
-  const r60 = U.crearRecord(almacen, 'hitclaud.record.v3.60', 500);
-  const rLibre = U.crearRecord(almacen, 'hitclaud.record.v3.libre', 500);
-  r60.considerar(500, 0); r60.flush(0);
-  rLibre.considerar(80, 0); rLibre.flush(0);
-  console.log(`  60s=${almacen._d['hitclaud.record.v3.60']}  libre=${almacen._d['hitclaud.record.v3.libre']}  ${almacen._d['hitclaud.record.v3.60'] === '500' && almacen._d['hitclaud.record.v3.libre'] === '80' ? 'OK ✓' : 'NO ✗'}`);
+  const r60 = U.crearPersistencia(almacen, null, 'hitclaud.record.v2.60', 500);
+  const rLibre = U.crearPersistencia(almacen, null, 'hitclaud.record.v2.libre', 500);
+  r60.terminar(500, 0);
+  rLibre.terminar(80, 0);
+  const g60 = U.parseEntrada(almacen._d['hitclaud.record.v2.60']);
+  const gLibre = U.parseEntrada(almacen._d['hitclaud.record.v2.libre']);
+  console.log(`  60s.record=${g60.record}  libre.record=${gLibre.record}  ${g60.record === 500 && gLibre.record === 80 ? 'OK ✓' : 'NO ✗'}`);
   console.log(`  son independientes (una no pisa a la otra): ${r60.valor === 500 && rLibre.valor === 80 ? 'OK ✓' : 'NO ✗'}`);
 }
 

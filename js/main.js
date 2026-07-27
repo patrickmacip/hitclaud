@@ -44,75 +44,53 @@
   const elActual = document.querySelector('.marcador--actual .valor');
   function actualizarMarcador() { elActual.textContent = U.abreviarNumero(marcador.puntos); }
 
-  // Récord POR MODO: llaves separadas para 60 seg y Relax mode. `record`
-  // apunta al del modo ACTIVO; la celda "Record" muestra ese. Preferencias intactas.
+  // PERSISTENCIA POR MODO (FASE 10): dos datos {record, ultimoScore} por modo,
+  // en DOS almacenes (localStorage + IndexedDB) bajo la misma llave versionada.
+  // `record` apunta al del modo ACTIVO; la celda "Record" muestra ese.
   const almacen = (function () { try { return window.localStorage; } catch (e) { return null; } })();
-  const record60 = U.crearRecord(almacen, 'hitclaud.record.v3.60', 500);
-  const recordLibre = U.crearRecord(almacen, 'hitclaud.record.v3.libre', 500);
+  // Envoltorio KV asíncrono sobre IndexedDB (get/set por clave). null si no hay
+  // IndexedDB o si algo lanza al abrir: el juego cae a localStorage + memoria.
+  const idbKV = (function () {
+    try {
+      if (typeof indexedDB === 'undefined' || !indexedDB) return null;
+      let dbp = null;
+      function abrir() {
+        if (dbp) return dbp;
+        dbp = new Promise(function (res, rej) {
+          const req = indexedDB.open('hitclaud', 1);
+          req.onupgradeneeded = function () { req.result.createObjectStore('kv'); };
+          req.onsuccess = function () { res(req.result); };
+          req.onerror = function () { rej(req.error); };
+        });
+        return dbp;
+      }
+      function tx(modo, fn) {
+        return abrir().then(function (db) {
+          return new Promise(function (res, rej) {
+            const t = db.transaction('kv', modo);
+            const r = fn(t.objectStore('kv'));
+            t.oncomplete = function () { res(r && r.result); };
+            t.onerror = function () { rej(t.error); };
+            t.onabort = function () { rej(t.error); };
+          });
+        });
+      }
+      return {
+        get: function (k) { return tx('readonly', function (os) { return os.get(k); }); },
+        set: function (k, v) { return tx('readwrite', function (os) { return os.put(v, k); }); },
+      };
+    } catch (e) { return null; }
+  })();
+  const record60 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.60', 500);
+  const recordLibre = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.libre', 500);
   let record = record60; // activo (se ajusta al elegir modo)
   const elRecord = document.querySelector('.marcador--record .valor');
   function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record.valor); }
-
-  // LOGIN por NOMBRE (sin backend: local). El nombre se guarda y los scores se
-  // registran con él en un tablero local por modo (hosting estático).
-  const NOMBRE_KEY = 'hitclaud.nombre';
-  const elNombre = document.getElementById('nombre');
-  const elTablero = document.getElementById('tablero');
-  let nombre = '';
-  try { nombre = U.nombreLimpio(almacen && almacen.getItem(NOMBRE_KEY)); } catch (e) { nombre = 'Player'; }
-  // Muestra el nombre guardado (si el jugador ya jugó); si es el default, deja el placeholder.
-  if (elNombre && nombre && nombre !== 'Player') elNombre.value = nombre;
-  function claveScores(modo) { return 'hitclaud.scores.v1.' + modo; }
-  function guardarNombre() {
-    nombre = U.nombreLimpio(elNombre ? elNombre.value : nombre);
-    try { if (almacen) almacen.setItem(NOMBRE_KEY, nombre); } catch (e) { /* privado/cuota */ }
-  }
-  // El Enter AZUL del teclado (enterkeyhint="done") registra el nombre y cierra el
-  // teclado. También se guarda al salir del campo o al cambiar (y al elegir modo).
-  if (elNombre) {
-    elNombre.addEventListener('change', guardarNombre);
-    elNombre.addEventListener('blur', guardarNombre);
-    elNombre.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); guardarNombre(); elNombre.blur(); }
-    });
-  }
-  // Pinta una lista <ol> con [{nombre, puntos}] (fuente única). `vacioTxt` opcional
-  // para páginas donde el vacío debe verse ("— sin puntajes —").
-  function pintarLista(el, lista, vacioTxt) {
-    if (!el) return;
-    el.innerHTML = '';
-    if (lista.length === 0 && vacioTxt) {
-      const li = document.createElement('li'); li.textContent = vacioTxt; el.appendChild(li); return;
-    }
-    for (let i = 0; i < lista.length; i++) {
-      const li = document.createElement('li');
-      const n = document.createElement('span'); n.textContent = (i + 1) + '. ' + U.nombreLimpio(lista[i].nombre);
-      const p = document.createElement('span'); p.className = 'p'; p.textContent = U.abreviarNumero(lista[i].puntos);
-      li.appendChild(n); li.appendChild(p); el.appendChild(li);
-    }
-  }
-  // Tablero del overlay de fin (top-5 del modo jugado); se oculta si está vacío.
-  function renderTablero(modo) {
-    if (!elTablero) return;
-    const lista = U.leerScores(almacen, claveScores(modo));
-    pintarLista(elTablero, lista);
-    elTablero.classList.toggle('oculto', lista.length === 0);
-  }
-
-  // PÁGINA GENERAL DE RECORDS: top-5 con nombre de AMBOS modos.
-  const elRecords = document.getElementById('records');
-  const elRec60 = document.getElementById('rec60');
-  const elRecLibre = document.getElementById('recLibre');
-  function mostrarRecords() {
-    pintarLista(elRec60, U.leerScores(almacen, claveScores('60')), '— sin puntajes —');
-    pintarLista(elRecLibre, U.leerScores(almacen, claveScores('libre')), '— sin puntajes —');
-    elGameOver.classList.add('oculto');
-    if (elRecords) elRecords.classList.remove('oculto');
-  }
-  const btnVerRecords = document.getElementById('verRecords');
-  const btnVolverRecords = document.getElementById('volverRecords');
-  if (btnVerRecords) btnVerRecords.addEventListener('click', mostrarRecords);
-  if (btnVolverRecords) btnVolverRecords.addEventListener('click', function () { if (elRecords) elRecords.classList.add('oculto'); mostrarInicio(); });
+  // RECONCILIACIÓN al arrancar (async): funde localStorage e IndexedDB, se queda
+  // con el record más alto y repuebla el almacén faltante. Refresca el display.
+  [record60, recordLibre].forEach(function (r) {
+    r.reconciliar().then(function () { if (r === record) actualizarRecord(); });
+  });
 
   // ── Modo de juego + ciclo de partida ───────────────────────────────
   // PANTALLA DE INICIO (overlay): elegís "60 seg" o "Relax mode"; aparece al
@@ -136,7 +114,6 @@
     marcarActividad();
   }
   function iniciarPartida(modo) {
-    guardarNombre();              // fija el nombre del jugador para esta partida
     modoJuego = modo;
     record = (modo === '60') ? record60 : recordLibre;
     actualizarRecord();
@@ -145,27 +122,25 @@
     jugando = true;
     elGameOver.classList.add('oculto');
   }
-  // Fin de partida (rojo tocado o se acabó el tiempo): congela, guarda la marca,
-  // muestra el overlay con el score final + récord del modo y los botones de modo.
+  // Fin de partida (rojo tocado o se acabó el tiempo): congela y PERSISTE los dos
+  // datos del modo (record + ultimoScore) en ambos almacenes. Muestra el overlay
+  // con el score final + aviso de récord y los botones de modo.
   function terminarPartida() {
     if (!jugando) return;
     jugando = false;
-    record.flush(performance.now());
+    // esRecord ANTES de escribir: terminar() subirá el record al score si lo rompe.
     const esRecord = marcador.puntos >= record.valor && marcador.puntos > 0;
-    // Registra el score CON NOMBRE en el tablero local del modo y lo muestra.
-    if (marcador.puntos > 0) U.guardarScore(almacen, claveScores(modoJuego), nombre, marcador.puntos, 5);
-    renderTablero(modoJuego);
+    record.terminar(marcador.puntos, performance.now()); // ultimoScore siempre; record si supera
     elGameOver.querySelector('.go-score').classList.remove('oculto');
     elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(marcador.puntos);
     elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
     elGameOver.classList.remove('oculto');
   }
-  // Pantalla de inicio al cargar (sin score ni tablero todavía).
+  // Pantalla de inicio al cargar (sin score todavía).
   function mostrarInicio() {
     jugando = false;
     elGameOver.querySelector('.go-score').classList.add('oculto');
     elGameOver.querySelector('.go-record').classList.add('oculto');
-    if (elTablero) elTablero.classList.add('oculto');
     elGameOver.classList.remove('oculto');
   }
   const btn60 = document.getElementById('jugar60');
