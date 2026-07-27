@@ -220,14 +220,14 @@
   }
 
   // ── Constantes de input ────────────────────────────────────────────
-  const RADIO_HITMAKER = 203; // hit-test RADIAL desde la esquina inf-der (+40%)
+  const RADIO_HITMAKER = 203; // hit-test RADIAL desde el ancla del hitmaker (+40%)
   const RADIO_NUCLEO = 60;    // soltar de vuelta aquí = cancelar
   const UMBRAL_PX = 14;       // trazo menor = ignorar
   const UMBRAL_SUELTA = 0.15; // px/ms: soltar más lento = la bolita CAE
   // Frenos anti-paseo de la hitball agarrada (radio de agarre = 203px):
   const QUIETUD_VEL = 0.08;   // px/ms: por debajo cuenta como quieto
   const QUIETUD_MS = 250;     // ms continuos quieto → se suelta sola
-  const CORREA_PX = 252;      // dist radial máx desde la esquina → se suelta sola (proporcional a 203)
+  const CORREA_PX = 252;      // dist radial máx desde el ancla → se suelta sola (proporcional a 203)
   const CADENCIA_MS = 100;    // separación mínima entre SUELTAS (afinable)
   const MAX_BOLITAS = 24;     // tope de bolitas vivas simultáneas (rendimiento)
   const LAG_ESTELA = 3;       // muestreo hacia atrás por fantasma (×1,2,3)
@@ -388,13 +388,23 @@
     targets.push(t);
   }
 
+  // FUENTE ÚNICA de la posición del hitmaker (FASE 11): centrado horizontal
+  // (x = mitad del ancho), pegado al borde inferior (misma altura de siempre).
+  // Todo lo que dependía del ancla del hitmaker — dibujo de la bola en reposo,
+  // zona de agarre radial y frenos — sale de aquí. Antes estaba DUPLICADA:
+  // esquina inf-der (W, H) en el hit-test y (W-52, H-52) en el reposo.
+  function centroHitmaker() { return { x: W / 2, y: H }; }
+
   function reposo() {
-    // Posición de descanso de la bolita, dentro del núcleo del hitmaker
-    return { x: W - 52, y: H - 52 };
+    // Posición de descanso de la bolita, 52px sobre el ancla (misma altura previa).
+    const c = centroHitmaker();
+    return { x: c.x, y: c.y - 52 };
   }
 
-  function distEsquina(x, y) {
-    return Math.hypot(W - x, H - y);
+  // Distancia RADIAL del punto (x,y) al ancla del hitmaker (fuente única).
+  function distHitmaker(x, y) {
+    const c = centroHitmaker();
+    return Math.hypot(c.x - x, c.y - y);
   }
 
   function redimensionar() {
@@ -413,7 +423,7 @@
   canvas.addEventListener('pointerdown', function (e) {
     if (esDesktop) { dispararHitscan(e.clientX, e.clientY); return; }
     if (gesto.activo) return;
-    if (distEsquina(e.clientX, e.clientY) > RADIO_HITMAKER) return;
+    if (distHitmaker(e.clientX, e.clientY) > RADIO_HITMAKER) return;
     gesto.activo = true;
     gesto.puntos = [{ x: e.clientX, y: e.clientY, t: performance.now() }];
     quietoDesde = performance.now();
@@ -489,7 +499,7 @@
     const fin = puntos[puntos.length - 1];
     if (!forzar) {
       if (F.largoTrazo(puntos) < UMBRAL_PX) return;          // umbral
-      if (distEsquina(fin.x, fin.y) <= RADIO_NUCLEO) return; // cancelación
+      if (distHitmaker(fin.x, fin.y) <= RADIO_NUCLEO) return; // cancelación
       if (performance.now() - ultimoDisparo < CADENCIA_MS) return; // cadencia
     }
     if (bolitas.length >= MAX_BOLITAS) return;               // tope de rendimiento
@@ -615,7 +625,7 @@
     // Frenos anti-paseo de la hitball agarrada.
     if (gesto.activo) {
       const dedo = gesto.puntos[gesto.puntos.length - 1];
-      if (distEsquina(dedo.x, dedo.y) > CORREA_PX) {
+      if (distHitmaker(dedo.x, dedo.y) > CORREA_PX) {
         soltarPorFreno();                         // correa de distancia
       } else {
         if (velRecienteDedo(t) >= QUIETUD_VEL) quietoDesde = t;

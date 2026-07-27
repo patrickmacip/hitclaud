@@ -105,15 +105,17 @@ body {
 .desktop .hitmaker { display: none; }
 .desktop #juego { cursor: none; }
 
-/* ── Hitmaker (esquina inferior derecha) ────────── */
+/* ── Hitmaker (centrado horizontal, borde inferior) ────────── */
 
 .hitmaker {
   position: fixed;
-  right: 0;
+  left: 50%;
   bottom: 0;
   width: 290px;
   height: 290px;
-  transform: translate(50%, 50%); /* cuarto de círculo sangrando */
+  /* Centro del círculo sobre el ancla (W/2, H): centrado en x, mitad sangrando
+     por abajo (misma altura de siempre). Tamaño/forma/color sin cambios. */
+  transform: translate(-50%, 50%);
   border-radius: 50%;
   /* Baño de color: el hitmaker (UI naranja) entra al color del modo activo.
      Fallback literal (blindaje): si el CSS llega stale sin --acento, coral. */
