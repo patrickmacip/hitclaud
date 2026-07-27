@@ -88,6 +88,12 @@
     // la gravedad ×0.36 (=0.6²) → el ARCO no cambia (ápice ∝ v²/g inalterado), pero
     // se recorre 40% más lento (tiempo ∝ v/g → ×1/0.6). Se ve claramente más lento.
     VEL_FACTOR: 0.6,
+    // FASE 10: +25% de velocidad de TRAYECTORIA sobre el valor actual. Se aplica
+    // SOLO a la magnitud de la velocidad inicial (vx, vy) — la gravedad lunar (0.6×)
+    // y los ángulos/orígenes NO cambian. Factor efectivo de velocidad: 0.6×1.25=0.75.
+    // Los especiales heredan este valor y conservan su relación con el normal
+    // (rojo/CloudOver = 1×, grande = 1/3, ambos calculados sobre el nuevo normal).
+    VEL_TRAYECTORIA: 1.25,
   };
 
   function largoTrazo(puntos) {
@@ -209,9 +215,11 @@
       vy = -rango(LANZA.LAT_VY);
     }
 
-    // VELOCIDAD −40%: escala v×0.6 y gravedad×0.36 → mismo arco, 40% más lento.
-    vx *= LANZA.VEL_FACTOR;
-    vy *= LANZA.VEL_FACTOR;
+    // VELOCIDAD: v×(0.6×1.25=0.75), gravedad×0.36. El +25% (VEL_TRAYECTORIA) toca
+    // SOLO la magnitud inicial; la gravedad conserva el factor lunar −40² previo →
+    // el vuelo es 25% más rápido y el arco un poco más alto/estirado (no re-escalado).
+    vx *= LANZA.VEL_FACTOR * LANZA.VEL_TRAYECTORIA;
+    vy *= LANZA.VEL_FACTOR * LANZA.VEL_TRAYECTORIA;
     gravedad *= LANZA.VEL_FACTOR * LANZA.VEL_FACTOR;
 
     // RECORTE DE ÁPICE: si sube (vy<0), limita la velocidad para que el punto más
