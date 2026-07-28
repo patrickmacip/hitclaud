@@ -462,6 +462,19 @@
     return Math.hypot(c.x - x, c.y - y);
   }
 
+  // Gradientes de las FRANJAS de borde rojas (pérdida + vaciado del CloudOver):
+  // idénticos para ambos usos (ROJO_BORDE → transparente, ancho FRANJA_PX). Se
+  // crean UNA sola vez aquí (y al redimensionar), NUNCA dentro del bucle —
+  // createLinearGradient por cuadro era costo puro. Al pintar sólo varía el
+  // globalAlpha. Dependen de W (la franja derecha) → se regeneran al cambiar el viewport.
+  let gradBordeIzq = null, gradBordeDer = null;
+  function regenerarGradientes() {
+    gradBordeIzq = ctx.createLinearGradient(0, 0, FRANJA_PX, 0);
+    gradBordeIzq.addColorStop(0, ROJO_BORDE); gradBordeIzq.addColorStop(1, 'transparent');
+    gradBordeDer = ctx.createLinearGradient(W, 0, W - FRANJA_PX, 0);
+    gradBordeDer.addColorStop(0, ROJO_BORDE); gradBordeDer.addColorStop(1, 'transparent');
+  }
+
   function redimensionar() {
     const dpr = window.devicePixelRatio || 1;
     W = window.innerWidth;
@@ -469,6 +482,7 @@
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    regenerarGradientes(); // gradientes de borde recacheados al nuevo tamaño (fuera del bucle)
     dibujar();
   }
 
@@ -936,9 +950,10 @@
       ctx.globalAlpha = Math.max(0, 1 - p);
       ctx.translate(fl.x, fl.y - p * 34);
       ctx.scale(esc, esc);
-      if (fl.glow) { ctx.shadowColor = fl.color || ACENTO.vivo; ctx.shadowBlur = 12; }
-      ctx.fillStyle = fl.color || ACENTO.vivo;
       ctx.font = '700 ' + fl.tam + 'px ' + COLOR.fuente;
+      const colFl = fl.color || ACENTO.vivo;
+      if (fl.glow) haloTexto(fl.texto, 0, 0, colFl, 4); // halo barato en lugar de shadowBlur
+      ctx.fillStyle = colFl;
       ctx.fillText(fl.texto, 0, 0);
       ctx.restore();
     }
@@ -952,11 +967,11 @@
       ctx.save();
       ctx.translate(W / 2, Math.max(158, H * 0.16)); // bajo la banda del temporizador
       ctx.scale(1 + 0.06 * Math.sin(now / 150), 1 + 0.06 * Math.sin(now / 150));
-      ctx.shadowColor = ACENTO.vivo;
-      ctx.shadowBlur = 12;
-      ctx.fillStyle = ACENTO.vivo;
       ctx.font = '800 ' + (26 + Math.min(20, marcador.racha)) + 'px ' + COLOR.fuente;
-      ctx.fillText('×' + (mult % 1 === 0 ? mult.toFixed(0) : mult.toFixed(1)), 0, 0);
+      const txtMult = '×' + (mult % 1 === 0 ? mult.toFixed(0) : mult.toFixed(1));
+      haloTexto(txtMult, 0, 0, ACENTO.vivo, 5); // halo barato en lugar de shadowBlur 12
+      ctx.fillStyle = ACENTO.vivo;
+      ctx.fillText(txtMult, 0, 0);
       ctx.restore();
       ctx.globalAlpha = 1;
     }
@@ -982,12 +997,8 @@
       const env = dtP < PULSO_ENTRADA ? dtP / PULSO_ENTRADA : Math.max(0, 1 - (dtP - PULSO_ENTRADA) / PULSO_DISIP);
       ctx.save();
       ctx.globalAlpha = 0.6 * env;
-      const gl = ctx.createLinearGradient(0, 0, FRANJA_PX, 0);
-      gl.addColorStop(0, ROJO_BORDE); gl.addColorStop(1, 'transparent');
-      ctx.fillStyle = gl; ctx.fillRect(0, 0, FRANJA_PX, H);
-      const gr = ctx.createLinearGradient(W, 0, W - FRANJA_PX, 0);
-      gr.addColorStop(0, ROJO_BORDE); gr.addColorStop(1, 'transparent');
-      ctx.fillStyle = gr; ctx.fillRect(W - FRANJA_PX, 0, FRANJA_PX, H);
+      ctx.fillStyle = gradBordeIzq; ctx.fillRect(0, 0, FRANJA_PX, H);       // gradiente cacheado
+      ctx.fillStyle = gradBordeDer; ctx.fillRect(W - FRANJA_PX, 0, FRANJA_PX, H);
       ctx.restore();
     }
     // VACIADO del CloudOver: palpitar rojo de bordes (#FF0055, 28px) que ACOMPAÑA el
@@ -996,12 +1007,8 @@
     if (secuencia && (secuencia.fase === 'vaciado' || secuencia.fase === 'cero')) {
       ctx.save();
       ctx.globalAlpha = 0.35 + 0.28 * Math.abs(Math.sin(nowP / 130)); // palpitar
-      const gl2 = ctx.createLinearGradient(0, 0, FRANJA_PX, 0);
-      gl2.addColorStop(0, ROJO_BORDE); gl2.addColorStop(1, 'transparent');
-      ctx.fillStyle = gl2; ctx.fillRect(0, 0, FRANJA_PX, H);
-      const gr2 = ctx.createLinearGradient(W, 0, W - FRANJA_PX, 0);
-      gr2.addColorStop(0, ROJO_BORDE); gr2.addColorStop(1, 'transparent');
-      ctx.fillStyle = gr2; ctx.fillRect(W - FRANJA_PX, 0, FRANJA_PX, H);
+      ctx.fillStyle = gradBordeIzq; ctx.fillRect(0, 0, FRANJA_PX, H);       // mismo gradiente cacheado
+      ctx.fillStyle = gradBordeDer; ctx.fillRect(W - FRANJA_PX, 0, FRANJA_PX, H);
       ctx.restore();
     }
     const dtM = nowP - montoInicio;
@@ -1033,10 +1040,10 @@
       const esc = urgente ? 1 + 0.08 * Math.sin(nowP / 180) : 1;
       ctx.translate(W / 2, 88);
       ctx.scale(esc, esc);
-      ctx.shadowColor = urgente ? ROJO_BORDE : ACENTO.base;
-      ctx.shadowBlur = 8;
-      ctx.fillStyle = urgente ? ROJO_BORDE : ACENTO.claro;
       ctx.font = '800 32px ' + COLOR.fuente;
+      const colTimer = urgente ? ROJO_BORDE : ACENTO.claro;
+      haloTexto(txt, 0, 0, colTimer, 5); // halo barato en lugar de shadowBlur 8
+      ctx.fillStyle = colTimer;
       ctx.fillText(txt, 0, 0);
       ctx.restore();
     }
@@ -1105,12 +1112,19 @@
   }
 
   // Bolita: disco sólido en el COLOR del modo (SIN parpadeo — el acento es
-  // estable; el único que parpadea es el CloudOver). `glow` añade un shadowBlur
-  // = aura viva (solo en la bolita principal/reposo, por presupuesto).
+  // estable; el único que parpadea es el CloudOver). `glow` añade un HALO BARATO
+  // (aura viva) SIN shadowBlur: dos arcos concéntricos del mismo color a baja
+  // alfa detrás del disco (r+6 al 18%, r+3 al 30%). El shadowBlur en iPhone
+  // recalcula un blur offscreen por dibujo × dpr → se elimina del bucle.
   function dibujarBolita(cx, cy, radio, color, glow) {
     const RADIO = radio || 14;
     ctx.save();
-    if (glow) { ctx.shadowColor = color; ctx.shadowBlur = 10; }
+    if (glow) {
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.18; ctx.beginPath(); ctx.arc(cx, cy, RADIO + 6, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.30; ctx.beginPath(); ctx.arc(cx, cy, RADIO + 3, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     ctx.beginPath();
     ctx.arc(cx, cy, RADIO - 1.5, 0, Math.PI * 2);
     ctx.fillStyle = color;
@@ -1118,6 +1132,21 @@
     ctx.lineWidth = RADIO < 14 ? 2 : 3;
     ctx.strokeStyle = color;
     ctx.stroke();
+    ctx.restore();
+  }
+
+  // Halo de TEXTO barato (sin blur): un trazo del mismo color a baja alfa detrás
+  // del relleno. Sustituye al shadowBlur en el temporizador, el badge y los
+  // flotantes grandes. Requiere el font/textAlign ya seteados por el llamador;
+  // respeta el globalAlpha vigente (para que el fade del flotante también aplique).
+  function haloTexto(txt, x, y, color, ancho) {
+    const a = ctx.globalAlpha;
+    ctx.save();
+    ctx.globalAlpha = a * 0.35;
+    ctx.lineWidth = ancho || 4;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = color;
+    ctx.strokeText(txt, x, y);
     ctx.restore();
   }
 
