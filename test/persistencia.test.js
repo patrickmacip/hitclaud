@@ -28,7 +28,7 @@ const K = 'hitclaud.record.v2.60';
   {
     const local = mockLocal(), idb = mockIdb();
     const p = U.crearPersistencia(local, idb, K, 500);
-    p.terminar(1200, 0); // fin de partida con record nuevo
+    p.terminar(1200, 0, true); // fin por tiempo con record nuevo
     await Promise.resolve();
     chk('localStorage tiene record 1200', U.parseEntrada(local._d[K]).record === 1200);
     chk('IndexedDB tiene record 1200', U.parseEntrada(idb._d[K]).record === 1200);
@@ -65,24 +65,20 @@ const K = 'hitclaud.record.v2.60';
     chk('gana el mayor (9000), no el menor (500)', r.record === 9000);
     chk('ambos almacenes quedan en 9000', U.parseEntrada(local._d[K]).record === 9000 && U.parseEntrada(idb._d[K]).record === 9000);
 
-    // En vivo: considerar con un valor menor no baja el récord.
-    const subio = p.considerar(10, 1000);
-    chk('considerar(10) NO baja el récord de 9000', p.valor === 9000 && subio === false);
-
-    // terminar con score menor no baja el record (pero sí fija ultimoScore).
-    p.terminar(42, 2000);
-    chk('terminar(42) deja record 9000 intacto', p.valor === 9000);
+    // terminar por tiempo con score menor no baja el record (pero sí fija ultimoScore).
+    p.terminar(42, 2000, true);
+    chk('terminar(42) por tiempo deja record 9000 intacto', p.valor === 9000 && p.ultimoScore === 42);
   }
 
   console.log('\n=== ultimoScore SÍ se sobrescribe SIEMPRE (aunque el score sea menor o 0) ===');
   {
     const local = mockLocal(), idb = mockIdb();
     const p = U.crearPersistencia(local, idb, K, 500);
-    p.terminar(1000, 0);
+    p.terminar(1000, 0, true);
     chk('ultimoScore=1000 tras primera partida', p.ultimoScore === 1000);
-    p.terminar(30, 100);  // partida floja
+    p.terminar(30, 100, true);  // partida floja
     chk('ultimoScore=30 (sobrescrito) y record sigue 1000', p.ultimoScore === 30 && p.valor === 1000);
-    p.terminar(0, 200);   // partida en cero
+    p.terminar(0, 200, false);  // CloudOver: score vaciado a 0
     chk('ultimoScore=0 (última partida terminó en 0)', p.ultimoScore === 0 && p.valor === 1000);
     chk('persistido en ambos: ultimoScore=0', U.parseEntrada(local._d[K]).ultimoScore === 0 && U.parseEntrada(idb._d[K]).ultimoScore === 0);
   }
@@ -91,22 +87,21 @@ const K = 'hitclaud.record.v2.60';
   {
     const local = mockLocal(), idb = mockIdb();
     const p = U.crearPersistencia(local, idb, K, 500);
-    p.considerar(50, 0); p.terminar(50, 600); p.flush(700);
+    p.terminar(50, 600, true); p.flush(700);
     await p.reconciliar();
     chk('localStorage: 1 sola llave', Object.keys(local._d).length === 1 && K in local._d);
     chk('IndexedDB: 1 sola llave', Object.keys(idb._d).length === 1 && K in idb._d);
     chk('sin hitclaud.nombre / scores.v1 / record.v3', !('hitclaud.nombre' in local._d) && !('hitclaud.scores.v1.60' in local._d) && !('hitclaud.record.v3.60' in local._d));
   }
 
-  console.log('\n=== Escritura NO en cada punto: considerar throttlea, terminar escribe 1 vez ===');
+  console.log('\n=== Escritura SOLO al terminar (FASE 12: sin récord en vivo) ===');
   {
     const local = mockLocal(), idb = mockIdb();
     const p = U.crearPersistencia(local, idb, K, 500);
-    // 600 cuadros a ~60fps (10s) con el score subiendo cada cuadro (récord sube siempre).
-    for (let f = 0; f < 600; f++) p.considerar(f + 1, f * 16.7);
-    p.terminar(600, 600 * 16.7);
-    // 10s/500ms ≈ 20 escrituras throttled + 1 de terminar. Muy por debajo de 600.
-    chk(`escrituras=${p.escrituras} (throttle: ≤22, no 600)`, p.escrituras <= 22);
+    // Sin considerar: durante el "juego" NO se escribe nada (ya no existe el vivo).
+    chk('0 escrituras durante el juego (no hay récord en vivo)', p.escrituras === 0);
+    p.terminar(600, 10000, true); // una única escritura al cerrar por tiempo
+    chk('1 escritura tras terminar por tiempo', p.escrituras === 1);
     chk('record final = 600', p.valor === 600);
   }
 
@@ -116,7 +111,7 @@ const K = 'hitclaud.record.v2.60';
     let lanzo = false, p;
     try {
       p = U.crearPersistencia(null, null, K, 500);
-      p.considerar(500, 0); p.terminar(800, 600); p.flush(700);
+      p.terminar(800, 600, true); p.flush(700);
       await p.reconciliar();
     } catch (e) { lanzo = true; }
     chk('sin lanzar con ambos null', !lanzo);
@@ -128,7 +123,7 @@ const K = 'hitclaud.record.v2.60';
     let lanzo2 = false, p2;
     try {
       p2 = U.crearPersistencia(localMalo, idbMalo, K, 500);
-      p2.terminar(999, 0);
+      p2.terminar(999, 0, true);
       await p2.reconciliar();
     } catch (e) { lanzo2 = true; }
     chk('almacenes que lanzan/rechazan no rompen', !lanzo2);

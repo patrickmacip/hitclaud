@@ -102,24 +102,19 @@
         }, function () { return { record: record, ultimoScore: ultimoScore }; });
       },
 
-      // Durante el juego: sube el récord EN VIVO para el display si el score lo
-      // supera; persiste con throttle SOLO al romper récord (no en cada punto).
-      // Devuelve true si el récord subió en este cuadro.
-      considerar: function (score, ahora) {
-        let subio = false;
-        if (score > record) { record = score; sucio = true; subio = true; }
-        if (sucio && ahora - ultima >= throttleMs) { persistir(); ultima = ahora; }
-        return subio;
-      },
-      // Fin de partida: ultimoScore = score (SIEMPRE se sobrescribe); si el score
-      // rompe el récord, sube record. Persiste YA en ambos almacenes.
-      terminar: function (score, ahora) {
+      // Fin de partida (FASE 12 — regla dura): ultimoScore = score SIEMPRE (incluye
+      // 0 cuando la partida termina por CloudOver, el score quedó vaciado). El RÉCORD
+      // sólo sube si `subeRecord` es true — SÓLO en el cierre por TIEMPO CUMPLIDO.
+      // Por CloudOver el record queda INTACTO aunque el score lo supere. ÚNICO camino
+      // de escritura del récord (se eliminó el "récord en vivo" throttled). Persiste
+      // los dos datos en ambos almacenes.
+      terminar: function (score, ahora, subeRecord) {
         ultimoScore = saneo(score);
-        if (ultimoScore > record) record = ultimoScore;
+        if (subeRecord && ultimoScore > record) record = ultimoScore;
         persistir(); ultima = ahora; sucio = false;
       },
-      // Escritura forzada (visibilitychange/pagehide): asegura un récord tocado
-      // aunque el jugador bloquee o cierre a mitad de partida.
+      // Escritura forzada (visibilitychange/pagehide): no-op salvo que quede algo
+      // pendiente. Ya no hay récord en vivo → `sucio` no se activa durante el juego.
       flush: function (ahora) { if (sucio) { persistir(); ultima = ahora; } },
     };
   }

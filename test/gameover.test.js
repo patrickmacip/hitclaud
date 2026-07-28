@@ -49,8 +49,8 @@ console.log('\n=== Récord POR MODO: llaves separadas v2, independientes, arranc
   const almacen = (function () { const d = {}; return { getItem: function (k) { return k in d ? d[k] : null; }, setItem: function (k, v) { d[k] = String(v); }, _d: d }; })();
   const r60 = U.crearPersistencia(almacen, null, 'hitclaud.record.v2.60', 500);
   const rLibre = U.crearPersistencia(almacen, null, 'hitclaud.record.v2.libre', 500);
-  r60.terminar(500, 0);
-  rLibre.terminar(80, 0);
+  r60.terminar(500, 0, true);
+  rLibre.terminar(80, 0, true);
   const g60 = U.parseEntrada(almacen._d['hitclaud.record.v2.60']);
   const gLibre = U.parseEntrada(almacen._d['hitclaud.record.v2.libre']);
   console.log(`  60s.record=${g60.record}  libre.record=${gLibre.record}  ${g60.record === 500 && gLibre.record === 80 ? 'OK ✓' : 'NO ✗'}`);

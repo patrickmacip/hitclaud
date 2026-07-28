@@ -122,17 +122,26 @@
     jugando = true;
     elGameOver.classList.add('oculto');
   }
-  // Fin de partida (rojo tocado o se acabó el tiempo): congela y PERSISTE los dos
-  // datos del modo (record + ultimoScore) en ambos almacenes. Muestra el overlay
-  // con el score final + aviso de récord y los botones de modo.
-  function terminarPartida() {
+  // Fin de partida. `porTiempo`=true → cierre por AGOTARSE EL TIEMPO: el récord
+  // sube si el score lo supera. `porTiempo`=false → cierre por CLOUDOVER: el score
+  // se vacía (ultimoScore=0) y el récord queda INTACTO aunque el score lo superara
+  // (regla dura del dueño: el CloudOver cuesta la partida entera). ÚNICO punto de
+  // escritura del récord. Persiste los dos datos en ambos almacenes y muestra el overlay.
+  function terminarPartida(porTiempo) {
     if (!jugando) return;
     jugando = false;
-    // esRecord ANTES de escribir: terminar() subirá el record al score si lo rompe.
-    const esRecord = marcador.puntos >= record.valor && marcador.puntos > 0;
-    record.terminar(marcador.puntos, performance.now()); // ultimoScore siempre; record si supera
+    const ahora = performance.now();
+    // esRecord ANTES de escribir (terminar sube el record si corresponde). Sólo por tiempo.
+    const esRecord = porTiempo && marcador.puntos >= record.valor && marcador.puntos > 0;
+    const scoreFinal = porTiempo ? marcador.puntos : 0; // CloudOver = vaciado a 0
+    record.terminar(scoreFinal, ahora, !!porTiempo);
+    actualizarRecord();
+    pintarFin(scoreFinal, esRecord);
+  }
+  // Pinta el overlay de fin con el score y el aviso de récord (diseño sin cambios).
+  function pintarFin(score, esRecord) {
     elGameOver.querySelector('.go-score').classList.remove('oculto');
-    elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(marcador.puntos);
+    elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(score);
     elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
     elGameOver.classList.remove('oculto');
   }
@@ -464,7 +473,7 @@
       const tg = targets[ti];
       const idx = F.celdaEnPunto(tg, mx, my);
       if (idx < 0) continue;                 // la mira no está sobre un cubo vivo
-      if (tg.rojo) { terminarPartida(); return; } // impacto en ROJO → game over
+      if (tg.rojo) { terminarPartida(false); return; } // impacto en ROJO (CloudOver) → game over
       // NARANJA normal: destruye el cubito impactado (preciso, 1 cubo). GRANDE:
       // más pesado + hitball chica → cada golpe demuele su ZONA (¼ = ceil(vivosMax/4))
       // alrededor de la mira → exige MÍN. 4 golpes.
@@ -602,7 +611,7 @@
     // está pausado → la pausa lo detiene). Al agotarse, termina la partida.
     if (modoJuego === '60') {
       tiempoRestante -= dt;
-      if (tiempoRestante <= 0) { tiempoRestante = 0; terminarPartida(); dibujar(); return; }
+      if (tiempoRestante <= 0) { tiempoRestante = 0; terminarPartida(true); dibujar(); return; }
     }
 
     // Costo de INACTIVIDAD: tras la gracia, cada segundo quieto cuesta el 25%
@@ -647,9 +656,9 @@
       for (let ti = targets.length - 1; ti >= 0; ti--) {
         const tg = targets[ti];
         if (tg.rojo) {
-          // ROJO: cualquier contacto de la hitball TERMINA la partida.
+          // ROJO (CloudOver): cualquier contacto de la hitball TERMINA la partida.
           if (!F.colisionCirculoRect(b, tg)) continue;
-          terminarPartida();
+          terminarPartida(false);
           return; // corta el cuadro; el bucle se congela
         }
         // NARANJA (el que puntúa): daño por cubos + ganancia × racha.
@@ -734,8 +743,9 @@
       generarGrande();
       proximoGrande = t + GRANDE_MIN_MS + Math.random() * GRANDE_JITTER_MS;
     }
-    // Récord EN VIVO: si el score superó el récord, sube ya (y escribe con throttle).
-    if (record.considerar(marcador.puntos, t)) actualizarRecord();
+    // (FASE 12) SIN récord en vivo: el récord ya NO sube ni se escribe durante la
+    // partida. La celda "Record" muestra el récord GUARDADO (por tiempo cumplido);
+    // sólo se actualiza al terminar por TIEMPO. Un CloudOver no lo mueve.
     // Fin del latido del marcador.
     if (marcadorPopHasta && t > marcadorPopHasta) { elActual.style.transform = 'scale(1)'; marcadorPopHasta = 0; }
     dibujar();
