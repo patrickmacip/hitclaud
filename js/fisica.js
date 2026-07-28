@@ -519,6 +519,7 @@
     cajaLocal: cajaLocal,
     celdaLocal: celdaLocal,
     celdaMundo: celdaMundo,
+    cubosVivosMundo: cubosVivosMundo,
     celdaEnPunto: celdaEnPunto,
     celdasCercanas: celdasCercanas,
   };

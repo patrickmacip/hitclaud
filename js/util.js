@@ -130,9 +130,37 @@
     return (m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)) + 'M';
   }
 
+  // ── SECUENCIA de CloudOver (FASE 12 commit 2) — tiempos y curva PUROS ───────
+  // Máquina de estados del game-over por CloudOver, en este orden exacto:
+  //   impacto (0–400ms): explosión viva, pantalla limpia, el juego sigue corriendo.
+  //   vaciado (400–1100ms, 700ms): el contador Actual cuenta de score a 0.
+  //   cero    (1100–1300ms): tocó 0, espera 200ms.
+  //   overlay (≥1300ms): entra el overlay de game over con score 0.
+  const SEC = { IMPACTO: 400, VACIADO: 700, POST: 200 };
+  // Fase según ms transcurridos desde el impacto. `reducir` (prefers-reduced-motion)
+  // → salta directo a 'overlay' (vaciado instantáneo, overlay sin demora).
+  function faseCloudover(elapsed, reducir) {
+    if (reducir) return 'overlay';
+    if (elapsed < SEC.IMPACTO) return 'impacto';
+    if (elapsed < SEC.IMPACTO + SEC.VACIADO) return 'vaciado';
+    if (elapsed < SEC.IMPACTO + SEC.VACIADO + SEC.POST) return 'cero';
+    return 'overlay';
+  }
+  // Valor del contador durante el vaciado: score→0 con easeOutCubic (rápido al
+  // inicio, frenando al final). Antes del vaciado = score; en/después del fin = 0
+  // EXACTO (nunca un residual). Determinista → testeable.
+  function valorVaciado(score, elapsed) {
+    if (elapsed <= SEC.IMPACTO) return score;
+    if (elapsed >= SEC.IMPACTO + SEC.VACIADO) return 0;
+    const p = (elapsed - SEC.IMPACTO) / SEC.VACIADO;
+    const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+    return Math.round(score * (1 - eased));
+  }
+
   const U = {
     leerToken: leerToken, crearPersistencia: crearPersistencia,
     parseEntrada: parseEntrada, abreviarNumero: abreviarNumero,
+    SEC: SEC, faseCloudover: faseCloudover, valorVaciado: valorVaciado,
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = U;

@@ -101,7 +101,7 @@
   function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
-    ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0;
+    ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null;
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
     const ahora = performance.now();
@@ -144,6 +144,42 @@
     elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(score);
     elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
     elGameOver.classList.remove('oculto');
+  }
+
+  // ── SECUENCIA de CloudOver (FASE 12 commit 2) ──────────────────────────────
+  // Golpe al CloudOver: arranca impacto→congelado→vaciado→overlay. Explota los
+  // cubos del CloudOver en el punto de impacto (física existente) con su color de
+  // identidad (rojo) y lo saca del tablero. NO termina la partida aún — eso ocurre
+  // al entrar el overlay (a los 1300ms). Toda la lógica va con try/catch: si algo
+  // falla, salta directo al overlay (el juego NUNCA queda trabado sin salida).
+  function golpeCloudover(tg, px, py) {
+    if (secuencia || !jugando) return;
+    try {
+      const centros = F.cubosVivosMundo(tg);
+      explotarCubos(centros, px, py, 1.6, tg.vx, tg.vy, COLOR.cloudoverB); // debris rojo (identidad)
+    } catch (e) { /* si la explosión falla, la secuencia sigue igual */ }
+    try {
+      const i = targets.indexOf(tg);
+      if (i >= 0) targets.splice(i, 1);
+    } catch (e) { /* nada */ }
+    gesto.activo = false; // ignora cualquier gesto en curso durante la secuencia
+    // Limpia feedback de pérdida en vuelo (bordes/monto de un cobro previo) para que
+    // el vaciado tenga sus PROPIOS visuales, sin residuos del castigo normal.
+    perdidaInicio = -Infinity; montoInicio = -Infinity; montoHasta = 0; contadorRojoHasta = 0;
+    // reduced-motion: sin conteo ni demora → vacía a 0 y overlay directo.
+    if (reducirMovimiento()) { marcador.puntos = 0; actualizarMarcador(); saltarAlOverlay(); return; }
+    secuencia = { inicio: performance.now(), score: marcador.puntos, fase: 'impacto' };
+  }
+  // Cierre garantizado de la secuencia: termina por CloudOver (ultimoScore=0, record
+  // intacto) y muestra el overlay. Blindado: si terminarPartida falla, fuerza el
+  // overlay a mano. Deja secuencia=null pase lo que pase.
+  function saltarAlOverlay() {
+    try { terminarPartida(false); }
+    catch (e) {
+      jugando = false;
+      try { pintarFin(0, false); } catch (e2) { try { elGameOver.classList.remove('oculto'); } catch (e3) {} }
+    }
+    secuencia = null;
   }
   // Pantalla de inicio al cargar (sin score todavía).
   function mostrarInicio() {
@@ -293,6 +329,12 @@
     try { return window.matchMedia && window.matchMedia('(pointer: fine)').matches; }
     catch (e) { return false; }
   })();
+  // prefers-reduced-motion: se consulta EN VIVO (el usuario puede cambiarlo). Si está
+  // activo, la secuencia de CloudOver es inmediata (score a 0 sin conteo, overlay ya).
+  function reducirMovimiento() {
+    try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+    catch (e) { return false; }
+  }
   const RADIO_MIRA = RADIO_NORMAL / 4; // hitball de desktop: 4× más chica (14 → 3.5)
   const DISPARO_MS = 130;              // duración del destello del tiro (hitscan)
 
@@ -316,6 +358,10 @@
   let proximoSpawn = 0;             // timestamp mínimo del próximo naranja
   // Ciclo de partida: `jugando` false = overlay de inicio/fin arriba (congelado).
   let jugando = false;              // ¿hay una partida en curso?
+  // SECUENCIA de CloudOver (FASE 12): estado de partida SEPARADO de la pausa (no la
+  // reutiliza). null salvo mientras corre la máquina impacto→congelado→vaciado→overlay.
+  // {inicio, score, fase}. El "congelamiento" = este estado ≠ null con fase ≥ vaciado.
+  let secuencia = null;
   let modoJuego = null;             // '60' | 'libre'
   let tiempoRestante = 0;           // ms restantes (modo 60 seg) — se decrementa con dt SOLO jugando
                                     // (así la pausa DETIENE el reloj de verdad; 0/N-A en Relax).
@@ -430,6 +476,7 @@
   // DESKTOP: la mira sigue al cursor; el clic dispara un HITSCAN (impacto
   // inmediato). MÓVIL: gesto de arrastre para lanzar la hitball (un dedo).
   canvas.addEventListener('pointerdown', function (e) {
+    if (secuencia) return; // durante la secuencia de CloudOver se ignora todo toque
     if (esDesktop) { dispararHitscan(e.clientX, e.clientY); return; }
     if (gesto.activo) return;
     if (distHitmaker(e.clientX, e.clientY) > RADIO_HITMAKER) return;
@@ -449,6 +496,7 @@
 
   canvas.addEventListener('pointerup', function (e) {
     if (esDesktop) return;
+    if (secuencia) { gesto.activo = false; return; } // toque ignorado durante la secuencia
     if (!gesto.activo) return;
     gesto.activo = false;
     gesto.puntos.push({ x: e.clientX, y: e.clientY, t: performance.now() });
@@ -462,7 +510,7 @@
   // vivo de un target, lo destruye (1 cubito = precisión) y puntúa ×racha; si toca
   // un ROJO, game over; si no toca nada, es FALLO. Anti-spam por CADENCIA_MS.
   function dispararHitscan(mx, my) {
-    if (pausado || !jugando) return;
+    if (pausado || !jugando || secuencia) return;
     const ahora = performance.now();
     if (ahora - ultimoDisparo < CADENCIA_MS) return;
     ultimoDisparo = ahora;
@@ -473,7 +521,7 @@
       const tg = targets[ti];
       const idx = F.celdaEnPunto(tg, mx, my);
       if (idx < 0) continue;                 // la mira no está sobre un cubo vivo
-      if (tg.rojo) { terminarPartida(false); return; } // impacto en ROJO (CloudOver) → game over
+      if (tg.rojo) { golpeCloudover(tg, mx, my); return; } // impacto en ROJO → secuencia CloudOver
       // NARANJA normal: destruye el cubito impactado (preciso, 1 cubo). GRANDE:
       // más pesado + hitball chica → cada golpe demuele su ZONA (¼ = ceil(vivosMax/4))
       // alrededor de la mira → exige MÍN. 4 golpes.
@@ -558,7 +606,7 @@
   const elPausa = document.getElementById('pausa');
   const botonPausa = document.querySelector('.boton-pausa');
   if (botonPausa) botonPausa.addEventListener('click', function () {
-    if (!jugando || pausado) return;   // sólo se pausa una partida en curso
+    if (!jugando || pausado || secuencia) return;   // no se pausa durante la secuencia de CloudOver
     pausado = true;
     if (elPausa) elPausa.classList.remove('oculto');
   });
@@ -603,13 +651,34 @@
     const dt = Math.min(t - tPrev, 32); // techo: pestañas en segundo plano
     tPrev = t;
 
+    // SECUENCIA de CloudOver: tiene prioridad. Blindada — cualquier fallo salta al
+    // overlay (nunca se traba). En fase IMPACTO el mundo sigue vivo (la explosión
+    // respira) y cae al update normal; desde el CONGELAMIENTO todo se detiene y sólo
+    // el contador se vacía; luego entra el overlay.
+    if (secuencia) {
+      try {
+        secuencia.fase = U.faseCloudover(t - secuencia.inicio, false);
+        if (secuencia.fase === 'overlay') { saltarAlOverlay(); dibujar(); return; }
+        if (secuencia.fase !== 'impacto') {
+          // CONGELADO: sin física, sin spawn, sin reloj, sin input. Sólo el vaciado.
+          cobrando = false; // pantalla limpia: sin el indicador '· · ·' de inactividad
+          const val = U.valorVaciado(secuencia.score, t - secuencia.inicio);
+          marcador.puntos = val;
+          if (elActual) elActual.textContent = U.abreviarNumero(val);
+          dibujar();
+          return;
+        }
+        // fase impacto → cae al update normal (reloj y fin por tiempo gateados con !secuencia).
+      } catch (e) { saltarAlOverlay(); dibujar(); return; }
+    }
+
     // Pausado o SIN PARTIDA (overlay de inicio/fin arriba): congela toda
     // actualización (física, spawn, colisión, cobro); solo re-dibuja el estado.
     if (pausado || !jugando) { cobrando = false; dibujar(); return; }
 
-    // Modo 60 MIN: el reloj SÓLO corre cuando se juega (esta línea no se alcanza si
-    // está pausado → la pausa lo detiene). Al agotarse, termina la partida.
-    if (modoJuego === '60') {
+    // Modo 60 MIN: el reloj SÓLO corre cuando se juega (gateado con !secuencia: durante
+    // la secuencia de CloudOver el reloj se detiene). Al agotarse, termina la partida.
+    if (modoJuego === '60' && !secuencia) {
       tiempoRestante -= dt;
       if (tiempoRestante <= 0) { tiempoRestante = 0; terminarPartida(true); dibujar(); return; }
     }
@@ -618,7 +687,7 @@
     // del castigo del tramo actual. El reloj NO corre si el documento está
     // oculto (ya gateado) ni mientras hay un gesto activo. Piso en 0.
     cobrando = false;
-    if (!document.hidden && !gesto.activo) {
+    if (!document.hidden && !gesto.activo && !secuencia) {
       const idle = t - ultimoGesto;
       if (idle > GRACIA_MS) {
         const debidos = Math.floor((idle - GRACIA_MS) / 1000);
@@ -656,10 +725,10 @@
       for (let ti = targets.length - 1; ti >= 0; ti--) {
         const tg = targets[ti];
         if (tg.rojo) {
-          // ROJO (CloudOver): cualquier contacto de la hitball TERMINA la partida.
+          // ROJO (CloudOver): cualquier contacto de la hitball arranca la secuencia.
           if (!F.colisionCirculoRect(b, tg)) continue;
-          terminarPartida(false);
-          return; // corta el cuadro; el bucle se congela
+          golpeCloudover(tg, b.x, b.y);
+          return; // corta el cuadro; la secuencia toma el control
         }
         // NARANJA (el que puntúa): daño por cubos + ganancia × racha.
         const r = F.resolverImpacto(b, tg);
@@ -801,8 +870,10 @@
     }
     ctx.globalAlpha = 1;
     const ahoraB = performance.now();
-    // Marcador Actual: rojo #FF4583 durante 400ms al restar; si no, el naranja vivo.
-    if (elActual) elActual.style.color = (ahoraB < contadorRojoHasta) ? ROJO_CONTADOR : ACENTO.vivo;
+    // Marcador Actual: rojo #FF4583 durante el VACIADO del CloudOver (vaciado/cero) y
+    // durante los 400ms al restar; si no, el naranja vivo.
+    const enVaciado = !!secuencia && (secuencia.fase === 'vaciado' || secuencia.fase === 'cero');
+    if (elActual) elActual.style.color = (enVaciado || ahoraB < contadorRojoHasta) ? ROJO_CONTADOR : ACENTO.vivo;
 
     if (esDesktop) {
       // Destello del disparo HITSCAN: una hitball chica que aparece y se apaga.
@@ -917,6 +988,20 @@
       const gr = ctx.createLinearGradient(W, 0, W - FRANJA_PX, 0);
       gr.addColorStop(0, ROJO_BORDE); gr.addColorStop(1, 'transparent');
       ctx.fillStyle = gr; ctx.fillRect(W - FRANJA_PX, 0, FRANJA_PX, H);
+      ctx.restore();
+    }
+    // VACIADO del CloudOver: palpitar rojo de bordes (#FF0055, 28px) que ACOMPAÑA el
+    // vaciado de principio a fin. Pulso sinusoidal continuo (no el envelope de pérdida)
+    // y SIN el monto pequeño (esa pieza es para cobros normales, no para esto).
+    if (secuencia && (secuencia.fase === 'vaciado' || secuencia.fase === 'cero')) {
+      ctx.save();
+      ctx.globalAlpha = 0.35 + 0.28 * Math.abs(Math.sin(nowP / 130)); // palpitar
+      const gl2 = ctx.createLinearGradient(0, 0, FRANJA_PX, 0);
+      gl2.addColorStop(0, ROJO_BORDE); gl2.addColorStop(1, 'transparent');
+      ctx.fillStyle = gl2; ctx.fillRect(0, 0, FRANJA_PX, H);
+      const gr2 = ctx.createLinearGradient(W, 0, W - FRANJA_PX, 0);
+      gr2.addColorStop(0, ROJO_BORDE); gr2.addColorStop(1, 'transparent');
+      ctx.fillStyle = gr2; ctx.fillRect(W - FRANJA_PX, 0, FRANJA_PX, H);
       ctx.restore();
     }
     const dtM = nowP - montoInicio;
