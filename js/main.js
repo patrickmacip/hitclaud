@@ -376,6 +376,9 @@
   let pausado = false;        // pausa manual (botón)
   let rafId = null;
   let tPrev = 0;
+  // MEDIDOR DE FPS (debug temporal, build v41-fps): mide cuadro real vs dibujo.
+  const medidorFps = U.crearMedidorFps(1000, 500);
+  let ultimoDibujoMs = 0; // duración de la última llamada a dibujar() (1 cuadro de atraso)
 
   function rnd(a, b) { return a + Math.random() * (b - a); }
 
@@ -675,8 +678,10 @@
   // un throw en dibujar() saltaba el requestAnimationFrame y congelaba el juego).
   function cuadro(t) {
    try {
-    const dt = Math.min(t - tPrev, 32); // techo: pestañas en segundo plano
+    const dtReal = t - tPrev;            // dt SIN recorte (para el medidor de fps)
+    const dt = Math.min(dtReal, 32);     // techo: pestañas en segundo plano
     tPrev = t;
+    medidorFps.registrar(t, dtReal, ultimoDibujoMs); // registra CADA cuadro (todas las ramas)
 
     // SECUENCIA de CloudOver: tiene prioridad. Blindada — cualquier fallo salta al
     // overlay (nunca se traba). En fase IMPACTO el mundo sigue vivo (la explosión
@@ -857,6 +862,7 @@
 
   // ── Pintura ────────────────────────────────────────────────────────
   function dibujar() {
+    const _dib0 = performance.now(); // (debug v41-fps) inicio del cronómetro de dibujo
     ctx.clearRect(0, 0, W, H);
 
     // Micro-sacudida de pantalla (solo en destrucción): desplaza todo el dibujo.
@@ -1060,6 +1066,24 @@
       ctx.fillText(txt, 0, 0);
       ctx.restore();
     }
+
+    // ── MEDIDOR DE FPS (debug TEMPORAL, build v41-fps) ─────────────────────────
+    // Arriba-izquierda, 11px monoespaciado, --texto-apagado, sin fondo ni sombra.
+    // Un fillText por línea. Distingue tiempo de CUADRO (F) vs tiempo de DIBUJO (D).
+    {
+      const m = medidorFps.leer(performance.now());
+      const vivos = bolitas.length + targets.length + cubos.length;
+      ctx.save();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.font = '11px ui-monospace, Menlo, monospace';
+      ctx.fillStyle = COLOR.textoApagado;
+      const bx = 8, by = 96;
+      ctx.fillText('v41-fps  F:' + Math.round(m.fps) + '  D:' + m.dibujoMs.toFixed(1) + 'ms', bx, by);
+      ctx.fillText('peor:' + Math.round(m.peorMs) + 'ms', bx, by + 13);
+      ctx.fillText('b:' + bolitas.length + ' t:' + targets.length + ' c:' + cubos.length + ' (' + vivos + ')', bx, by + 26);
+      ctx.restore();
+    }
+    ultimoDibujoMs = performance.now() - _dib0; // (debug v41-fps) duración total del dibujo
   }
 
   // Estela METEORO: UNA cola continua (no fantasmas). Un solo path con dos bordes

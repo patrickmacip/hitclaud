@@ -191,11 +191,53 @@
     return { pts: out, len: len };
   }
 
+  // ── MEDIDOR DE FPS (build de debug temporal) ───────────────────────────────
+  // Acumula el tiempo REAL entre cuadros (timestamp de rAF) + el tiempo de DIBUJO,
+  // sobre una ventana móvil (1s). `leer` recomputa a lo sumo cada `refrescoMs`
+  // (números estables/legibles). PURO → testeable con timestamps simulados.
+  //   fps    = cuadros por segundo en la ventana (por el span real cubierto).
+  //   peorMs = el cuadro MÁS LENTO de la ventana (peor pico de dt).
+  //   dibujoMs = tiempo medio de la función de dibujo en la ventana.
+  function crearMedidorFps(ventanaMs, refrescoMs) {
+    ventanaMs = ventanaMs || 1000;
+    refrescoMs = refrescoMs || 500;
+    const muestras = []; // {t, dt, draw}
+    let cache = { fps: 0, peorMs: 0, dibujoMs: 0 };
+    let ultimoCalc = -Infinity;
+    function purgar(t) {
+      const corte = t - ventanaMs;
+      while (muestras.length && muestras[0].t < corte) muestras.shift();
+    }
+    return {
+      registrar: function (t, dt, draw) {
+        muestras.push({ t: t, dt: dt, draw: draw || 0 });
+        purgar(t);
+      },
+      leer: function (t) {
+        if (t - ultimoCalc >= refrescoMs) {
+          ultimoCalc = t;
+          purgar(t);
+          const n = muestras.length;
+          let peor = 0, sumDraw = 0;
+          for (let i = 0; i < n; i++) { if (muestras[i].dt > peor) peor = muestras[i].dt; sumDraw += muestras[i].draw; }
+          let fps = 0;
+          if (n >= 2) {
+            const span = (muestras[n - 1].t - muestras[0].t) / 1000;
+            fps = span > 0 ? (n - 1) / span : 0;
+          }
+          cache = { fps: fps, peorMs: peor, dibujoMs: n ? sumDraw / n : 0 };
+        }
+        return cache;
+      },
+      get muestras() { return muestras; },
+    };
+  }
+
   const U = {
     leerToken: leerToken, crearPersistencia: crearPersistencia,
     parseEntrada: parseEntrada, abreviarNumero: abreviarNumero,
     SEC: SEC, faseCloudover: faseCloudover, valorVaciado: valorVaciado,
-    estelaMeteoro: estelaMeteoro,
+    estelaMeteoro: estelaMeteoro, crearMedidorFps: crearMedidorFps,
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = U;
