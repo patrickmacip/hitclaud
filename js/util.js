@@ -261,62 +261,10 @@
   function cascTarget(etq, t) { return etq + ' x:' + cascFmt(t.x) + ' y:' + cascFmt(t.y) + ' vx:' + cascFmt(t.vx) + ' vy:' + cascFmt(t.vy) + ' rot:' + cascFmt(t.rot) + ' vivos:' + t.vivos + '/' + t.vivosMax; }
   // Línea NOMBRE=VALOR (constante real leída del código).
   function cascConst(nombre, valor) { return nombre + '=' + cascFmt(valor); }
-
-  // Régimen de DEGRADACIÓN por fps (la fluidez manda sobre el tributo): fps<50
-  // sostenido >1s → 2 columnas; fps<40 sostenido >1s → apagada (0). Vuelve en cuanto
-  // el fps se recupera (el contador se resetea al primer cuadro por encima del umbral).
-  function crearRegimenCascada(base) {
-    base = base || 3;
-    let t50 = null, t40 = null;
-    return {
-      columnas: function (fps, now) {
-        if (fps < 50) { if (t50 === null) t50 = now; } else t50 = null;
-        if (fps < 40) { if (t40 === null) t40 = now; } else t40 = null;
-        if (t40 !== null && now - t40 > 1000) return 0;
-        if (t50 !== null && now - t50 > 1000) return Math.min(base, 2);
-        return base;
-      },
-    };
-  }
-
-  // Motor de la cascada: columnas de texto que caen (cruce ~cruceMs), con tope DURO
-  // de líneas por columna (presupuesto de fillText acotado). push() hace nacer líneas
-  // (contenido REAL vía `muestrear`); render() las avanza y culla las que salieron.
-  function crearCascada(cfg) {
-    cfg = cfg || {};
-    const baseCols = cfg.columnas || 3;
-    const cruce = cfg.cruceMs || 6000;
-    const intervalo = cfg.intervaloMs || 800;
-    const maxCol = cfg.maxPorColumna || 9;
-    const lineas = [];       // {col, texto, nacio}
-    const ultimo = [];
-    for (let i = 0; i < baseCols; i++) ultimo[i] = -Infinity;
-    return {
-      push: function (now, colsActivas, muestrear) {
-        if (colsActivas <= 0) { lineas.length = 0; return; } // apagada → se limpia
-        for (let c = 0; c < colsActivas; c++) {
-          if (now - ultimo[c] < intervalo) continue;
-          let n = 0; for (let i = 0; i < lineas.length; i++) if (lineas[i].col === c) n++;
-          if (n >= maxCol) continue;              // tope duro por columna
-          const txt = muestrear && muestrear();
-          if (!txt) continue;
-          lineas.push({ col: c, texto: txt, nacio: now });
-          ultimo[c] = now;
-        }
-      },
-      render: function (now, W, H) {
-        const out = [];
-        for (let i = lineas.length - 1; i >= 0; i--) {
-          const L = lineas[i];
-          const y = ((now - L.nacio) / cruce) * H;
-          if (y > H + 14) { lineas.splice(i, 1); continue; } // salió por abajo → culla
-          out.push({ x: L.col * (W / baseCols) + 6, y: y, texto: L.texto });
-        }
-        return out;
-      },
-      get lineas() { return lineas; },
-    };
-  }
+  // (FASE 17) Se ELIMINARON crearCascada (motor de caída/reciclado) y
+  // crearRegimenCascada (freno por fps 50/40 que APAGABA el bloque a ~30fps y no
+  // se recuperaba). Los datos ya no caen: main.js dibuja líneas FIJAS cuyo valor
+  // se recomputa en vivo con estos formateadores. Sin motor, sin freno.
 
   const U = {
     leerToken: leerToken, crearPersistencia: crearPersistencia,
@@ -327,7 +275,6 @@
     CASC_CONST_FISICA: CASC_CONST_FISICA, CASC_CONST_PUNT: CASC_CONST_PUNT,
     CASC_EVENTOS: CASC_EVENTOS, cascFmt: cascFmt, cascEntidad: cascEntidad,
     cascTarget: cascTarget, cascConst: cascConst,
-    crearRegimenCascada: crearRegimenCascada, crearCascada: crearCascada,
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = U;

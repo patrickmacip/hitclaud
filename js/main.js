@@ -393,58 +393,43 @@
   const medidorFps = U.crearMedidorFps(1000, 500);
   let ultimoDibujoMs = 0; // duración de la última llamada a dibujar() (1 cuadro de atraso)
 
-  // ── CASCADA de datos reales (FASE 16) ──────────────────────────────────────
-  // Capa DETRÁS de todo el juego: 3 columnas de texto cayendo (mono 10px, alfa 0.25,
-  // --texto-apagado). TODO lo que cae es REAL (estado vivo + constantes leídas del
-  // código + nombres reales de funciones al ejecutarse). Pura pintura en canvas → no
-  // captura toques ni agrega listeners. Degrada por fps y se omite en reduced-motion.
-  const cascada = U.crearCascada({ columnas: 3, cruceMs: 6000, intervaloMs: 800, maxPorColumna: 9 });
-  const regimenCasc = U.crearRegimenCascada(3);
-  let cascEventos = [];       // cola de eventos REALES (nombre de función + datos)
-  let cascRR = -1;            // round-robin de fuentes de telemetría/constantes
-  function cascEvento(fn, datos) { cascEventos.push(fn + (datos ? ' ' + datos : '')); if (cascEventos.length > 24) cascEventos.shift(); }
-  // Fuentes de contenido: cada una devuelve un string de DATO REAL, o null si no hay
-  // dato ahora (se saltea). Telemetría viva primero; constantes reales después.
-  const cascFuentes = [
-    function () { return bolitas[0] ? U.cascEntidad('bolitas[0]', bolitas[0]) : null; },
-    function () { return bolitas[1] ? U.cascEntidad('bolitas[1]', bolitas[1]) : null; },
-    function () { return targets[0] ? U.cascTarget('targets[0]', targets[0]) : null; },
-    function () { return targets[1] ? U.cascTarget('targets[1]', targets[1]) : null; },
+  // ── DATOS DE FONDO FIJOS (FASE 17) ─────────────────────────────────────────
+  // Antes caían (fase 16) y el freno por fps las APAGABA a ~30fps sin recuperarse.
+  // Ahora: UNA sola columna a la IZQUIERDA (x=20, sin tocar el borde), líneas FIJAS
+  // cuyo VALOR se recomputa en vivo. Sin caída, sin reciclado, SIN freno por fps
+  // (siempre se dibuja). Alfa 0.15, --texto-apagado, capa detrás de todo. TODO REAL.
+  const FONDO_X = 20, FONDO_Y0 = 8, FONDO_LH = 13; // 20px margen; interlínea de mono 10px
+  let ultimoEvento = '';   // ÚLTIMO evento real (nombre de función + datos), fijo hasta el próximo
+  function cascEvento(fn, datos) { ultimoEvento = fn + (datos ? ' ' + datos : ''); }
+  // Líneas FIJAS (orden estable): cada thunk devuelve un string de DATO REAL en vivo.
+  // Telemetría (posición fija, valor cambia), luego el último evento, luego constantes.
+  const lineasFondo = [
+    function () { const m = medidorFps.leer(performance.now()); return 'medidorFps F:' + Math.round(m.fps) + ' D:' + m.dibujoMs.toFixed(1) + ' peor:' + Math.round(m.peorMs); },
     function () { return 'cubos.length:' + cubos.length + ' bolitas.length:' + bolitas.length; },
     function () { return 'marcador.racha:' + marcador.racha + ' multRacha:' + U.cascFmt(P.multRacha(marcador.racha)); },
     function () { return 'modoJuego:' + (modoJuego || 'null') + ' tiempoRestante:' + Math.max(0, Math.round(tiempoRestante)); },
-    function () { const m = medidorFps.leer(performance.now()); return 'medidorFps F:' + Math.round(m.fps) + ' D:' + m.dibujoMs.toFixed(1) + ' peor:' + Math.round(m.peorMs); },
+    function () { return bolitas[0] ? U.cascEntidad('bolitas[0]', bolitas[0]) : 'bolitas[0]:undefined'; },
+    function () { return bolitas[1] ? U.cascEntidad('bolitas[1]', bolitas[1]) : 'bolitas[1]:undefined'; },
+    function () { return targets[0] ? U.cascTarget('targets[0]', targets[0]) : 'targets[0]:undefined'; },
+    function () { return targets[1] ? U.cascTarget('targets[1]', targets[1]) : 'targets[1]:undefined'; },
+    function () { return ultimoEvento; }, // último evento real, fijo hasta el siguiente
   ];
-  U.CASC_CONST_FISICA.forEach(function (nombre) { cascFuentes.push(function () { return U.cascConst(nombre, F.FISICA[nombre]); }); });
-  U.CASC_CONST_PUNT.forEach(function (nombre) { cascFuentes.push(function () { return U.cascConst(nombre, P[nombre]); }); });
+  U.CASC_CONST_FISICA.forEach(function (nombre) { lineasFondo.push(function () { return U.cascConst(nombre, F.FISICA[nombre]); }); });
+  U.CASC_CONST_PUNT.forEach(function (nombre) { lineasFondo.push(function () { return U.cascConst(nombre, P[nombre]); }); });
   [['MAX_CUBOS', function () { return MAX_CUBOS; }], ['MAX_BOLITAS', function () { return MAX_BOLITAS; }], ['MAX_EN_PANTALLA', function () { return MAX_EN_PANTALLA; }], ['ESTELA_PUNTOS', function () { return ESTELA_PUNTOS; }], ['SPAWN_GAP_MAX', function () { return SPAWN_GAP_MAX; }]]
-    .forEach(function (par) { cascFuentes.push(function () { return U.cascConst(par[0], par[1]()); }); });
-  // Muestra: evento real pendiente primero; si no, la próxima fuente con dato.
-  function cascMuestra() {
-    if (cascEventos.length) return cascEventos.shift();
-    for (let k = 0; k < cascFuentes.length; k++) {
-      cascRR = (cascRR + 1) % cascFuentes.length;
-      const s = cascFuentes[cascRR]();
-      if (s) return s;
-    }
-    return null;
-  }
-  // Dibuja la cascada (capa de fondo). Un solo fillText por línea, sin shadowBlur ni
-  // gradientes (ley fase 13). reduced-motion → se omite (capa de debug estética; una
-  // versión estática igual ocuparía pantalla sin aportar bajo menos-estímulo).
-  function dibujarCascada() {
-    if (reducirMovimiento()) return;
-    const now = performance.now();
-    const cols = regimenCasc.columnas(medidorFps.leer(now).fps, now);
-    cascada.push(now, cols, cascMuestra);
-    const vis = cascada.render(now, W, H);
-    if (!vis.length) return;
+    .forEach(function (par) { lineasFondo.push(function () { return U.cascConst(par[0], par[1]()); }); });
+  // Dibuja el bloque de datos FIJOS. SIEMPRE (sin freno por fps). Un fillText por
+  // línea, sin shadowBlur ni gradientes (ley fase 13). Posición fija; sólo el valor cambia.
+  function dibujarFondoDatos() {
     ctx.save();
-    ctx.globalAlpha = 0.25;
+    ctx.globalAlpha = 0.15;
     ctx.fillStyle = COLOR.textoApagado;
     ctx.font = '10px ui-monospace, Menlo, monospace';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    for (let i = 0; i < vis.length; i++) ctx.fillText(vis[i].texto, vis[i].x, vis[i].y);
+    for (let i = 0; i < lineasFondo.length; i++) {
+      const s = lineasFondo[i]();
+      if (s) ctx.fillText(s, FONDO_X, FONDO_Y0 + i * FONDO_LH);
+    }
     ctx.restore();
   }
 
@@ -937,7 +922,7 @@
   function dibujar() {
     const _dib0 = performance.now(); // (debug v41-fps) inicio del cronómetro de dibujo
     ctx.clearRect(0, 0, W, H);
-    dibujarCascada(); // CAPA DE FONDO: datos reales cayendo, detrás de todo el juego
+    dibujarFondoDatos(); // CAPA DE FONDO: datos reales FIJOS (valor en vivo), detrás de todo
 
     // Micro-sacudida de pantalla (solo en destrucción): desplaza todo el dibujo.
     let ox = 0;
