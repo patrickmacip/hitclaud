@@ -191,6 +191,37 @@
     return { pts: out, len: len };
   }
 
+  // ── CÁMARA de CloudOver (FASE 15) — escala, sacudida y foco con CLAMP, PUROS ─
+  // Presentación SOBRE la secuencia de la fase 12 (no altera sus tiempos). La
+  // cámara tiene su propia ventana: entra al golpe (t=0) y sale tras el overlay.
+  const CAM = { ENTRADA: 350, SALIDA: 250, ESCALA: 1.6, SAC_MS: 300, SAC_AMP: 12 };
+  function camFin() { return SEC.IMPACTO + SEC.VACIADO + SEC.POST; } // 1300 = instante del overlay: la cámara YA está en 1×
+  // Escala en el tiempo: 1→1.6 (easeOut 350ms), SOSTIENE 1.6 durante el congelamiento
+  // y el vaciado, y sale 1.6→1 (easeOut 250ms) TERMINANDO justo cuando entra el overlay
+  // (t=1300) → la salida es VISIBLE (antes de que el overlay cubra) y a t=1300 la
+  // transformación es IDENTIDAD. Fuera de la ventana = 1.
+  function escalaCam(elapsed) {
+    const fin = camFin();                 // 1300 (overlay)
+    const salidaIni = fin - CAM.SALIDA;   // 1050 (arranca la salida)
+    if (elapsed <= 0) return 1;
+    if (elapsed < CAM.ENTRADA) { const x = elapsed / CAM.ENTRADA; return 1 + (CAM.ESCALA - 1) * (1 - Math.pow(1 - x, 3)); }
+    if (elapsed < salidaIni) return CAM.ESCALA;
+    if (elapsed < fin) { const x = (elapsed - salidaIni) / CAM.SALIDA; return CAM.ESCALA - (CAM.ESCALA - 1) * (1 - Math.pow(1 - x, 3)); }
+    return 1;
+  }
+  // Amplitud de la sacudida de cámara: 12px → 0 lineal en 300ms; 0 fuera.
+  function amplitudSacudidaCam(elapsed) { return (elapsed >= 0 && elapsed < CAM.SAC_MS) ? CAM.SAC_AMP * (1 - elapsed / CAM.SAC_MS) : 0; }
+  // FOCO con CLAMP: centra (px,py) pero NUNCA deja ver fuera del mundo [0,W]×[0,H].
+  // A escala s la vista abarca W/s × H/s → el foco vive en [halfW, W−halfW] (idem Y).
+  // La sacudida (shakeX/Y en px de pantalla) se suma al foco (÷s) y comparte el clamp.
+  //   halfW = W/(2s) · fx = clamp(px + shakeX/s, halfW, W−halfW)  (idem fy).
+  function focoCam(px, py, s, W, H, shakeX, shakeY) {
+    const halfW = W / (2 * s), halfH = H / (2 * s);
+    const fx = Math.min(Math.max(px + (shakeX || 0) / s, halfW), W - halfW);
+    const fy = Math.min(Math.max(py + (shakeY || 0) / s, halfH), H - halfH);
+    return { fx: fx, fy: fy };
+  }
+
   // ── MEDIDOR DE FPS (build de debug temporal) ───────────────────────────────
   // Acumula el tiempo REAL entre cuadros (timestamp de rAF) + el tiempo de DIBUJO,
   // sobre una ventana móvil (1s). `leer` recomputa a lo sumo cada `refrescoMs`
@@ -238,6 +269,8 @@
     parseEntrada: parseEntrada, abreviarNumero: abreviarNumero,
     SEC: SEC, faseCloudover: faseCloudover, valorVaciado: valorVaciado,
     estelaMeteoro: estelaMeteoro, crearMedidorFps: crearMedidorFps,
+    CAM: CAM, escalaCam: escalaCam, amplitudSacudidaCam: amplitudSacudidaCam,
+    focoCam: focoCam, camFin: camFin,
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = U;

@@ -101,7 +101,7 @@
   function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
-    ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null;
+    ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null; camaraCloudover = null;
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
     const ahora = performance.now();
@@ -166,9 +166,14 @@
     // Limpia feedback de pérdida en vuelo (bordes/monto de un cobro previo) para que
     // el vaciado tenga sus PROPIOS visuales, sin residuos del castigo normal.
     perdidaInicio = -Infinity; montoInicio = -Infinity; montoHasta = 0; contadorRojoHasta = 0;
-    // reduced-motion: sin conteo ni demora → vacía a 0 y overlay directo.
+    // VIBRACIÓN (200ms) al golpe, blindada. NOTA: iOS NO soporta la Vibration API →
+    // el dueño NO la sentirá en su iPhone (solo Android). No se simula ni se sustituye.
+    try { if (navigator && navigator.vibrate) navigator.vibrate(200); } catch (e) { /* no soportado */ }
+    // reduced-motion: sin conteo ni demora → vacía a 0 y overlay directo. SIN cámara.
     if (reducirMovimiento()) { marcador.puntos = 0; actualizarMarcador(); saltarAlOverlay(); return; }
-    secuencia = { inicio: performance.now(), score: marcador.puntos, fase: 'impacto' };
+    const ahora = performance.now();
+    secuencia = { inicio: ahora, score: marcador.puntos, fase: 'impacto' };
+    camaraCloudover = { inicio: ahora, px: px, py: py }; // cámara al PUNTO EXACTO del impacto
   }
   // Cierre garantizado de la secuencia: termina por CloudOver (ultimoScore=0, record
   // intacto) y muestra el overlay. Blindado: si terminarPartida falla, fuerza el
@@ -363,6 +368,10 @@
   // reutiliza). null salvo mientras corre la máquina impacto→congelado→vaciado→overlay.
   // {inicio, score, fase}. El "congelamiento" = este estado ≠ null con fase ≥ vaciado.
   let secuencia = null;
+  // CÁMARA de CloudOver (FASE 15): presentación SOBRE la secuencia (no altera sus
+  // tiempos). {inicio, px, py}. Vive por su cuenta (sale a 1× tras el overlay, ~250ms
+  // después de que secuencia ya es null). null salvo durante/tras un golpe de CloudOver.
+  let camaraCloudover = null;
   let modoJuego = null;             // '60' | 'libre'
   let tiempoRestante = 0;           // ms restantes (modo 60 seg) — se decrementa con dt SOLO jugando
                                     // (así la pausa DETIENE el reloj de verdad; 0/N-A en Relax).
@@ -875,6 +884,27 @@
       oy = (Math.random() * 2 - 1) * SACUDIDA_AMP * p;
     }
     ctx.save();
+    try {
+    // CÁMARA de CloudOver (FASE 15): acerca 1.6× y CENTRA el punto del impacto (con
+    // clamp) + sacudida de cámara (12px→0 en 300ms). Se aplica ANTES de la sacudida
+    // normal (ox,oy) para convivir. Envuelve SÓLO el mundo; el bloque va en try/finally
+    // → el restore SIEMPRE corre (la vista nunca queda torcida). reduced-motion deja
+    // camaraCloudover en null → sin cámara. Costo: 1 translate + 1 scale + 1 translate
+    // por cuadro (sin shadowBlur, sin gradientes creados).
+    if (camaraCloudover) {
+      const elc = performance.now() - camaraCloudover.inicio;
+      if (elc >= U.camFin()) { camaraCloudover = null; }        // ventana terminada → 1× (identidad)
+      else {
+        const s = U.escalaCam(elc);
+        if (s > 1) {
+          const amp = U.amplitudSacudidaCam(elc);
+          const sx = amp ? (Math.random() * 2 - 1) * amp : 0;
+          const sy = amp ? (Math.random() * 2 - 1) * amp : 0;
+          const f = U.focoCam(camaraCloudover.px, camaraCloudover.py, s, W, H, sx, sy);
+          ctx.translate(W / 2, H / 2); ctx.scale(s, s); ctx.translate(-f.fx, -f.fy);
+        }
+      }
+    }
     ctx.translate(ox, oy);
 
     // Targets lanzados, rotados sobre su centro. NARANJA = ACENTO.base; ROJO =
@@ -978,8 +1008,14 @@
     }
     ctx.globalAlpha = 1;
 
-    // BADGE del multiplicador de racha: "×N" prominente arriba-centro, crece con
-    // la racha y pulsa. Solo cuando el multiplicador supera ×1 (racha ≥ 3).
+    } finally {
+      ctx.restore(); // SIEMPRE restaura la transformación del MUNDO (cámara + sacudida)
+    }
+    // A partir de aquí: capa de UI SIN transformar (pegada al viewport real): badge de
+    // racha, bordes, monto, temporizador y medidor v41-fps → tamaño normal, sin cámara.
+
+    // BADGE del multiplicador de racha: "×N" prominente arriba-centro (UI: NO se
+    // transforma con la cámara). Solo cuando el multiplicador supera ×1 (racha ≥ 3).
     const mult = P.multRacha(marcador.racha);
     if (mult > 1) {
       const now = performance.now();
@@ -995,8 +1031,7 @@
       ctx.globalAlpha = 1;
     }
 
-    // Aviso sutil de inactividad (cobrando): puntos "· · ·" tenues y pulsantes
-    // abajo-centro en --texto-apagado. Sin alarmas (juego desestresante).
+    // Aviso sutil de inactividad (cobrando): puntos "· · ·" (UI, sin cámara).
     if (cobrando) {
       ctx.globalAlpha = 0.22 + 0.13 * Math.sin(performance.now() / 300);
       ctx.fillStyle = COLOR.textoApagado;
@@ -1004,8 +1039,6 @@
       ctx.fillText('· · ·', W / 2, H - 64);
       ctx.globalAlpha = 1;
     }
-
-    ctx.restore();
 
     // ── PÉRDIDA: palpitar de bordes laterales + monto agregado (fuera de la
     // sacudida: pegado al viewport). Coste barato: dos gradientes lineales + un
@@ -1020,10 +1053,11 @@
       ctx.fillStyle = gradBordeDer; ctx.fillRect(W - FRANJA_PX, 0, FRANJA_PX, H);
       ctx.restore();
     }
-    // VACIADO del CloudOver: palpitar rojo de bordes (#FF0055, 28px) que ACOMPAÑA el
-    // vaciado de principio a fin. Pulso sinusoidal continuo (no el envelope de pérdida)
-    // y SIN el monto pequeño (esa pieza es para cobros normales, no para esto).
-    if (secuencia && (secuencia.fase === 'vaciado' || secuencia.fase === 'cero')) {
+    // CloudOver: palpitar rojo de bordes (#FF0055, 28px, gradiente CACHEADO de la
+    // fase 13 — mismo mecanismo, NO uno nuevo). FASE 15: se dispara desde el GOLPE y
+    // acompaña TODA la secuencia (impacto→vaciado→cero) hasta el overlay. Pulso
+    // sinusoidal continuo, SIN el monto pequeño. Se dibuja en la capa de UI (sin cámara).
+    if (secuencia) {
       ctx.save();
       ctx.globalAlpha = 0.35 + 0.28 * Math.abs(Math.sin(nowP / 130)); // palpitar
       ctx.fillStyle = gradBordeIzq; ctx.fillRect(0, 0, FRANJA_PX, H);       // mismo gradiente cacheado
