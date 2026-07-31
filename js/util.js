@@ -240,12 +240,94 @@
     };
   }
 
+  // ── CASCADA de DATOS REALES (FASE 16) — tributo honesto al código ──────────
+  // TODO lo que cae es REAL: nombres reales de campos/constantes/funciones y valores
+  // del estado vivo. NADA inventado. Estos formateadores son PUROS → testeables, y
+  // los NOMBRES de constantes/eventos se listan aquí para cruzarlos contra el fuente.
+  // Constantes con su nombre REAL (las lee main.js como F.FISICA[nombre] / P[nombre]
+  // → si el valor cambia mañana, la cascada lo refleja sola).
+  const CASC_CONST_FISICA = ['GRAVEDAD', 'G_TARGET', 'VEL_SALIDA_MAX', 'VEL_CAIDA_MAX', 'MAX_PASO_PX', 'VIDA_MAX_MS', 'RESTITUCION_GOLPE', 'MASA_TARGET', 'UMBRAL_DESTRUCCION', 'MULT_SUELTA', 'DANO_CUBOS_MAX', 'RADIO_BOLITA', 'RADIO_TARGET'];
+  const CASC_CONST_PUNT = ['VALOR_CUBO', 'FALLO', 'RACHA_DESDE', 'RACHA_TOPE', 'SCORE_RITMO_MAX', 'RESPIRO_MS'];
+  // Nombres REALES de funciones que emiten un evento al ejecutarse (existen en el código).
+  const CASC_EVENTOS = ['resolverImpacto', 'anotarDestruidos', 'anotarHit', 'anotarFallo', 'golpeCloudover', 'iniciarPartida', 'terminarPartida', 'anotarInactividadSegundo'];
+  function cascFmt(n) {
+    if (typeof n !== 'number' || !isFinite(n)) return String(n);
+    if (Number.isInteger(n)) return String(n);
+    return n.toFixed(Math.abs(n) < 1 ? 4 : 2);
+  }
+  // Línea de una entidad con posición/velocidad (campos REALES x,y,vx,vy).
+  function cascEntidad(etq, o) { return etq + ' x:' + cascFmt(o.x) + ' y:' + cascFmt(o.y) + ' vx:' + cascFmt(o.vx) + ' vy:' + cascFmt(o.vy); }
+  // Línea de un target (agrega rot y celdas vivas: campos REALES rot/vivos/vivosMax).
+  function cascTarget(etq, t) { return etq + ' x:' + cascFmt(t.x) + ' y:' + cascFmt(t.y) + ' vx:' + cascFmt(t.vx) + ' vy:' + cascFmt(t.vy) + ' rot:' + cascFmt(t.rot) + ' vivos:' + t.vivos + '/' + t.vivosMax; }
+  // Línea NOMBRE=VALOR (constante real leída del código).
+  function cascConst(nombre, valor) { return nombre + '=' + cascFmt(valor); }
+
+  // Régimen de DEGRADACIÓN por fps (la fluidez manda sobre el tributo): fps<50
+  // sostenido >1s → 2 columnas; fps<40 sostenido >1s → apagada (0). Vuelve en cuanto
+  // el fps se recupera (el contador se resetea al primer cuadro por encima del umbral).
+  function crearRegimenCascada(base) {
+    base = base || 3;
+    let t50 = null, t40 = null;
+    return {
+      columnas: function (fps, now) {
+        if (fps < 50) { if (t50 === null) t50 = now; } else t50 = null;
+        if (fps < 40) { if (t40 === null) t40 = now; } else t40 = null;
+        if (t40 !== null && now - t40 > 1000) return 0;
+        if (t50 !== null && now - t50 > 1000) return Math.min(base, 2);
+        return base;
+      },
+    };
+  }
+
+  // Motor de la cascada: columnas de texto que caen (cruce ~cruceMs), con tope DURO
+  // de líneas por columna (presupuesto de fillText acotado). push() hace nacer líneas
+  // (contenido REAL vía `muestrear`); render() las avanza y culla las que salieron.
+  function crearCascada(cfg) {
+    cfg = cfg || {};
+    const baseCols = cfg.columnas || 3;
+    const cruce = cfg.cruceMs || 6000;
+    const intervalo = cfg.intervaloMs || 800;
+    const maxCol = cfg.maxPorColumna || 9;
+    const lineas = [];       // {col, texto, nacio}
+    const ultimo = [];
+    for (let i = 0; i < baseCols; i++) ultimo[i] = -Infinity;
+    return {
+      push: function (now, colsActivas, muestrear) {
+        if (colsActivas <= 0) { lineas.length = 0; return; } // apagada → se limpia
+        for (let c = 0; c < colsActivas; c++) {
+          if (now - ultimo[c] < intervalo) continue;
+          let n = 0; for (let i = 0; i < lineas.length; i++) if (lineas[i].col === c) n++;
+          if (n >= maxCol) continue;              // tope duro por columna
+          const txt = muestrear && muestrear();
+          if (!txt) continue;
+          lineas.push({ col: c, texto: txt, nacio: now });
+          ultimo[c] = now;
+        }
+      },
+      render: function (now, W, H) {
+        const out = [];
+        for (let i = lineas.length - 1; i >= 0; i--) {
+          const L = lineas[i];
+          const y = ((now - L.nacio) / cruce) * H;
+          if (y > H + 14) { lineas.splice(i, 1); continue; } // salió por abajo → culla
+          out.push({ x: L.col * (W / baseCols) + 6, y: y, texto: L.texto });
+        }
+        return out;
+      },
+      get lineas() { return lineas; },
+    };
+  }
+
   const U = {
     leerToken: leerToken, crearPersistencia: crearPersistencia,
     parseEntrada: parseEntrada, abreviarNumero: abreviarNumero,
     SEC: SEC, faseCloudover: faseCloudover, valorVaciado: valorVaciado,
     estelaMeteoro: estelaMeteoro, crearMedidorFps: crearMedidorFps,
     CAM: CAM, amplitudSacudidaCam: amplitudSacudidaCam,
+    CASC_CONST_FISICA: CASC_CONST_FISICA, CASC_CONST_PUNT: CASC_CONST_PUNT,
+    CASC_EVENTOS: CASC_EVENTOS, cascFmt: cascFmt, cascEntidad: cascEntidad,
+    cascTarget: cascTarget, cascConst: cascConst,
+    crearRegimenCascada: crearRegimenCascada, crearCascada: crearCascada,
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = U;

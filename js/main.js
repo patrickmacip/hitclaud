@@ -121,6 +121,7 @@
     tiempoRestante = (modo === '60') ? DURACION_60 : 0;
     jugando = true;
     elGameOver.classList.add('oculto');
+    cascEvento('iniciarPartida', 'modo:' + modo);
   }
   // Fin de partida. `porTiempo`=true → cierre por AGOTARSE EL TIEMPO: el récord
   // sube si el score lo supera. `porTiempo`=false → cierre por CLOUDOVER: el score
@@ -137,6 +138,7 @@
     record.terminar(scoreFinal, ahora, !!porTiempo);
     actualizarRecord();
     pintarFin(scoreFinal, esRecord);
+    cascEvento('terminarPartida', 'porTiempo:' + !!porTiempo + ' score:' + scoreFinal);
   }
   // Pinta el overlay de fin con el score y el aviso de récord (diseño sin cambios).
   function pintarFin(score, esRecord) {
@@ -154,6 +156,7 @@
   // falla, salta directo al overlay (el juego NUNCA queda trabado sin salida).
   function golpeCloudover(tg, px, py) {
     if (secuencia || !jugando) return;
+    cascEvento('golpeCloudover', 'px:' + Math.round(px) + ' py:' + Math.round(py));
     try {
       const centros = F.cubosVivosMundo(tg);
       explotarCubos(centros, px, py, 1.6, tg.vx, tg.vy, COLOR.cloudoverB); // debris rojo (identidad)
@@ -384,9 +387,66 @@
   let pausado = false;        // pausa manual (botón)
   let rafId = null;
   let tPrev = 0;
-  // MEDIDOR DE FPS (debug temporal, build v41-fps): mide cuadro real vs dibujo.
+  // MEDIDOR DE FPS (debug temporal, build v41-fps): mide cuadro real vs dibujo. Sus
+  // cifras (F, D, peor, conteos) ya NO se pintan en un recuadro: son una línea más
+  // de la CASCADA (fase 16).
   const medidorFps = U.crearMedidorFps(1000, 500);
   let ultimoDibujoMs = 0; // duración de la última llamada a dibujar() (1 cuadro de atraso)
+
+  // ── CASCADA de datos reales (FASE 16) ──────────────────────────────────────
+  // Capa DETRÁS de todo el juego: 3 columnas de texto cayendo (mono 10px, alfa 0.25,
+  // --texto-apagado). TODO lo que cae es REAL (estado vivo + constantes leídas del
+  // código + nombres reales de funciones al ejecutarse). Pura pintura en canvas → no
+  // captura toques ni agrega listeners. Degrada por fps y se omite en reduced-motion.
+  const cascada = U.crearCascada({ columnas: 3, cruceMs: 6000, intervaloMs: 800, maxPorColumna: 9 });
+  const regimenCasc = U.crearRegimenCascada(3);
+  let cascEventos = [];       // cola de eventos REALES (nombre de función + datos)
+  let cascRR = -1;            // round-robin de fuentes de telemetría/constantes
+  function cascEvento(fn, datos) { cascEventos.push(fn + (datos ? ' ' + datos : '')); if (cascEventos.length > 24) cascEventos.shift(); }
+  // Fuentes de contenido: cada una devuelve un string de DATO REAL, o null si no hay
+  // dato ahora (se saltea). Telemetría viva primero; constantes reales después.
+  const cascFuentes = [
+    function () { return bolitas[0] ? U.cascEntidad('bolitas[0]', bolitas[0]) : null; },
+    function () { return bolitas[1] ? U.cascEntidad('bolitas[1]', bolitas[1]) : null; },
+    function () { return targets[0] ? U.cascTarget('targets[0]', targets[0]) : null; },
+    function () { return targets[1] ? U.cascTarget('targets[1]', targets[1]) : null; },
+    function () { return 'cubos.length:' + cubos.length + ' bolitas.length:' + bolitas.length; },
+    function () { return 'marcador.racha:' + marcador.racha + ' multRacha:' + U.cascFmt(P.multRacha(marcador.racha)); },
+    function () { return 'modoJuego:' + (modoJuego || 'null') + ' tiempoRestante:' + Math.max(0, Math.round(tiempoRestante)); },
+    function () { const m = medidorFps.leer(performance.now()); return 'medidorFps F:' + Math.round(m.fps) + ' D:' + m.dibujoMs.toFixed(1) + ' peor:' + Math.round(m.peorMs); },
+  ];
+  U.CASC_CONST_FISICA.forEach(function (nombre) { cascFuentes.push(function () { return U.cascConst(nombre, F.FISICA[nombre]); }); });
+  U.CASC_CONST_PUNT.forEach(function (nombre) { cascFuentes.push(function () { return U.cascConst(nombre, P[nombre]); }); });
+  [['MAX_CUBOS', function () { return MAX_CUBOS; }], ['MAX_BOLITAS', function () { return MAX_BOLITAS; }], ['MAX_EN_PANTALLA', function () { return MAX_EN_PANTALLA; }], ['ESTELA_PUNTOS', function () { return ESTELA_PUNTOS; }], ['SPAWN_GAP_MAX', function () { return SPAWN_GAP_MAX; }]]
+    .forEach(function (par) { cascFuentes.push(function () { return U.cascConst(par[0], par[1]()); }); });
+  // Muestra: evento real pendiente primero; si no, la próxima fuente con dato.
+  function cascMuestra() {
+    if (cascEventos.length) return cascEventos.shift();
+    for (let k = 0; k < cascFuentes.length; k++) {
+      cascRR = (cascRR + 1) % cascFuentes.length;
+      const s = cascFuentes[cascRR]();
+      if (s) return s;
+    }
+    return null;
+  }
+  // Dibuja la cascada (capa de fondo). Un solo fillText por línea, sin shadowBlur ni
+  // gradientes (ley fase 13). reduced-motion → se omite (capa de debug estética; una
+  // versión estática igual ocuparía pantalla sin aportar bajo menos-estímulo).
+  function dibujarCascada() {
+    if (reducirMovimiento()) return;
+    const now = performance.now();
+    const cols = regimenCasc.columnas(medidorFps.leer(now).fps, now);
+    cascada.push(now, cols, cascMuestra);
+    const vis = cascada.render(now, W, H);
+    if (!vis.length) return;
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = COLOR.textoApagado;
+    ctx.font = '10px ui-monospace, Menlo, monospace';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    for (let i = 0; i < vis.length; i++) ctx.fillText(vis[i].texto, vis[i].x, vis[i].y);
+    ctx.restore();
+  }
 
   function rnd(a, b) { return a + Math.random() * (b - a); }
 
@@ -733,6 +793,7 @@
         const debidos = Math.floor((idle - GRACIA_MS) / 1000);
         while (segundosCobrados < debidos) {
           const c = P.anotarInactividadSegundo(marcador);
+          cascEvento('anotarInactividadSegundo', 'c:' + c);
           segundosCobrados++;
           if (c > 0) registrarPerdida(c); // pérdida: bordes + contador rojo + monto (sin flotante)
         }
@@ -773,14 +834,17 @@
         // NARANJA (el que puntúa): daño por cubos + ganancia × racha.
         const r = F.resolverImpacto(b, tg);
         if (!r) continue;
+        cascEvento('resolverImpacto', 'tipo:' + r.tipo + ' destruidos:' + r.destruidos + ' muerto:' + r.muerto);
         tg.destelloHasta = t + DESTELLO_MS;    // destello en CUALQUIER contacto
         if (!b.tocado) {                       // primer toque = hit (sube la racha continua)
           b.tocado = true;
           P.anotarHit(marcador);
+          cascEvento('anotarHit', 'racha:' + marcador.racha);
           P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, t); // respiro al 10º hit en dif. máx
         }
         if (r.destruidos > 0) {                // ganancia proporcional × racha
           const g = P.anotarDestruidos(marcador, r.destruidos);
+          cascEvento('anotarDestruidos', 'n:' + r.destruidos + ' g:' + g);
           flotante(r.px, r.py, '+' + g, ACENTO.vivo, tamGanancia(g), g >= 300);
           if (g >= 50) popMarcador();          // latido en ganancias fuertes
         }
@@ -812,6 +876,7 @@
           // FALLO: resta y dispara el feedback de pérdida (bordes + contador rojo
           // + monto agregado). Sin flotante regado.
           const pen = P.anotarFallo(marcador);
+          cascEvento('anotarFallo', 'pen:' + pen);
           actualizarMarcador();
           registrarPerdida(pen);
         }
@@ -872,6 +937,7 @@
   function dibujar() {
     const _dib0 = performance.now(); // (debug v41-fps) inicio del cronómetro de dibujo
     ctx.clearRect(0, 0, W, H);
+    dibujarCascada(); // CAPA DE FONDO: datos reales cayendo, detrás de todo el juego
 
     // Micro-sacudida de pantalla (solo en destrucción): desplaza todo el dibujo.
     let ox = 0;
@@ -1090,22 +1156,8 @@
       ctx.restore();
     }
 
-    // ── MEDIDOR DE FPS (debug TEMPORAL, build v41-fps) ─────────────────────────
-    // Arriba-izquierda, 11px monoespaciado, --texto-apagado, sin fondo ni sombra.
-    // Un fillText por línea. Distingue tiempo de CUADRO (F) vs tiempo de DIBUJO (D).
-    {
-      const m = medidorFps.leer(performance.now());
-      const vivos = bolitas.length + targets.length + cubos.length;
-      ctx.save();
-      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      ctx.font = '11px ui-monospace, Menlo, monospace';
-      ctx.fillStyle = COLOR.textoApagado;
-      const bx = 8, by = 96;
-      ctx.fillText('v41-fps  F:' + Math.round(m.fps) + '  D:' + m.dibujoMs.toFixed(1) + 'ms', bx, by);
-      ctx.fillText('peor:' + Math.round(m.peorMs) + 'ms', bx, by + 13);
-      ctx.fillText('b:' + bolitas.length + ' t:' + targets.length + ' c:' + cubos.length + ' (' + vivos + ')', bx, by + 26);
-      ctx.restore();
-    }
+    // (FASE 16) El recuadro del medidor v41-fps se ELIMINÓ: sus cifras (F, D, peor,
+    // conteos) ahora caen como líneas de la CASCADA, como cualquier otro dato real.
     ultimoDibujoMs = performance.now() - _dib0; // (debug v41-fps) duración total del dibujo
   }
 
