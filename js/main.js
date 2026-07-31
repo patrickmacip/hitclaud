@@ -101,7 +101,7 @@
   function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
-    ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null; camaraCloudover = null;
+    ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null; sacudidaCloudover = null;
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
     const ahora = performance.now();
@@ -173,7 +173,7 @@
     if (reducirMovimiento()) { marcador.puntos = 0; actualizarMarcador(); saltarAlOverlay(); return; }
     const ahora = performance.now();
     secuencia = { inicio: ahora, score: marcador.puntos, fase: 'impacto' };
-    camaraCloudover = { inicio: ahora, px: px, py: py }; // cámara al PUNTO EXACTO del impacto
+    sacudidaCloudover = { inicio: ahora }; // sólo la sacudida (12px/300ms); sin zoom ni centrado
   }
   // Cierre garantizado de la secuencia: termina por CloudOver (ultimoScore=0, record
   // intacto) y muestra el overlay. Blindado: si terminarPartida falla, fuerza el
@@ -368,10 +368,9 @@
   // reutiliza). null salvo mientras corre la máquina impacto→congelado→vaciado→overlay.
   // {inicio, score, fase}. El "congelamiento" = este estado ≠ null con fase ≥ vaciado.
   let secuencia = null;
-  // CÁMARA de CloudOver (FASE 15): presentación SOBRE la secuencia (no altera sus
-  // tiempos). {inicio, px, py}. Vive por su cuenta (sale a 1× tras el overlay, ~250ms
-  // después de que secuencia ya es null). null salvo durante/tras un golpe de CloudOver.
-  let camaraCloudover = null;
+  // SACUDIDA de CloudOver (FASE 16, revert del zoom): {inicio}. Sólo el temblor de
+  // 12px/300ms desde el golpe; se apaga solo (sin zoom ni centrado). null salvo durante.
+  let sacudidaCloudover = null;
   let modoJuego = null;             // '60' | 'libre'
   let tiempoRestante = 0;           // ms restantes (modo 60 seg) — se decrementa con dt SOLO jugando
                                     // (así la pausa DETIENE el reloj de verdad; 0/N-A en Relax).
@@ -885,25 +884,15 @@
     }
     ctx.save();
     try {
-    // CÁMARA de CloudOver (FASE 15): acerca 1.6× y CENTRA el punto del impacto (con
-    // clamp) + sacudida de cámara (12px→0 en 300ms). Se aplica ANTES de la sacudida
-    // normal (ox,oy) para convivir. Envuelve SÓLO el mundo; el bloque va en try/finally
-    // → el restore SIEMPRE corre (la vista nunca queda torcida). reduced-motion deja
-    // camaraCloudover en null → sin cámara. Costo: 1 translate + 1 scale + 1 translate
-    // por cuadro (sin shadowBlur, sin gradientes creados).
-    if (camaraCloudover) {
-      const elc = performance.now() - camaraCloudover.inicio;
-      if (elc >= U.camFin()) { camaraCloudover = null; }        // ventana terminada → 1× (identidad)
-      else {
-        const s = U.escalaCam(elc);
-        if (s > 1) {
-          const amp = U.amplitudSacudidaCam(elc);
-          const sx = amp ? (Math.random() * 2 - 1) * amp : 0;
-          const sy = amp ? (Math.random() * 2 - 1) * amp : 0;
-          const f = U.focoCam(camaraCloudover.px, camaraCloudover.py, s, W, H, sx, sy);
-          ctx.translate(W / 2, H / 2); ctx.scale(s, s); ctx.translate(-f.fx, -f.fy);
-        }
-      }
+    // SACUDIDA de CloudOver (FASE 16: revert del zoom). El acercamiento/centrado de
+    // cámara de la fase 15 se ve como fallo → ELIMINADO. Queda SÓLO la sacudida: un
+    // translate de hasta 12px que decrece a 0 en 300ms desde el golpe. NADA de scale
+    // ni de foco → la matriz base vuelve a ser la de antes de la fase 15. El bloque va
+    // en try/finally → el restore SIEMPRE corre (la vista nunca queda torcida).
+    if (sacudidaCloudover) {
+      const amp = U.amplitudSacudidaCam(performance.now() - sacudidaCloudover.inicio);
+      if (amp > 0) ctx.translate((Math.random() * 2 - 1) * amp, (Math.random() * 2 - 1) * amp);
+      else sacudidaCloudover = null; // pasados 300ms se apaga (sin residuo)
     }
     ctx.translate(ox, oy);
 
