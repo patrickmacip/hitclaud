@@ -1,4 +1,5 @@
-// hitclaud — FASE 17: datos de fondo FIJOS (sin cascada, sin freno). node test/datosfondo.test.js
+// hitclaud — FASE 18: fondo 70% vivo + estático textura, márgenes 20px, truncado.
+// node test/datosfondo.test.js
 
 const U = require('../js/util.js');
 const F = require('../js/fisica.js');
@@ -12,76 +13,95 @@ const puntSrc = fs.readFileSync(__dirname + '/../js/puntuacion.js', 'utf8');
 let ok = 0, ko = 0;
 function chk(n, c) { console.log(`  ${n}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) ok++; else ko++; }
 
-// Cuerpo de dibujarFondoDatos y el bloque de setup.
+// Cuerpo de dibujarFondoDatos y el bloque de vivas.
 const iFn = main.indexOf('function dibujarFondoDatos()');
 const cuerpoFn = main.slice(iFn, main.indexOf('\n  }', iFn) + 4);
-const iBloque = main.indexOf('DATOS DE FONDO FIJOS (FASE 17)');
-const bloque = main.slice(iBloque, iFn + 400);
+const iVivas = main.indexOf('const cascVivas = [');
+const bloqueVivas = main.slice(iVivas, main.indexOf('const cascEstaticas', iVivas));
+const V = (bloqueVivas.match(/function \(\)/g) || []).length; // nº de thunks vivos
+const E = U.CASC_CODIGO.length;
 
-console.log('=== SIN CASCADA: no hay movimiento vertical ni reciclado de líneas ===');
+// Modelo de ancho monoespaciado 10px: ~6px por carácter ASCII (determinista, testeable).
+const CW = 6;
+const ancho = function (s) { return s.length * CW; };
+const W = 390, MARGEN = 20, MAXW = W - 2 * MARGEN; // 350
+
+console.log('=== MÁRGENES 20px ambos lados + truncado con "…" (nadie cruza el borde) ===');
 {
-  chk('util.js: sin crearCascada (motor de caída eliminado)', !/function crearCascada/.test(utilSrc));
-  chk('util.js: sin crearRegimenCascada (freno por fps eliminado)', !/function crearRegimenCascada/.test(utilSrc));
-  chk('main.js: sin cascada.push/render ni regimenCasc', !/cascada\.(push|render)|regimenCasc|crearCascada|crearRegimenCascada/.test(main));
-  chk('main.js: sin y por tiempo (nacio/cruceMs/colsActivas)', !/nacio|cruceMs|colsActivas/.test(main));
-  chk('la y de cada línea es FIJA: FONDO_Y0 + i*FONDO_LH', /FONDO_Y0 \+ i \* FONDO_LH/.test(cuerpoFn));
+  chk('FONDO_MARGEN = 20', /FONDO_MARGEN = 20\b/.test(main));
+  chk('dibuja a x = FONDO_MARGEN (margen izq)', /ctx\.fillText\(s, FONDO_MARGEN,/.test(cuerpoFn));
+  chk('ancho útil = W − 2·FONDO_MARGEN (margen der)', /maxW = W - 2 \* FONDO_MARGEN/.test(cuerpoFn));
+  chk('mide el texto antes de pintar (measureText) y trunca', /ctx\.measureText\(s\)/.test(cuerpoFn) && /U\.truncarTexto\(s, maxW, anchoDe\)/.test(cuerpoFn));
+  // Ninguna línea (viva peor-caso + todas las estáticas) supera el ancho útil tras truncar.
+  const peorViva = U.cascTarget('targets[0]', { x: 388, y: 842, vx: -1.9999, vy: 1.9999, rot: -3.1416, vivos: 80, vivosMax: 80 });
+  const muestras = [peorViva, 'medidorFps F:60 D:12.3 peor:120', 'ultimoDisparo:-Infinity'].concat(U.CASC_CODIGO);
+  let todasCaben = true, algunaTruncada = false;
+  muestras.forEach(function (s) {
+    const t = U.truncarTexto(s, MAXW, ancho);
+    if (ancho(t) > MAXW) todasCaben = false;
+    if (MARGEN + ancho(t) > W - MARGEN + 1e-9) todasCaben = false; // no toca el borde derecho
+    if (t !== s) algunaTruncada = true;
+  });
+  chk('ninguna línea supera el ancho útil (incl. truncadas) ni toca el borde', todasCaben);
+  chk('las líneas largas SÍ se truncan con "…"', algunaTruncada);
+  chk('truncarTexto agrega "…" y respeta maxW', U.truncarTexto('x'.repeat(200), MAXW, ancho).endsWith('…') && ancho(U.truncarTexto('x'.repeat(200), MAXW, ancho)) <= MAXW);
+  chk('una línea corta NO se trunca (sin "…" de más)', U.truncarTexto('GRAVEDAD: 0.0035,', MAXW, ancho) === 'GRAVEDAD: 0.0035,');
 }
 
-console.log('=== DISPOSICIÓN: 1 columna, x=20px, interlínea de 10px mono ===');
+console.log('=== PROPORCIÓN ~70% vivas / ~30% estáticas (interleave VVE) ===');
 {
-  chk('FONDO_X = 20 (margen izquierdo, sin tocar el borde)', /FONDO_X = 20\b/.test(main));
-  chk('x de la columna = FONDO_X en el fillText', /ctx\.fillText\(s, FONDO_X,/.test(cuerpoFn));
-  chk('interlínea FONDO_LH y fuente mono 10px', /FONDO_LH = 13/.test(main) && /font = '10px/.test(cuerpoFn));
-  chk('una sola columna (sin col*W/3 ni múltiples x)', !/W \/ baseCols|W \/ 3/.test(main));
+  // Reproduce el interleave de main (2 vivas, 1 estática) con V y E reales.
+  let vi = 0, ei = 0, nv = 0, ne = 0;
+  while (vi < V || ei < E) {
+    if (vi < V) { vi++; nv++; }
+    if (vi < V) { vi++; nv++; }
+    if (ei < E) { ei++; ne++; }
+  }
+  const total = nv + ne, pct = nv / total;
+  console.log(`  vivas=${nv} estaticas=${ne} total=${total} vivo=${(100 * pct).toFixed(1)}%`);
+  chk(`vivas ${V} (≥ estáticas ${E}), proporción viva en [0.65, 0.75]`, pct >= 0.65 && pct <= 0.75);
+  chk('las estáticas se intercalan como relleno (patrón VVE, no un bloque al final)', /lineasFondo\.push\(\{ vivo: true[\s\S]{0,120}vivo: true[\s\S]{0,120}vivo: false/.test(main));
 }
 
-console.log('=== OPACIDAD 0.15 y capa detrás de todo ===');
+console.log('=== OPACIDADES: vivas 0.15, estáticas 0.08; interlínea 16, mono 10 ===');
 {
-  chk('globalAlpha = 0.15 (antes 0.25)', /ctx\.globalAlpha = 0\.15/.test(cuerpoFn));
-  chk('color = --texto-apagado (COLOR.textoApagado)', /fillStyle = COLOR\.textoApagado/.test(cuerpoFn));
+  chk('alfa viva 0.15 / estática 0.08', /L\.vivo \? 0\.15 : 0\.08/.test(cuerpoFn));
+  chk('interlínea FONDO_LH = 16', /FONDO_LH = 16\b/.test(main));
+  chk('fuente mono 10px, color --texto-apagado, alineado izq', /font = '10px/.test(cuerpoFn) && /fillStyle = COLOR\.textoApagado/.test(cuerpoFn) && /textAlign = 'left'/.test(cuerpoFn));
   const iClear = main.indexOf('ctx.clearRect(0, 0, W, H);');
   const iDraw = main.indexOf('dibujarFondoDatos();');
   const iWorld = main.indexOf('ctx.save();\n    try {');
-  chk('se dibuja tras clearRect y ANTES del mundo (capa de fondo)', iDraw > iClear && iDraw < iWorld);
+  chk('capa detrás de todo (tras clearRect, antes del mundo)', iDraw > iClear && iDraw < iWorld);
 }
 
-console.log('=== FUERA EL FRENO: ningún umbral de fps gatea la visibilidad ===');
+console.log('=== VIVAS cambian con el estado; ESTÁTICAS no ===');
 {
-  chk('dibujarFondoDatos NO consulta fps/columnas/regimen', !/fps|columnas|regimen|< 50|< 40/.test(cuerpoFn));
-  chk('dibujarFondoDatos NO se omite por reduced-motion (ya no hay movimiento)', !/reducirMovimiento/.test(cuerpoFn));
-  chk('el bloque SIEMPRE se dibuja (loop directo, sin return de gate)', /for \(let i = 0; i < lineasFondo\.length/.test(cuerpoFn));
+  chk('cascEntidad cambia con posición/velocidad (vivo)', U.cascEntidad('b', { x: 1, y: 1, vx: 1, vy: 1 }) !== U.cascEntidad('b', { x: 2, y: 1, vx: 1, vy: 1 }));
+  chk('cascTarget cambia con rot/vivos (vivo)', U.cascTarget('t', { x: 0, y: 0, vx: 0, vy: 0, rot: 0.1, vivos: 5, vivosMax: 20 }) !== U.cascTarget('t', { x: 0, y: 0, vx: 0, vy: 0, rot: 0.2, vivos: 4, vivosMax: 20 }));
+  chk('CASC_CODIGO son strings constantes (estáticas no cambian)', U.CASC_CODIGO.every(function (s) { return typeof s === 'string' && s === s; }));
+  // Las vivas leen estado real del juego; las estáticas devuelven CASC_CODIGO.
+  chk('vivas leen estado real (marcador/bolitas/targets/…)', /marcador\.puntos|bolitas\[0\]|targets\[0\]|tiempoRestante/.test(bloqueVivas));
+  chk('estáticas = U.CASC_CODIGO (fragmentos de código)', /cascEstaticas = U\.CASC_CODIGO\.map/.test(main));
 }
 
-console.log('=== Conteo de fillText por cuadro = nº de líneas fijas ===');
+console.log('=== ESTÁTICO REAL: cada fragmento existe verbatim en el código fuente ===');
 {
-  const nLineas = 9 + U.CASC_CONST_FISICA.length + U.CASC_CONST_PUNT.length + 5;
-  chk(`líneas fijas = ${nLineas} (≤33 fillText/cuadro, un fillText por línea)`, nLineas === 33);
-  chk('un solo ctx.fillText en el loop, sin shadow ni gradiente', (cuerpoFn.match(/ctx\.fillText/g) || []).length === 1 && !/shadow|createLinearGradient|createRadialGradient/.test(cuerpoFn));
-}
-
-console.log('=== REGLA DEL DUEÑO INTACTA: todo real (constantes, telemetría, eventos) ===');
-{
-  chk('cascConst = NOMBRE=valor real leído del objeto', U.cascConst('GRAVEDAD', F.FISICA.GRAVEDAD) === 'GRAVEDAD=0.0035');
-  chk('cascEntidad usa campos reales x/y/vx/vy', U.cascEntidad('bolitas[0]', { x: 1, y: 2, vx: 3, vy: 4 }) === 'bolitas[0] x:1 y:2 vx:3 vy:4');
-  chk('CASC_CONST_FISICA: claves reales de F.FISICA', U.CASC_CONST_FISICA.every(function (k) { return k in F.FISICA; }));
-  chk('CASC_CONST_PUNT: claves reales de P', U.CASC_CONST_PUNT.every(function (k) { return k in P; }));
-  ['MAX_CUBOS', 'MAX_BOLITAS', 'MAX_EN_PANTALLA', 'ESTELA_PUNTOS', 'SPAWN_GAP_MAX'].forEach(function (nombre) {
-    chk(`main.js declara const ${nombre} (leída live)`, new RegExp('const ' + nombre + ' =').test(main));
+  const fuente = fisicaSrc + main + puntSrc;
+  U.CASC_CODIGO.forEach(function (frag) {
+    chk(`existe en el fuente: "${frag.slice(0, 34)}${frag.length > 34 ? '…' : ''}"`, fuente.indexOf(frag) !== -1);
   });
+  chk('sin texto inventado (lorem/placeholder/decorativo) en CASC_CODIGO', !U.CASC_CODIGO.some(function (s) { return /lorem|ipsum|placeholder|decorativ/i.test(s); }));
+}
+
+console.log('=== EVENTOS reales + FUERA freno fps + sin toques ===');
+{
   const fuente = fisicaSrc + puntSrc + main;
-  U.CASC_EVENTOS.forEach(function (fn) {
-    chk(`${fn} existe como función real`, new RegExp('function ' + fn + '\\b').test(fuente) || new RegExp('\\b' + fn + ':').test(fuente));
-  });
-  chk('cascEvento fija el ÚLTIMO evento (ultimoEvento), no una cola', /function cascEvento\(fn, datos\) \{ ultimoEvento = fn/.test(main));
-  chk('una línea fija muestra ultimoEvento', /return ultimoEvento;/.test(main));
-  chk('resolverImpacto se emite tras F.resolverImpacto (sitio real)', /F\.resolverImpacto\(b, tg\);[\s\S]{0,80}cascEvento\('resolverImpacto'/.test(main));
-  chk('sin texto decorativo/inventado en el bloque', !/lorem|ipsum|placeholder|decorativ/i.test(bloque));
+  U.CASC_EVENTOS.forEach(function (fn) { chk(`${fn} existe como función real`, new RegExp('function ' + fn + '\\b').test(fuente) || new RegExp('\\b' + fn + ':').test(fuente)); });
+  chk('el evento muestra el ÚLTIMO ocurrido (ultimoEvento)', /return ultimoEvento;/.test(main) && /function cascEvento\(fn, datos\) \{ ultimoEvento = fn/.test(main));
+  chk('SIN freno por fps (no consulta fps/columnas/regimen)', !/fps < 40|fps < 50|regimenCasc|columnas\(/.test(main));
+  chk('la capa no agrega listeners ni captura punteros', !/addEventListener|setPointerCapture/.test(cuerpoFn));
+  chk('conteo: un solo ctx.fillText en el loop, sin shadow/gradiente', (cuerpoFn.match(/ctx\.fillText/g) || []).length === 1 && !/shadow|createLinearGradient|createRadialGradient/.test(cuerpoFn));
 }
 
-console.log('=== La capa NO recibe eventos táctiles (pintura pura) ===');
-{
-  chk('dibujarFondoDatos no agrega listeners ni captura punteros', !/addEventListener|setPointerCapture/.test(cuerpoFn));
-}
-
-console.log(`\n== RESUMEN datos-fondo: ${ok} OK, ${ko} NO ==`);
+console.log(`\n== RESUMEN datos-fondo(18): ${ok} OK, ${ko} NO ==`);
 if (ko > 0) process.exit(1);

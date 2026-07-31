@@ -266,6 +266,35 @@
   // se recuperaba). Los datos ya no caen: main.js dibuja líneas FIJAS cuyo valor
   // se recomputa en vivo con estos formateadores. Sin motor, sin freno.
 
+  // (FASE 18) TRUNCADO respetando el margen: si el texto no cabe en `maxW`, recorta
+  // caracteres y agrega "…". `anchoDe(str)` mide el ancho real (ctx.measureText en el
+  // juego; inyectable → testeable). NUNCA devuelve algo más ancho que maxW.
+  function truncarTexto(txt, maxW, anchoDe) {
+    if (anchoDe(txt) <= maxW) return txt;
+    let s = txt;
+    while (s.length > 0 && anchoDe(s + '…') > maxW) s = s.slice(0, -1);
+    return s + '…';
+  }
+
+  // (FASE 18) ESTÁTICO = textura de relleno con líneas REALES del código fuente
+  // (fragmentos verbatim de fisica/main/puntuacion). NADA inventado: cada string
+  // existe tal cual en los .js (el test lo cruza contra el fuente). No cambian con
+  // el juego → sirven de fondo estable entre las líneas VIVAS.
+  const CASC_CODIGO = [
+    'function resolverImpacto(bolita, t) {',
+    'function colisionCirculoRect(bolita, t) {',
+    'function paso(o, dt, limites, onPaso) {',
+    'GRAVEDAD: 0.0035,',
+    'RESTITUCION_GOLPE: 0.3,',
+    'function anotarDestruidos(m, n) {',
+    'function anotarHit(m) {',
+    'function multRacha(racha) {',
+    'const VALOR_CUBO = 5;',
+    'const RACHA_TOPE = 3.0;',
+    'function crearMarcador() {',
+    'const MAX_CUBOS = 240;',
+  ];
+
   const U = {
     leerToken: leerToken, crearPersistencia: crearPersistencia,
     parseEntrada: parseEntrada, abreviarNumero: abreviarNumero,
@@ -275,6 +304,7 @@
     CASC_CONST_FISICA: CASC_CONST_FISICA, CASC_CONST_PUNT: CASC_CONST_PUNT,
     CASC_EVENTOS: CASC_EVENTOS, cascFmt: cascFmt, cascEntidad: cascEntidad,
     cascTarget: cascTarget, cascConst: cascConst,
+    truncarTexto: truncarTexto, CASC_CODIGO: CASC_CODIGO,
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = U;

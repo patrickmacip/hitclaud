@@ -393,42 +393,73 @@
   const medidorFps = U.crearMedidorFps(1000, 500);
   let ultimoDibujoMs = 0; // duración de la última llamada a dibujar() (1 cuadro de atraso)
 
-  // ── DATOS DE FONDO FIJOS (FASE 17) ─────────────────────────────────────────
-  // Antes caían (fase 16) y el freno por fps las APAGABA a ~30fps sin recuperarse.
-  // Ahora: UNA sola columna a la IZQUIERDA (x=20, sin tocar el borde), líneas FIJAS
-  // cuyo VALOR se recomputa en vivo. Sin caída, sin reciclado, SIN freno por fps
-  // (siempre se dibuja). Alfa 0.15, --texto-apagado, capa detrás de todo. TODO REAL.
-  const FONDO_X = 20, FONDO_Y0 = 8, FONDO_LH = 13; // 20px margen; interlínea de mono 10px
+  // ── DATOS DE FONDO: MAYORÍA VIVOS + ESTÁTICO COMO TEXTURA (FASE 18) ─────────
+  // Una sola columna a la izquierda con 20px de MARGEN en AMBOS bordes; ninguna
+  // línea toca ni cruza el borde (se TRUNCA con "…" midiendo el ancho real). ~70%
+  // de las líneas son VIVAS (valor cambia con el juego, alfa 0.15); ~30% ESTÁTICAS
+  // de relleno = fragmentos REALES del código fuente (alfa 0.08). Interlínea 16px,
+  // mono 10px, --texto-apagado, capa detrás de todo, sin freno por fps. TODO REAL.
+  const FONDO_MARGEN = 20, FONDO_Y0 = 8, FONDO_LH = 16;
   let ultimoEvento = '';   // ÚLTIMO evento real (nombre de función + datos), fijo hasta el próximo
   function cascEvento(fn, datos) { ultimoEvento = fn + (datos ? ' ' + datos : ''); }
-  // Líneas FIJAS (orden estable): cada thunk devuelve un string de DATO REAL en vivo.
-  // Telemetría (posición fija, valor cambia), luego el último evento, luego constantes.
-  const lineasFondo = [
+  function n0(x) { return isFinite(x) ? Math.round(x) : x; } // timestamp/entero, tolera -Infinity
+  // VIVAS: cada thunk devuelve un string cuyo VALOR cambia con el estado real del juego.
+  const cascVivas = [
     function () { const m = medidorFps.leer(performance.now()); return 'medidorFps F:' + Math.round(m.fps) + ' D:' + m.dibujoMs.toFixed(1) + ' peor:' + Math.round(m.peorMs); },
-    function () { return 'cubos.length:' + cubos.length + ' bolitas.length:' + bolitas.length; },
+    function () { return 'marcador.puntos:' + marcador.puntos; },
     function () { return 'marcador.racha:' + marcador.racha + ' multRacha:' + U.cascFmt(P.multRacha(marcador.racha)); },
     function () { return 'modoJuego:' + (modoJuego || 'null') + ' tiempoRestante:' + Math.max(0, Math.round(tiempoRestante)); },
+    function () { return 'jugando:' + jugando + ' pausado:' + pausado; },
+    function () { return 'gesto.activo:' + gesto.activo; },
+    function () { return 'cubos.length:' + cubos.length + ' bolitas.length:' + bolitas.length + ' targets.length:' + targets.length; },
+    function () { return 'escalada.nivel:' + (escalada ? escalada.nivel : 'null'); },
+    function () { return 'segundosCobrados:' + segundosCobrados + ' cobrando:' + cobrando; },
+    function () { return 'record.valor:' + record.valor; },
+    function () { return 'proximoSpawn:' + n0(proximoSpawn); },
+    function () { return 'proximoRojo:' + n0(proximoRojo); },
+    function () { return 'proximoGrande:' + n0(proximoGrande); },
+    function () { return 'sacudidaHasta:' + n0(sacudidaHasta); },
+    function () { return 'secuencia.fase:' + (secuencia ? secuencia.fase : 'null'); },
+    function () { return 'ultimoDisparo:' + n0(ultimoDisparo); },
+    function () { return 'ultimoGesto:' + n0(ultimoGesto); },
+    function () { return 'montoPerdido:' + montoPerdido + ' montoInicio:' + n0(montoInicio); },
+    function () { return 'perdidaInicio:' + n0(perdidaInicio); },
+    function () { return 'marcadorPopHasta:' + n0(marcadorPopHasta); },
+    function () { return 'tPrev:' + n0(tPrev); },
     function () { return bolitas[0] ? U.cascEntidad('bolitas[0]', bolitas[0]) : 'bolitas[0]:undefined'; },
     function () { return bolitas[1] ? U.cascEntidad('bolitas[1]', bolitas[1]) : 'bolitas[1]:undefined'; },
+    function () { return bolitas[2] ? U.cascEntidad('bolitas[2]', bolitas[2]) : 'bolitas[2]:undefined'; },
     function () { return targets[0] ? U.cascTarget('targets[0]', targets[0]) : 'targets[0]:undefined'; },
     function () { return targets[1] ? U.cascTarget('targets[1]', targets[1]) : 'targets[1]:undefined'; },
     function () { return ultimoEvento; }, // último evento real, fijo hasta el siguiente
   ];
-  U.CASC_CONST_FISICA.forEach(function (nombre) { lineasFondo.push(function () { return U.cascConst(nombre, F.FISICA[nombre]); }); });
-  U.CASC_CONST_PUNT.forEach(function (nombre) { lineasFondo.push(function () { return U.cascConst(nombre, P[nombre]); }); });
-  [['MAX_CUBOS', function () { return MAX_CUBOS; }], ['MAX_BOLITAS', function () { return MAX_BOLITAS; }], ['MAX_EN_PANTALLA', function () { return MAX_EN_PANTALLA; }], ['ESTELA_PUNTOS', function () { return ESTELA_PUNTOS; }], ['SPAWN_GAP_MAX', function () { return SPAWN_GAP_MAX; }]]
-    .forEach(function (par) { lineasFondo.push(function () { return U.cascConst(par[0], par[1]()); }); });
-  // Dibuja el bloque de datos FIJOS. SIEMPRE (sin freno por fps). Un fillText por
-  // línea, sin shadowBlur ni gradientes (ley fase 13). Posición fija; sólo el valor cambia.
+  // ESTÁTICAS: fragmentos REALES del código fuente (textura de relleno), no cambian.
+  const cascEstaticas = U.CASC_CODIGO.map(function (linea) { return function () { return linea; }; });
+  // INTERLEAVE ~70/30: dos vivas y una estática (relleno entre vivas → sin agujeros),
+  // hasta agotar ambas. Cada entrada lleva su thunk y su tipo (para el alfa).
+  const lineasFondo = [];
+  { let vi = 0, ei = 0;
+    while (vi < cascVivas.length || ei < cascEstaticas.length) {
+      if (vi < cascVivas.length) lineasFondo.push({ vivo: true, f: cascVivas[vi++] });
+      if (vi < cascVivas.length) lineasFondo.push({ vivo: true, f: cascVivas[vi++] });
+      if (ei < cascEstaticas.length) lineasFondo.push({ vivo: false, f: cascEstaticas[ei++] });
+    } }
+  // Dibuja el bloque. SIEMPRE (sin freno por fps). Un fillText por línea, sin shadowBlur
+  // ni gradientes. Cada línea se TRUNCA al ancho útil (W − 2·margen), midiendo antes.
   function dibujarFondoDatos() {
+    const maxW = W - 2 * FONDO_MARGEN;
     ctx.save();
-    ctx.globalAlpha = 0.15;
     ctx.fillStyle = COLOR.textoApagado;
     ctx.font = '10px ui-monospace, Menlo, monospace';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    const anchoDe = function (s) { return ctx.measureText(s).width; };
     for (let i = 0; i < lineasFondo.length; i++) {
-      const s = lineasFondo[i]();
-      if (s) ctx.fillText(s, FONDO_X, FONDO_Y0 + i * FONDO_LH);
+      const L = lineasFondo[i];
+      let s = L.f();
+      if (!s) continue;
+      s = U.truncarTexto(s, maxW, anchoDe); // nunca cruza el margen derecho
+      ctx.globalAlpha = L.vivo ? 0.15 : 0.08;
+      ctx.fillText(s, FONDO_MARGEN, FONDO_Y0 + i * FONDO_LH);
     }
     ctx.restore();
   }
