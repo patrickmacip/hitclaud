@@ -36,7 +36,7 @@
     // Colisión hitball ↔ target (sprite 40×32 → medios ejes 20×16).
     TARGET_HW: 20,
     TARGET_HH: 16,
-    RESTITUCION_GOLPE: 0.6,   // atenuación del rebote de la hitball contra un target
+    RESTITUCION_GOLPE: 0.3,   // FASE 14: el impacto PESA (antes 0.6) → rebota menos, se siente pesado
     MASA_TARGET: 2.5,         // "peso" de un target intacto (20 cubos); baja con el daño
     // Umbral de destrucción (rapidez normal de impacto, px/ms). Cuenta: la
     // salida a velSuelta≈0.68 px/ms (flick deliberado) es 2.26·tanh(0.619·0.68)
