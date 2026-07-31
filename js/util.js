@@ -157,10 +157,45 @@
     return Math.round(score * (1 - eased));
   }
 
+  // ── ESTELA METEORO (FASE 14) — esqueleto PURO del rastro continuo ──────────
+  // Reemplaza los 3 fantasmas (que se leían como ECO) por UNA cola continua que
+  // nace en el centro de la bola (hx,hy) y sigue hacia atrás por `historia`,
+  // adelgazándose a punta. Devuelve los puntos del espinazo cabeza→cola con su
+  // semi-ancho `w` (decrece a 0) y su alfa `a` (decrece a 0), o null si es
+  // degenerada (bola quieta/agarrada → sin recorrido, no se dibuja nada).
+  //   grosor inicial = 90% del diámetro → semi-ancho cabeza = 0.9·radio.
+  //   opacidad cabeza = 0.45 → 0 en la punta.
+  //   largo = hasta `maxPuntos` puntos (≤5). A baja velocidad los puntos de
+  //   historia casi coinciden → cola corta; a alta velocidad se separan → larga.
+  function estelaMeteoro(hx, hy, historia, radio, maxPuntos) {
+    const CAP = maxPuntos || 5;
+    const MIN = 1.0; // px: por debajo, el punto no aporta (evita segmentos degenerados)
+    const pts = [{ x: hx, y: hy }];
+    const H = historia ? historia.length : 0;
+    for (let i = 0; i < H && pts.length < CAP; i++) {
+      const p = historia[i];
+      const u = pts[pts.length - 1];
+      if (Math.hypot(p.x - u.x, p.y - u.y) >= MIN) pts.push({ x: p.x, y: p.y });
+    }
+    if (pts.length < 2) return null; // sin recorrido → sin cola
+    let len = 0;
+    for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    if (len < MIN) return null;
+    const n = pts.length;
+    const headHalf = 0.9 * (radio || 14);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const k = i / (n - 1);                    // 0 en la cabeza, 1 en la punta
+      out.push({ x: pts[i].x, y: pts[i].y, w: headHalf * (1 - k), a: 0.45 * (1 - k) });
+    }
+    return { pts: out, len: len };
+  }
+
   const U = {
     leerToken: leerToken, crearPersistencia: crearPersistencia,
     parseEntrada: parseEntrada, abreviarNumero: abreviarNumero,
     SEC: SEC, faseCloudover: faseCloudover, valorVaciado: valorVaciado,
+    estelaMeteoro: estelaMeteoro,
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = U;

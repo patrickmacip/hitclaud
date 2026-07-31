@@ -275,7 +275,8 @@
   const CORREA_PX = 252;      // dist radial máx desde el ancla → se suelta sola (proporcional a 203)
   const CADENCIA_MS = 100;    // separación mínima entre SUELTAS (afinable)
   const MAX_BOLITAS = 24;     // tope de bolitas vivas simultáneas (rendimiento)
-  const LAG_ESTELA = 3;       // muestreo hacia atrás por fantasma (×1,2,3)
+  const ESTELA_PUNTOS = 5;    // largo de la cola meteoro (puntos de espinazo, ≤5)
+  const ESTELA_LARGO_MAX = 160; // px: longitud del gradiente cacheado de la cola (cabeza→0)
 
   // ── Constantes del spawner de targets (dos tipos: NARANJA y ROJO) ──
   // Spawn CAÓTICO: cantidad variable (ráfagas/pausas, retardoCaotico) desde los
@@ -467,12 +468,24 @@
   // crean UNA sola vez aquí (y al redimensionar), NUNCA dentro del bucle —
   // createLinearGradient por cuadro era costo puro. Al pintar sólo varía el
   // globalAlpha. Dependen de W (la franja derecha) → se regeneran al cambiar el viewport.
-  let gradBordeIzq = null, gradBordeDer = null;
+  let gradBordeIzq = null, gradBordeDer = null, gradEstela = null;
+  // #RRGGBB → 'rgba(r,g,b,a)' (para stops con alfa sin la turbidez de 'transparent').
+  function hexARgba(hex, a) {
+    const h = String(hex).replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+  }
   function regenerarGradientes() {
     gradBordeIzq = ctx.createLinearGradient(0, 0, FRANJA_PX, 0);
     gradBordeIzq.addColorStop(0, ROJO_BORDE); gradBordeIzq.addColorStop(1, 'transparent');
     gradBordeDer = ctx.createLinearGradient(W, 0, W - FRANJA_PX, 0);
     gradBordeDer.addColorStop(0, ROJO_BORDE); gradBordeDer.addColorStop(1, 'transparent');
+    // Cola METEORO: gradiente en el eje LOCAL de la bola (0 = cabeza, −ESTELA_LARGO_MAX
+    // = punta). Se pinta bajo translate+rotate por bola → sigue la dirección del vuelo
+    // sin recrearse nunca. Cabeza al 45% del tono vivo, punta a 0 (mismo RGB → sin turbidez).
+    gradEstela = ctx.createLinearGradient(0, 0, -ESTELA_LARGO_MAX, 0);
+    gradEstela.addColorStop(0, hexARgba(ACENTO.vivo, 0.45));
+    gradEstela.addColorStop(1, hexARgba(ACENTO.vivo, 0));
   }
 
   function redimensionar() {
@@ -775,8 +788,8 @@
       const b = bolitas[i];
       b.radio = RADIO_NORMAL;
       F.paso(b, dt, limites, function () { colisionar(b); });
-      b.historia.unshift({ x: b.x, y: b.y }); // estela propia (3 fantasmas)
-      if (b.historia.length > LAG_ESTELA * 3 + 1) b.historia.pop();
+      b.historia.unshift({ x: b.x, y: b.y }); // estela propia (cola meteoro)
+      if (b.historia.length > ESTELA_PUNTOS + 1) b.historia.pop();
     }
     // Retira las bolitas muertas: si no tocó nada = FALLO (castigo, rompe racha).
     for (let i = bolitas.length - 1; i >= 0; i--) {
@@ -922,7 +935,7 @@
       for (let i = 0; i < bolitas.length; i++) {
         const b = bolitas[i];
         const rB = b.radio || RADIO_NORMAL;
-        dibujarEstela(b, rB, ACENTO.vivo);         // estela = aura viva (va en la hitball)
+        dibujarEstela(b, rB);                      // cola meteoro (color del gradiente cacheado)
         dibujarBolita(b.x, b.y, rB, ACENTO.vivo, false);
       }
       if (gesto.activo) {
@@ -1049,21 +1062,38 @@
     }
   }
 
-  // Estela de LUZ VIVA: 3 fantasmas en el color de modo (30/20/10% alfa). Los
-  // colores vivos ya leen como luz; sin shadowBlur por fantasma (presupuesto).
-  function dibujarEstela(b, radio, claro) {
-    const alfas = [0.3, 0.2, 0.1];
-    const R = (radio || 14) - 1.5;
-    ctx.fillStyle = claro;
-    for (let i = 0; i < alfas.length; i++) {
-      const p = b.historia[(i + 1) * LAG_ESTELA];
-      if (!p) continue;
-      ctx.globalAlpha = alfas[i];
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, R, 0, Math.PI * 2);
-      ctx.fill();
+  // Estela METEORO: UNA cola continua (no fantasmas). Un solo path con dos bordes
+  // que convergen a la punta, relleno UNA vez con el gradiente cacheado gradEstela
+  // (cabeza 45% → punta 0). Sin shadowBlur, sin crear gradientes en el bucle
+  // (ley fase 13). 1 fill por bola ≤ los 3 arcos que reemplaza. `estelaMeteoro`
+  // (puro) da el esqueleto y descarta colas degeneradas (bola quieta/agarrada).
+  function dibujarEstela(b, radio) {
+    const e = U.estelaMeteoro(b.x, b.y, b.historia, radio, ESTELA_PUNTOS);
+    if (!e) return; // sin recorrido → no se dibuja (evita segmentos degenerados)
+    const pts = e.pts;
+    const n = pts.length;
+    const tail = pts[n - 1];
+    const ang = Math.atan2(b.y - tail.y, b.x - tail.x); // +X local = dirección del vuelo
+    const cosA = Math.cos(ang), sinA = Math.sin(ang);
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(ang);
+    ctx.beginPath();
+    // Borde izquierdo cabeza→punta (offset local +Y por semiancho), luego derecho punta→cabeza.
+    for (let i = 0; i < n; i++) {
+      const rx = pts[i].x - b.x, ry = pts[i].y - b.y;
+      const lx = rx * cosA + ry * sinA, ly = -rx * sinA + ry * cosA; // rotación por −ang
+      if (i === 0) ctx.moveTo(lx, ly + pts[i].w); else ctx.lineTo(lx, ly + pts[i].w);
     }
-    ctx.globalAlpha = 1;
+    for (let i = n - 1; i >= 0; i--) {
+      const rx = pts[i].x - b.x, ry = pts[i].y - b.y;
+      const lx = rx * cosA + ry * sinA, ly = -rx * sinA + ry * cosA;
+      ctx.lineTo(lx, ly - pts[i].w);
+    }
+    ctx.closePath();
+    ctx.fillStyle = gradEstela; // cacheado (cabeza→punta), sigue el vuelo por el rotate
+    ctx.fill();
+    ctx.restore();
   }
 
   // Sprite del target centrado en (0,0): retícula 5×4 de cubos de 8px en

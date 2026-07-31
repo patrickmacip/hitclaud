@@ -33,9 +33,9 @@ console.log('=== shadowBlur/shadowColor en el bucle = vacío (salvo el desktop d
 console.log('\n=== createLinearGradient/createRadialGradient dentro del bucle = vacío ===');
 {
   chk('dibujar() NO crea gradientes (cacheados fuera)', !/createLinearGradient|createRadialGradient/.test(cuerpoDibujar));
-  // Sólo existen en la fábrica, fuera del bucle.
+  // Sólo existen en la fábrica, fuera del bucle (bordes ×2 + cola meteoro ×1 = 3).
   const total = (main.match(/ctx\.createLinearGradient/g) || []).length;
-  chk(`las 2 únicas createLinearGradient viven en regenerarGradientes (hoy ${total})`, total === 2);
+  chk(`las 3 createLinearGradient viven en regenerarGradientes (hoy ${total})`, total === 3);
   chk('regenerarGradientes() existe', /function regenerarGradientes\(\)/.test(main));
   chk('se llama en redimensionar (fuera del bucle)', /regenerarGradientes\(\);[\s\S]{0,80}dibujar\(\);/.test(main) || /ctx\.setTransform[\s\S]{0,120}regenerarGradientes\(\)/.test(main));
   chk('el bucle usa los gradientes cacheados (gradBordeIzq/Der)', /fillStyle = gradBordeIzq/.test(cuerpoDibujar) && /fillStyle = gradBordeDer/.test(cuerpoDibujar));
