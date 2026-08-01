@@ -83,9 +83,10 @@
   })();
   const record60 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.60', 500);
   const record30 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.30', 500); // FASE 20: llave propia
+  const record15 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.15', 500); // FASE 21: llave propia
   const recordLibre = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.libre', 500);
   // MAPA modo→persistencia (fuente única; parametriza en vez de duplicar por modo).
-  const records = { '30': record30, '60': record60, 'libre': recordLibre };
+  const records = { '15': record15, '30': record30, '60': record60, 'libre': recordLibre };
   let record = record60;        // récord de la PARTIDA activa (se ajusta al elegir modo)
   let modoInicioSel = '60';     // modo SELECCIONADO en la pantalla de inicio (default 60)
   const elRecord = document.querySelector('.marcador--record .valor');
@@ -101,7 +102,7 @@
   }
   // RECONCILIACIÓN al arrancar (async): funde localStorage e IndexedDB, se queda
   // con el record más alto y repuebla el almacén faltante. Refresca ambos displays.
-  [record60, record30, recordLibre].forEach(function (r) {
+  [record60, record30, record15, recordLibre].forEach(function (r) {
     r.reconciliar().then(function () { if (r === record) actualizarRecord(); actualizarRecordInicio(); });
   });
 
@@ -113,7 +114,7 @@
   // DURACIONES por modo cronometrado (ms). ÚNICA diferencia entre '30' y '60': el
   // valor de acá. 'libre' no está en el mapa → sin reloj (Relax). Parametrizado para
   // no duplicar la maquinaria de partida: el reloj y el temporizador leen DURACIONES[modo].
-  const DURACIONES = { '30': 30 * 1000, '60': 60 * 1000 };
+  const DURACIONES = { '15': 15 * 1000, '30': 30 * 1000, '60': 60 * 1000 };
   function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
@@ -216,10 +217,13 @@
   const btnLibre = document.getElementById('jugarLibre');
   if (btn60) btn60.addEventListener('click', function () { iniciarPartida('60'); });
   if (btnLibre) btnLibre.addEventListener('click', function () { iniciarPartida('libre'); });
-  // FASE 20: botón "30 seg" en el game over, misma familia visual. Orden declarado:
-  // 30 seg · 60 seg · Relax mode. Los botones existentes (60/Relax) quedan intactos.
+  // Botones "30 seg" (FASE 20) y "15 seg" (FASE 21) en el game over, misma familia
+  // visual. Orden declarado: 15 seg · 30 seg · 60 seg · Relax mode. Los botones
+  // existentes (60/Relax) quedan intactos.
   const btn30 = document.getElementById('jugar30');
   if (btn30) btn30.addEventListener('click', function () { iniciarPartida('30'); });
+  const btn15 = document.getElementById('jugar15');
+  if (btn15) btn15.addEventListener('click', function () { iniciarPartida('15'); });
 
   // ── PANTALLA DE BIENVENIDA (FASE 19): lo PRIMERO que se ve al abrir. Mismo
   // mecanismo de overlays DOM que #gameover/#pausa (no un sistema paralelo). El
@@ -234,16 +238,14 @@
   // SELECTOR de modo en inicio (FASE 20): 30 seg / 60 seg junto a JUGAR. Al elegir,
   // cambia modoInicioSel, marca el botón activo y refresca el récord mostrado (el del
   // modo seleccionado). JUGAR arranca el modo elegido. Reusa .go-reiniciar (sin componentes nuevos).
-  const btnSel30 = document.getElementById('sel30');
-  const btnSel60 = document.getElementById('sel60');
+  // MAPA modo→botón del selector (parametrizado: agregar un modo = una entrada).
+  const botonesSel = { '15': document.getElementById('sel15'), '30': document.getElementById('sel30'), '60': document.getElementById('sel60') };
   function elegirModoInicio(modo) {
     modoInicioSel = modo;
-    if (btnSel30) btnSel30.classList.toggle('sel-activo', modo === '30');
-    if (btnSel60) btnSel60.classList.toggle('sel-activo', modo === '60');
+    Object.keys(botonesSel).forEach(function (m) { if (botonesSel[m]) botonesSel[m].classList.toggle('sel-activo', m === modo); });
     actualizarRecordInicio(); // el récord mostrado cambia con la selección
   }
-  if (btnSel30) btnSel30.addEventListener('click', function () { elegirModoInicio('30'); });
-  if (btnSel60) btnSel60.addEventListener('click', function () { elegirModoInicio('60'); });
+  Object.keys(botonesSel).forEach(function (m) { if (botonesSel[m]) botonesSel[m].addEventListener('click', function () { elegirModoInicio(m); }); });
   const btnJugar = document.getElementById('jugar');
   if (btnJugar) btnJugar.addEventListener('click', function () {
     if (elInicio) elInicio.classList.add('oculto');

@@ -194,9 +194,9 @@ body {
 .ini-sel:active { transform: scale(0.98); }
 @media (hover: hover) { .ini-sel:hover { border-color: var(--acento-vivo, #FF8764); } }
 
-/* "30 seg" del game over (botón nuevo): ley de tacto propia sin tocar los existentes. */
-#jugar30:active { background: var(--acento-profundo, #A84A2E); transform: scale(0.98); }
-@media (hover: hover) { #jugar30:hover { background: var(--acento-vivo, #FF8764); } }
+/* "30 seg"/"15 seg" del game over (botones nuevos): ley de tacto propia sin tocar los existentes. */
+#jugar30:active, #jugar15:active { background: var(--acento-profundo, #A84A2E); transform: scale(0.98); }
+@media (hover: hover) { #jugar30:hover, #jugar15:hover { background: var(--acento-vivo, #FF8764); } }
 
 .go-panel {
   background: var(--superficie);

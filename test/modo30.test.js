@@ -14,7 +14,7 @@ function mockLocal() { const d = {}; return { getItem: (k) => (k in d ? d[k] : n
 console.log('=== \'30\' arranca en 30000ms y comparte TODO lo demás con \'60\' (misma maquinaria) ===');
 {
   // Única config por modo cronometrado: el mapa DURACIONES. Difieren SOLO en la duración.
-  chk('DURACIONES = {30: 30·1000, 60: 60·1000}', /const DURACIONES = \{ '30': 30 \* 1000, '60': 60 \* 1000 \};/.test(main));
+  chk('DURACIONES = {15,30,60}·1000', /const DURACIONES = \{ '15': 15 \* 1000, '30': 30 \* 1000, '60': 60 \* 1000 \};/.test(main));
   // iniciarPartida es UNO solo, parametrizado por mapa (no hay iniciarPartida30 ni rama '30').
   chk('iniciarPartida usa records[modo] (no rama por modo)', /record = records\[modo\] \|\| record60;/.test(main));
   chk('iniciarPartida usa DURACIONES[modo] (no rama por modo)', /tiempoRestante = DURACIONES\[modo\] \|\| 0;/.test(main));
@@ -29,7 +29,7 @@ console.log('=== \'30\' arranca en 30000ms y comparte TODO lo demás con \'60\' 
 console.log('=== RÉCORD APARTE: llave propia \'hitclaud.record.v2.30\', no pisa al de 60 ni al revés ===');
 {
   chk('llave nueva declarada: hitclaud.record.v2.30', /crearPersistencia\(almacen, idbKV, 'hitclaud\.record\.v2\.30', 500\)/.test(main));
-  chk('mapa records incluye 30/60/libre', /const records = \{ '30': record30, '60': record60, 'libre': recordLibre \};/.test(main));
+  chk('mapa records incluye 15/30/60/libre', /const records = \{ '15': record15, '30': record30, '60': record60, 'libre': recordLibre \};/.test(main));
   // Independencia real (doble almacén compartido, llaves distintas).
   const local = mockLocal();
   const K30 = 'hitclaud.record.v2.30', K60 = 'hitclaud.record.v2.60';
@@ -79,7 +79,7 @@ console.log('=== EL RÉCORD DE INICIO corresponde al modo seleccionado ===');
 {
   chk('actualizarRecordInicio lee records[modoInicioSel]', /records\[modoInicioSel\] \|\| record60\)\.valor/.test(main));
   chk('elegir 30/60 actualiza modoInicioSel + refresca el récord', /function elegirModoInicio\(modo\) \{[\s\S]{0,220}modoInicioSel = modo;[\s\S]{0,220}actualizarRecordInicio\(\);/.test(main));
-  chk('los botones del selector llaman elegirModoInicio(30/60)', /btnSel30\.addEventListener\('click'[\s\S]{0,60}elegirModoInicio\('30'\)/.test(main) && /btnSel60\.addEventListener\('click'[\s\S]{0,60}elegirModoInicio\('60'\)/.test(main));
+  chk('los botones del selector llaman elegirModoInicio (mapa botonesSel + loop)', /const botonesSel = \{ '15':[\s\S]{0,120}'30':[\s\S]{0,120}'60':/.test(main) && /botonesSel\[m\]\.addEventListener\('click', function \(\) \{ elegirModoInicio\(m\); \}\)/.test(main));
   // Comportamiento: records['30'] y records['60'] dan valores distintos si difieren en storage.
   const local = mockLocal();
   local._d['hitclaud.record.v2.30'] = JSON.stringify({ record: 300, ultimoScore: 0 });
@@ -96,7 +96,7 @@ console.log('=== REGRESIÓN 60/Relax + ley de tacto + costo ===');
   chk('60 = 60000ms, Relax sin reloj (no está en DURACIONES)', /'60': 60 \* 1000/.test(main) && !/'libre':[^}]*1000/.test(main));
   // Ley de tacto en los botones NUEVOS.
   chk('sel: :active + hover@media + ≥44px', /\.ini-sel:active \{/.test(css) && /@media \(hover: hover\) \{ \.ini-sel:hover/.test(css) && /\.ini-sel \{[\s\S]{0,80}min-height: 48px/.test(css));
-  chk('jugar30 (game over): :active + hover@media', /#jugar30:active \{/.test(css) && /@media \(hover: hover\) \{ #jugar30:hover/.test(css));
+  chk('jugar30 (game over): :active + hover@media', /#jugar30:active/.test(css) && /@media \(hover: hover\) \{ #jugar30:hover/.test(css));
   // Costo: nada de shadowBlur/gradiente en el CSS nuevo; el bucle no cambió.
   chk('sin shadowBlur/gradiente en el CSS del selector', !/\.ini-sel[\s\S]{0,200}box-shadow|\.ini-sel[\s\S]{0,200}gradient/.test(css));
   chk('el bucle de dibujo sigue con 1 solo shadowBlur (el de desktop)', (main.match(/ctx\.shadowBlur/g) || []).length === 1);
