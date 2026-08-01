@@ -58,8 +58,8 @@ console.log('=== RÉCORD mostrado = el GUARDADO; robusto si el almacén falla ==
 console.log('=== REGRESIÓN: el overlay de game over conserva sus botones/comportamiento ===');
 {
   chk('#gameover sigue con #jugar60 (60 seg)', /<button id="jugar60" class="go-reiniciar">60 seg<\/button>/.test(html));
-  chk('#gameover sigue con #jugarLibre (Relax mode)', /<button id="jugarLibre" class="go-reiniciar go-modo-libre">Relax mode<\/button>/.test(html));
-  chk('los botones del game over siguen llamando iniciarPartida (no la pantalla de inicio)', /btn60\.addEventListener\('click', function \(\) \{ iniciarPartida\('60'\); \}\)/.test(main) && /btnLibre\.addEventListener\('click', function \(\) \{ iniciarPartida\('libre'\); \}\)/.test(main));
+  chk('#gameover ya NO tiene Relax (jugarLibre eliminado)', !/jugarLibre/.test(html));
+  chk('los botones del game over llaman iniciarPartida (no la pantalla de inicio)', /btn60\.addEventListener\('click', function \(\) \{ iniciarPartida\('60'\); \}\)/.test(main));
   chk('pintarFin (game over) NO muestra la pantalla de inicio', !/pintarFin[\s\S]{0,200}elInicio/.test(main));
 }
 

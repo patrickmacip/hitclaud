@@ -29,7 +29,7 @@ console.log('=== \'30\' arranca en 30000ms y comparte TODO lo demás con \'60\' 
 console.log('=== RÉCORD APARTE: llave propia \'hitclaud.record.v2.30\', no pisa al de 60 ni al revés ===');
 {
   chk('llave nueva declarada: hitclaud.record.v2.30', /crearPersistencia\(almacen, idbKV, 'hitclaud\.record\.v2\.30', 500\)/.test(main));
-  chk('mapa records incluye 15/30/60/libre', /const records = \{ '15': record15, '30': record30, '60': record60, 'libre': recordLibre \};/.test(main));
+  chk('mapa records incluye 15/30/60 (sin libre)', /const records = \{ '15': record15, '30': record30, '60': record60 \};/.test(main));
   // Independencia real (doble almacén compartido, llaves distintas).
   const local = mockLocal();
   const K30 = 'hitclaud.record.v2.30', K60 = 'hitclaud.record.v2.60';
@@ -69,9 +69,9 @@ console.log('=== SELECCIÓN de modo: inicio (30/60 + JUGAR) y game over (+30 seg
   chk('inicio: botones sel30/sel60 reusan .go-reiniciar (sin componentes nuevos)', /id="sel30" class="go-reiniciar ini-sel"/.test(html) && /id="sel60" class="go-reiniciar ini-sel sel-activo"/.test(html));
   chk('JUGAR arranca el modo SELECCIONADO (modoInicioSel)', /iniciarPartida\(modoInicioSel\)/.test(main));
   chk('default seleccionado = 60 (sel-activo en sel60)', /let modoInicioSel = '60';/.test(main) && /ini-sel sel-activo">60 seg/.test(html));
-  // Game over: se agrega "30 seg" en la misma familia; orden 30, 60, Relax.
+  // Game over: "30 seg" en la misma familia; orden 30 → 60 (Relax eliminado).
   chk('game over: botón "30 seg" (.go-reiniciar) agregado', /<button id="jugar30" class="go-reiniciar">30 seg<\/button>/.test(html));
-  chk('orden game over: 30 seg → 60 seg → Relax mode', /30 seg<\/button>\s*<button id="jugar60" class="go-reiniciar">60 seg<\/button>\s*<button id="jugarLibre"/.test(html));
+  chk('orden game over: 30 seg → 60 seg', /30 seg<\/button>\s*<button id="jugar60" class="go-reiniciar">60 seg<\/button>/.test(html));
   chk('jugar30 llama iniciarPartida(\'30\')', /btn30\.addEventListener\('click', function \(\) \{ iniciarPartida\('30'\); \}\)/.test(main));
 }
 
@@ -89,11 +89,11 @@ console.log('=== EL RÉCORD DE INICIO corresponde al modo seleccionado ===');
   chk('cambiar la selección cambia el número mostrado (300 vs 600)', r30.valor === 300 && r60.valor === 600 && r30.valor !== r60.valor);
 }
 
-console.log('=== REGRESIÓN 60/Relax + ley de tacto + costo ===');
+console.log('=== REGRESIÓN 60 + ley de tacto + costo ===');
 {
   chk('60 sigue: jugar60 → iniciarPartida(\'60\')', /btn60\.addEventListener\('click', function \(\) \{ iniciarPartida\('60'\); \}\)/.test(main));
-  chk('Relax sigue: jugarLibre → iniciarPartida(\'libre\')', /btnLibre\.addEventListener\('click', function \(\) \{ iniciarPartida\('libre'\); \}\)/.test(main));
-  chk('60 = 60000ms, Relax sin reloj (no está en DURACIONES)', /'60': 60 \* 1000/.test(main) && !/'libre':[^}]*1000/.test(main));
+  chk('Relax ELIMINADO: sin jugarLibre ni iniciarPartida(\'libre\')', !/jugarLibre|iniciarPartida\('libre'\)/.test(main));
+  chk('60 = 60000ms, sin \'libre\' en ninguna tabla', /'60': 60 \* 1000/.test(main) && !/'libre':/.test(main));
   // Ley de tacto en los botones NUEVOS.
   chk('sel: :active + hover@media + ≥44px', /\.ini-sel:active \{/.test(css) && /@media \(hover: hover\) \{ \.ini-sel:hover/.test(css) && /\.ini-sel \{[\s\S]{0,80}min-height: 48px/.test(css));
   chk('jugar30 (game over): :active + hover@media', /#jugar30:active/.test(css) && /@media \(hover: hover\) \{ #jugar30:hover/.test(css));

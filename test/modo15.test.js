@@ -30,7 +30,7 @@ console.log('=== \'15\' = 15000ms y comparte TODO lo demás con \'30\' y \'60\' 
 console.log('=== RÉCORD propio: llave hitclaud.record.v2.15, no pisa a los otros ni al revés ===');
 {
   chk('record15 con su llave (doble almacén, fase 10)', /const record15 = U\.crearPersistencia\(almacen, idbKV, 'hitclaud\.record\.v2\.15', 500\)/.test(main));
-  chk('record15 entra a la reconciliación (por el mayor)', /\[record60, record30, record15, recordLibre\]\.forEach/.test(main));
+  chk('record15 entra a la reconciliación (por el mayor)', /\[record60, record30, record15\]\.forEach/.test(main));
   const local = mockLocal();
   const K15 = 'hitclaud.record.v2.15', K30 = 'hitclaud.record.v2.30', K60 = 'hitclaud.record.v2.60';
   const r15 = U.crearPersistencia(local, null, K15, 500);
@@ -50,9 +50,9 @@ console.log('=== SELECCIÓN: "15 seg" en inicio y game over; orden 15 · 30 · 6
   chk('inicio: sel15 reusa .go-reiniciar (sin componentes nuevos)', /id="sel15" class="go-reiniciar ini-sel"/.test(html));
   chk('orden inicio: 15 · 30 · 60', /id="sel15"[\s\S]{0,80}15 seg<\/button>\s*<button id="sel30"[\s\S]{0,80}30 seg<\/button>\s*<button id="sel60"/.test(html));
   chk('selector parametrizado incluye 15 (mapa botonesSel)', /const botonesSel = \{ '15': document\.getElementById\('sel15'\)/.test(main));
-  // Game over: botón 15 seg, orden 15 · 30 · 60 · Relax.
+  // Game over: botón 15 seg, orden 15 · 30 · 60 (Relax eliminado en commit 4).
   chk('game over: "15 seg" (.go-reiniciar)', /<button id="jugar15" class="go-reiniciar">15 seg<\/button>/.test(html));
-  chk('orden game over: 15 · 30 · 60 · Relax', /id="jugar15"[\s\S]{0,60}15 seg<\/button>\s*<button id="jugar30"[\s\S]{0,60}30 seg<\/button>\s*<button id="jugar60"[\s\S]{0,60}60 seg<\/button>\s*<button id="jugarLibre"/.test(html));
+  chk('orden game over: 15 · 30 · 60', /id="jugar15"[\s\S]{0,60}15 seg<\/button>\s*<button id="jugar30"[\s\S]{0,60}30 seg<\/button>\s*<button id="jugar60"[\s\S]{0,60}60 seg<\/button>/.test(html));
   chk('jugar15 → iniciarPartida(\'15\')', /btn15\.addEventListener\('click', function \(\) \{ iniciarPartida\('15'\); \}\)/.test(main));
 }
 

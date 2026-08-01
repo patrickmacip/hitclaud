@@ -84,9 +84,10 @@
   const record60 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.60', 500);
   const record30 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.30', 500); // FASE 20: llave propia
   const record15 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.15', 500); // FASE 21: llave propia
-  const recordLibre = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.libre', 500);
   // MAPA modo→persistencia (fuente única; parametriza en vez de duplicar por modo).
-  const records = { '15': record15, '30': record30, '60': record60, 'libre': recordLibre };
+  // FASE 21: Relax eliminado → quedan 15/30/60. La vieja llave 'hitclaud.record.v2.libre'
+  // de quien jugó Relax queda HUÉRFANA en su almacén; simplemente se ignora (no se borra).
+  const records = { '15': record15, '30': record30, '60': record60 };
   let record = record60;        // récord de la PARTIDA activa (se ajusta al elegir modo)
   let modoInicioSel = '60';     // modo SELECCIONADO en la pantalla de inicio (default 60)
   const elRecord = document.querySelector('.marcador--record .valor');
@@ -102,7 +103,7 @@
   }
   // RECONCILIACIÓN al arrancar (async): funde localStorage e IndexedDB, se queda
   // con el record más alto y repuebla el almacén faltante. Refresca ambos displays.
-  [record60, record30, record15, recordLibre].forEach(function (r) {
+  [record60, record30, record15].forEach(function (r) {
     r.reconciliar().then(function () { if (r === record) actualizarRecord(); actualizarRecordInicio(); });
   });
 
@@ -119,13 +120,12 @@
   }
 
   // ── Modo de juego + ciclo de partida ───────────────────────────────
-  // PANTALLA DE INICIO (overlay): elegís "60 seg" o "Relax mode"; aparece al
-  // cargar y al terminar una partida. En 60 seg corre una cuenta regresiva y al
-  // llegar a 0 termina la partida. En Relax mode, sólo termina al tocar un rojo.
+  // OVERLAY de fin/selección: elegís la duración (15/30/60 seg); aparece al terminar
+  // una partida. Corre una cuenta regresiva y al llegar a 0 termina por tiempo.
   const elGameOver = document.getElementById('gameover');
-  // DURACIONES por modo cronometrado (ms). ÚNICA diferencia entre '30' y '60': el
-  // valor de acá. 'libre' no está en el mapa → sin reloj (Relax). Parametrizado para
-  // no duplicar la maquinaria de partida: el reloj y el temporizador leen DURACIONES[modo].
+  // DURACIONES por modo (ms). ÚNICA diferencia entre modos: el valor de acá.
+  // Parametrizado para no duplicar la maquinaria de partida: el reloj y el
+  // temporizador leen DURACIONES[modo] (mismo código para 15/30/60).
   const DURACIONES = { '15': 15 * 1000, '30': 30 * 1000, '60': 60 * 1000 };
   function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
@@ -144,10 +144,10 @@
   }
   function iniciarPartida(modo) {
     modoJuego = modo;
-    record = records[modo] || record60;         // récord del modo (mapa: 30/60/libre)
+    record = records[modo] || record60;         // récord del modo (mapa: 15/30/60)
     actualizarRecord();
     reiniciarEstado();
-    tiempoRestante = DURACIONES[modo] || 0;      // 30→30000, 60→60000, libre→0 (sin reloj)
+    tiempoRestante = DURACIONES[modo] || 0;      // 15→15000, 30→30000, 60→60000
     jugando = true;
     elGameOver.classList.add('oculto');
     cascEvento('iniciarPartida', 'modo:' + modo);
@@ -225,13 +225,9 @@
     elGameOver.querySelector('.go-record').classList.add('oculto');
     elGameOver.classList.remove('oculto');
   }
+  // Botones de modo en el game over (FASE 21: Relax eliminado). Orden: 15 · 30 · 60.
   const btn60 = document.getElementById('jugar60');
-  const btnLibre = document.getElementById('jugarLibre');
   if (btn60) btn60.addEventListener('click', function () { iniciarPartida('60'); });
-  if (btnLibre) btnLibre.addEventListener('click', function () { iniciarPartida('libre'); });
-  // Botones "30 seg" (FASE 20) y "15 seg" (FASE 21) en el game over, misma familia
-  // visual. Orden declarado: 15 seg · 30 seg · 60 seg · Relax mode. Los botones
-  // existentes (60/Relax) quedan intactos.
   const btn30 = document.getElementById('jugar30');
   if (btn30) btn30.addEventListener('click', function () { iniciarPartida('30'); });
   const btn15 = document.getElementById('jugar15');
@@ -470,9 +466,9 @@
   // SACUDIDA de CloudOver (FASE 16, revert del zoom): {inicio}. Sólo el temblor de
   // 12px/300ms desde el golpe; se apaga solo (sin zoom ni centrado). null salvo durante.
   let sacudidaCloudover = null;
-  let modoJuego = null;             // '60' | 'libre'
-  let tiempoRestante = 0;           // ms restantes (modo 60 seg) — se decrementa con dt SOLO jugando
-                                    // (así la pausa DETIENE el reloj de verdad; 0/N-A en Relax).
+  let modoJuego = null;             // '15' | '30' | '60'
+  let tiempoRestante = 0;           // ms restantes — se decrementa con dt SOLO jugando
+                                    // (así la pausa DETIENE el reloj de verdad).
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
   let sacudidaHasta = 0;      // timestamp fin de la micro-sacudida de pantalla
@@ -849,7 +845,7 @@
   if (btnReiniciar) btnReiniciar.addEventListener('click', function () {
     pausado = false;
     if (elPausa) elPausa.classList.add('oculto');
-    mostrarInicio(); // jugando = false → overlay de selección (60 seg / Relax mode)
+    mostrarInicio(); // jugando = false → overlay de selección (15/30/60 seg)
   });
 
   // FUNDACIONAL: "puedes bloquear sin temor a perder tu progreso". Al ocultarse
@@ -907,7 +903,7 @@
 
     // Modos CRONOMETRADOS (30 y 60): el reloj SÓLO corre jugando (gateado con
     // !secuencia: durante la secuencia de CloudOver se detiene). Al agotarse, termina
-    // por TIEMPO. 'libre' no está en DURACIONES → sin reloj. Parametrizado (no por modo).
+    // por TIEMPO. Un modo sin entrada en DURACIONES no correría reloj. Parametrizado (no por modo).
     if (DURACIONES[modoJuego] && !secuencia) {
       tiempoRestante -= dt;
       if (tiempoRestante <= 0) { tiempoRestante = 0; terminarPartida(true); dibujar(); return; }
@@ -1267,7 +1263,7 @@
 
     // TEMPORIZADOR (modos cronometrados 30/60): cuenta regresiva "M:SS" GRANDE
     // top-center, en su propia banda. Se pone rojo y pulsa en los últimos 10s. En
-    // libre (sin DURACIONES) no se dibuja. Parametrizado (no por modo).
+    // un modo sin DURACIONES no dibujaría temporizador. Parametrizado (no por modo).
     if (jugando && DURACIONES[modoJuego]) {
       const restante = Math.max(0, tiempoRestante);
       const seg = Math.ceil(restante / 1000);
