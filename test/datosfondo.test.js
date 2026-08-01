@@ -100,7 +100,7 @@ console.log('=== EVENTOS reales + FUERA freno fps + sin toques ===');
   chk('el evento muestra el ÚLTIMO ocurrido (ultimoEvento)', /return ultimoEvento;/.test(main) && /function cascEvento\(fn, datos\) \{ ultimoEvento = fn/.test(main));
   chk('SIN freno por fps (no consulta fps/columnas/regimen)', !/fps < 40|fps < 50|regimenCasc|columnas\(/.test(main));
   chk('la capa no agrega listeners ni captura punteros', !/addEventListener|setPointerCapture/.test(cuerpoFn));
-  chk('conteo: un solo ctx.fillText en el loop, sin shadow/gradiente', (cuerpoFn.match(/ctx\.fillText/g) || []).length === 1 && !/shadow|createLinearGradient|createRadialGradient/.test(cuerpoFn));
+  chk('conteo: un fillText por línea (firma + normal = 2 sentencias), sin shadow/gradiente', (cuerpoFn.match(/ctx\.fillText/g) || []).length <= 2 && !/shadow|createLinearGradient|createRadialGradient/.test(cuerpoFn));
 }
 
 console.log(`\n== RESUMEN datos-fondo(18): ${ok} OK, ${ko} NO ==`);

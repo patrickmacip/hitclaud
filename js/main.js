@@ -540,6 +540,14 @@
       if (vi < cascVivas.length) lineasFondo.push({ vivo: true, f: cascVivas[vi++] });
       if (ei < cascEstaticas.length) lineasFondo.push({ vivo: false, f: cascEstaticas[ei++] });
     } }
+  // FIRMA DEL AUTOR (FASE 21). EXCEPCIÓN aprobada EXPLÍCITAMENTE por el dueño a la
+  // regla de "todo real": estas dos líneas NO son telemetría ni código fuente — son la
+  // FIRMA del autor y están autorizadas. NO borrar en un futuro por creerlas texto
+  // inventado. 14px (el resto es 10px), alfa 0.20, mismo mono/color/márgenes. INTERCALADAS
+  // (no al principio ni al final): quedan en los slots 8 ("Patrick Macip") y 13
+  // ("@patcitorey"), con líneas de datos entre medio y antes/después → no se solapan.
+  lineasFondo.splice(8, 0, { firma: true, texto: 'Patrick Macip' });
+  lineasFondo.splice(13, 0, { firma: true, texto: '@patcitorey' });
   // Dibuja el bloque. SIEMPRE (sin freno por fps). Un fillText por línea, sin shadowBlur
   // ni gradientes. Cada línea se TRUNCA al ancho útil (W − 2·margen), midiendo antes.
   function dibujarFondoDatos() {
@@ -551,11 +559,20 @@
     const anchoDe = function (s) { return ctx.measureText(s).width; };
     for (let i = 0; i < lineasFondo.length; i++) {
       const L = lineasFondo[i];
+      const y = FONDO_Y0 + i * FONDO_LH;
+      if (L.firma) {
+        // Firma: 14px, alfa 0.20 (mismo mono/color/márgenes). 14px < interlínea 16 → sin solape.
+        ctx.font = '14px ui-monospace, Menlo, monospace';
+        ctx.globalAlpha = 0.20;
+        ctx.fillText(U.truncarTexto(L.texto, maxW, anchoDe), FONDO_MARGEN, y);
+        ctx.font = '10px ui-monospace, Menlo, monospace'; // restaura para el resto
+        continue;
+      }
       let s = L.f();
       if (!s) continue;
       s = U.truncarTexto(s, maxW, anchoDe); // nunca cruza el margen derecho
       ctx.globalAlpha = L.vivo ? 0.15 : 0.08;
-      ctx.fillText(s, FONDO_MARGEN, FONDO_Y0 + i * FONDO_LH);
+      ctx.fillText(s, FONDO_MARGEN, y);
     }
     ctx.restore();
   }
