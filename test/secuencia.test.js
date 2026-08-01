@@ -105,7 +105,7 @@ console.log('\n=== Integración en main.js (grep): estado nuevo, guards, sin pau
   const main = fs.readFileSync(__dirname + '/../js/main.js', 'utf8');
   chk('estado NUEVO `secuencia` (no reutiliza `pausado`)', /let secuencia = null;/.test(main));
   chk('freeze NO usa la pausa (secuencia y pausado son distintos)', /if \(pausado \|\| !jugando\)/.test(main) && /if \(secuencia\) \{/.test(main));
-  chk('reloj gateado durante la secuencia', /modoJuego === '60' && !secuencia/.test(main));
+  chk('reloj gateado durante la secuencia', /DURACIONES\[modoJuego\] && !secuencia/.test(main));
   chk('input pointerdown ignora la secuencia', /if \(secuencia\) return; \/\/ durante la secuencia/.test(main));
   chk('hitscan ignora la secuencia', /if \(pausado \|\| !jugando \|\| secuencia\) return;/.test(main));
   chk('pausa bloqueada durante la secuencia', /!jugando \|\| pausado \|\| secuencia/.test(main));

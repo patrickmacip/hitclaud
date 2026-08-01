@@ -31,16 +31,16 @@ console.log('=== COMPORTAMIENTO: inicio primero, JUGAR → 60s, mundo quieto ===
   chk('al cargar se llama mostrarPantallaInicio (no mostrarInicio)', /mostrarPantallaInicio\(\); \/\/ FASE 19/.test(main));
   chk('mostrarPantallaInicio deja jugando=false (mundo quieto)', /function mostrarPantallaInicio\(\) \{\s*jugando = false;/.test(main));
   chk('al cargar NO se llama iniciarPartida (sin partida corriendo)', !/iniciarPartida\([^)]*\);\s*\/\/ FASE 19|iniciarPartida[\s\S]{0,40}arrancarBucle/.test(main) && main.indexOf('iniciarPartida') < main.indexOf('mostrarPantallaInicio(); // FASE 19'));
-  chk('JUGAR arranca partida de 60s (iniciarPartida(\'60\'))', /btnJugar\.addEventListener\('click'[\s\S]{0,140}iniciarPartida\('60'\)/.test(main));
-  chk('DURACION_60 = 60·1000 (reloj de 60s desde cero)', /const DURACION_60 = 60 \* 1000;/.test(main));
-  chk('iniciarPartida(\'60\') fija tiempoRestante = DURACION_60', /modoJuego = modo;[\s\S]{0,200}tiempoRestante = \(modo === '60'\) \? DURACION_60 : 0;/.test(main));
+  chk('JUGAR arranca el modo seleccionado (default 60)', /btnJugar\.addEventListener\('click'[\s\S]{0,180}iniciarPartida\(modoInicioSel\)/.test(main) && /let modoInicioSel = '60';/.test(main));
+  chk('modo 60 = 60·1000 (reloj de 60s desde cero, en DURACIONES)', /'60': 60 \* 1000/.test(main));
+  chk('iniciarPartida fija tiempoRestante = DURACIONES[modo]', /modoJuego = modo;[\s\S]{0,200}tiempoRestante = DURACIONES\[modo\] \|\| 0;/.test(main));
   chk('estado inicial jugando = false', /let jugando = false;/.test(main));
 }
 
 console.log('=== RÉCORD mostrado = el GUARDADO; robusto si el almacén falla ===');
 {
-  // El display usa record.valor (el guardado, reconciliado).
-  chk('actualizarRecordInicio usa U.abreviarNumero(record.valor)', /function actualizarRecordInicio\(\)[\s\S]{0,200}U\.abreviarNumero\(record\.valor\)/.test(main));
+  // El display usa el récord del modo seleccionado (guardado, reconciliado).
+  chk('actualizarRecordInicio usa records[modoInicioSel].valor', /function actualizarRecordInicio\(\)[\s\S]{0,200}U\.abreviarNumero\(\(records\[modoInicioSel\] \|\| record60\)\.valor\)/.test(main));
   chk('reconciliación refresca el récord de inicio', /r === record[\s\S]{0,80}actualizarRecordInicio\(\)/.test(main));
   // Persistencia: el valor mostrado sale del almacenamiento.
   const local = (function () { const d = {}; return { getItem: (k) => (k in d ? d[k] : null), setItem: (k, v) => { d[k] = String(v); }, _d: d }; })();
@@ -50,7 +50,7 @@ console.log('=== RÉCORD mostrado = el GUARDADO; robusto si el almacén falla ==
   // Almacenamiento caído → 0, sin romper.
   const pFail = U.crearPersistencia(null, null, 'hitclaud.record.v2.60', 500);
   chk('almacén nulo → record 0 (muestra 0, no rompe)', pFail.valor === 0);
-  chk('actualizarRecordInicio con try/catch → 0 si algo lanza', /try \{ elIniRecord\.textContent = U\.abreviarNumero\(record\.valor\); \}\s*catch \(e\) \{ elIniRecord\.textContent = '0'; \}/.test(main));
+  chk('actualizarRecordInicio con try/catch → 0 si algo lanza', /try \{ elIniRecord\.textContent = U\.abreviarNumero\(\(records\[modoInicioSel\] \|\| record60\)\.valor\); \}\s*catch \(e\) \{ elIniRecord\.textContent = '0'; \}/.test(main));
   // El botón vive aparte del récord: su listener no depende del almacén.
   chk('el listener de JUGAR no depende del récord (siempre vivo)', /const btnJugar = document\.getElementById\('jugar'\);\s*if \(btnJugar\) btnJugar\.addEventListener/.test(main));
 }

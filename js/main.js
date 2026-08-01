@@ -82,23 +82,27 @@
     } catch (e) { return null; }
   })();
   const record60 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.60', 500);
+  const record30 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.30', 500); // FASE 20: llave propia
   const recordLibre = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.libre', 500);
-  let record = record60; // activo (se ajusta al elegir modo)
+  // MAPA modo→persistencia (fuente única; parametriza en vez de duplicar por modo).
+  const records = { '30': record30, '60': record60, 'libre': recordLibre };
+  let record = record60;        // récord de la PARTIDA activa (se ajusta al elegir modo)
+  let modoInicioSel = '60';     // modo SELECCIONADO en la pantalla de inicio (default 60)
   const elRecord = document.querySelector('.marcador--record .valor');
   function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record.valor); }
-  // Récord de la PANTALLA DE INICIO (FASE 19). Blindado: si el almacenamiento falla
-  // y algo lanza, muestra 0 y NO rompe (lección de congelamiento). El botón JUGAR
-  // vive aparte, así que un fallo acá jamás lo desactiva.
+  // Récord de la PANTALLA DE INICIO (FASE 19/20): muestra el del modo SELECCIONADO
+  // (30 o 60). Blindado: si el almacenamiento falla y algo lanza, muestra 0 y NO
+  // rompe. El botón JUGAR vive aparte, así que un fallo acá jamás lo desactiva.
   const elIniRecord = document.getElementById('iniRecord');
   function actualizarRecordInicio() {
     if (!elIniRecord) return;
-    try { elIniRecord.textContent = U.abreviarNumero(record.valor); }
+    try { elIniRecord.textContent = U.abreviarNumero((records[modoInicioSel] || record60).valor); }
     catch (e) { elIniRecord.textContent = '0'; }
   }
   // RECONCILIACIÓN al arrancar (async): funde localStorage e IndexedDB, se queda
   // con el record más alto y repuebla el almacén faltante. Refresca ambos displays.
-  [record60, recordLibre].forEach(function (r) {
-    r.reconciliar().then(function () { if (r === record) { actualizarRecord(); actualizarRecordInicio(); } });
+  [record60, record30, recordLibre].forEach(function (r) {
+    r.reconciliar().then(function () { if (r === record) actualizarRecord(); actualizarRecordInicio(); });
   });
 
   // ── Modo de juego + ciclo de partida ───────────────────────────────
@@ -106,7 +110,10 @@
   // cargar y al terminar una partida. En 60 seg corre una cuenta regresiva y al
   // llegar a 0 termina la partida. En Relax mode, sólo termina al tocar un rojo.
   const elGameOver = document.getElementById('gameover');
-  const DURACION_60 = 60 * 1000; // modo cronometrado = 60 SEGUNDOS
+  // DURACIONES por modo cronometrado (ms). ÚNICA diferencia entre '30' y '60': el
+  // valor de acá. 'libre' no está en el mapa → sin reloj (Relax). Parametrizado para
+  // no duplicar la maquinaria de partida: el reloj y el temporizador leen DURACIONES[modo].
+  const DURACIONES = { '30': 30 * 1000, '60': 60 * 1000 };
   function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
@@ -124,10 +131,10 @@
   }
   function iniciarPartida(modo) {
     modoJuego = modo;
-    record = (modo === '60') ? record60 : recordLibre;
+    record = records[modo] || record60;         // récord del modo (mapa: 30/60/libre)
     actualizarRecord();
     reiniciarEstado();
-    tiempoRestante = (modo === '60') ? DURACION_60 : 0;
+    tiempoRestante = DURACIONES[modo] || 0;      // 30→30000, 60→60000, libre→0 (sin reloj)
     jugando = true;
     elGameOver.classList.add('oculto');
     cascEvento('iniciarPartida', 'modo:' + modo);
@@ -209,6 +216,10 @@
   const btnLibre = document.getElementById('jugarLibre');
   if (btn60) btn60.addEventListener('click', function () { iniciarPartida('60'); });
   if (btnLibre) btnLibre.addEventListener('click', function () { iniciarPartida('libre'); });
+  // FASE 20: botón "30 seg" en el game over, misma familia visual. Orden declarado:
+  // 30 seg · 60 seg · Relax mode. Los botones existentes (60/Relax) quedan intactos.
+  const btn30 = document.getElementById('jugar30');
+  if (btn30) btn30.addEventListener('click', function () { iniciarPartida('30'); });
 
   // ── PANTALLA DE BIENVENIDA (FASE 19): lo PRIMERO que se ve al abrir. Mismo
   // mecanismo de overlays DOM que #gameover/#pausa (no un sistema paralelo). El
@@ -220,10 +231,23 @@
     actualizarRecordInicio();
     if (elInicio) elInicio.classList.remove('oculto');
   }
+  // SELECTOR de modo en inicio (FASE 20): 30 seg / 60 seg junto a JUGAR. Al elegir,
+  // cambia modoInicioSel, marca el botón activo y refresca el récord mostrado (el del
+  // modo seleccionado). JUGAR arranca el modo elegido. Reusa .go-reiniciar (sin componentes nuevos).
+  const btnSel30 = document.getElementById('sel30');
+  const btnSel60 = document.getElementById('sel60');
+  function elegirModoInicio(modo) {
+    modoInicioSel = modo;
+    if (btnSel30) btnSel30.classList.toggle('sel-activo', modo === '30');
+    if (btnSel60) btnSel60.classList.toggle('sel-activo', modo === '60');
+    actualizarRecordInicio(); // el récord mostrado cambia con la selección
+  }
+  if (btnSel30) btnSel30.addEventListener('click', function () { elegirModoInicio('30'); });
+  if (btnSel60) btnSel60.addEventListener('click', function () { elegirModoInicio('60'); });
   const btnJugar = document.getElementById('jugar');
   if (btnJugar) btnJugar.addEventListener('click', function () {
     if (elInicio) elInicio.classList.add('oculto');
-    iniciarPartida('60'); // partida de siempre, reloj de 60s desde cero
+    iniciarPartida(modoInicioSel); // arranca el modo SELECCIONADO (30 o 60) desde cero
   });
 
   // Retardo del próximo spawn de NARANJAS: rango base por score (rangoVigente)
@@ -817,9 +841,10 @@
     // actualización (física, spawn, colisión, cobro); solo re-dibuja el estado.
     if (pausado || !jugando) { cobrando = false; dibujar(); return; }
 
-    // Modo 60 MIN: el reloj SÓLO corre cuando se juega (gateado con !secuencia: durante
-    // la secuencia de CloudOver el reloj se detiene). Al agotarse, termina la partida.
-    if (modoJuego === '60' && !secuencia) {
+    // Modos CRONOMETRADOS (30 y 60): el reloj SÓLO corre jugando (gateado con
+    // !secuencia: durante la secuencia de CloudOver se detiene). Al agotarse, termina
+    // por TIEMPO. 'libre' no está en DURACIONES → sin reloj. Parametrizado (no por modo).
+    if (DURACIONES[modoJuego] && !secuencia) {
       tiempoRestante -= dt;
       if (tiempoRestante <= 0) { tiempoRestante = 0; terminarPartida(true); dibujar(); return; }
     }
@@ -1176,10 +1201,10 @@
       ctx.restore();
     }
 
-    // TEMPORIZADOR (modo 60 seg): cuenta regresiva "M:SS" GRANDE top-center, en su
-    // propia banda (bajo la barra, encima del badge y del monto → sin encimarse).
-    // Se pone rojo y pulsa en los últimos 10s. En libre no se dibuja.
-    if (jugando && modoJuego === '60') {
+    // TEMPORIZADOR (modos cronometrados 30/60): cuenta regresiva "M:SS" GRANDE
+    // top-center, en su propia banda. Se pone rojo y pulsa en los últimos 10s. En
+    // libre (sin DURACIONES) no se dibuja. Parametrizado (no por modo).
+    if (jugando && DURACIONES[modoJuego]) {
       const restante = Math.max(0, tiempoRestante);
       const seg = Math.ceil(restante / 1000);
       const txt = Math.floor(seg / 60) + ':' + (seg % 60 < 10 ? '0' + (seg % 60) : seg % 60);
