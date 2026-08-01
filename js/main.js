@@ -106,6 +106,18 @@
     r.reconciliar().then(function () { if (r === record) actualizarRecord(); actualizarRecordInicio(); });
   });
 
+  // ── NOMBRE DE USUARIO (FASE 21): se pide UNA vez, se guarda en doble almacén
+  // (fase 10) y se muestra en la barra. Local hoy; cobrará sentido con el ranking
+  // global futuro (no se construye nada de red acá). Llave: hitclaud.nombre.v2.
+  const NOMBRE_KEY = 'hitclaud.nombre.v2';
+  const nombreStore = U.crearTextoPersistente(almacen, idbKV, NOMBRE_KEY);
+  let nombreUsuario = nombreStore.valor;               // lectura síncrona inicial
+  const puedeGuardarNombre = !!(almacen || idbKV);     // si no hay almacén → jugar sin nombre
+  const elBarraNombre = document.getElementById('barraNombre');
+  function actualizarBarraNombre() {
+    try { if (elBarraNombre) elBarraNombre.textContent = nombreUsuario || ''; } catch (e) { /* nunca rompe */ }
+  }
+
   // ── Modo de juego + ciclo de partida ───────────────────────────────
   // PANTALLA DE INICIO (overlay): elegís "60 seg" o "Relax mode"; aparece al
   // cargar y al terminar una partida. En 60 seg corre una cuenta regresiva y al
@@ -249,7 +261,40 @@
   const btnJugar = document.getElementById('jugar');
   if (btnJugar) btnJugar.addEventListener('click', function () {
     if (elInicio) elInicio.classList.add('oculto');
-    iniciarPartida(modoInicioSel); // arranca el modo SELECCIONADO (30 o 60) desde cero
+    iniciarPartida(modoInicioSel); // arranca el modo SELECCIONADO desde cero
+  });
+
+  // ── ENTRADA DE NOMBRE (FASE 21): overlay que se pide UNA sola vez (primera carga).
+  // Bloquea el juego hasta tener nombre. Sin autofocus: el teclado se abre al tocar el
+  // campo. Validación: trim, 1–8 chars, no vacío. Guardar es best-effort (try/catch):
+  // si el almacén falla, se juega igual y se re-pide la próxima vez (no bloquea).
+  const elNombre = document.getElementById('nombre');
+  const nombreInput = document.getElementById('nombreInput');
+  const btnNombreOk = document.getElementById('nombreOk');
+  function mostrarPantallaNombre() {
+    if (nombreInput) nombreInput.value = '';
+    if (elNombre) elNombre.classList.remove('oculto'); // NO .focus(): teclado bajo demanda
+  }
+  function confirmarNombre() {
+    const v = (nombreInput ? nombreInput.value : '').trim().slice(0, 8);
+    if (v.length < 1) return;              // vacío → no avanza (sigue pidiendo)
+    nombreUsuario = v;
+    try { nombreStore.guardar(v); } catch (e) { /* almacén roto: queda en memoria, se re-pide luego */ }
+    actualizarBarraNombre();
+    if (elNombre) elNombre.classList.add('oculto');
+    mostrarPantallaInicio();
+  }
+  if (btnNombreOk) btnNombreOk.addEventListener('click', confirmarNombre);
+  if (nombreInput) nombreInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); confirmarNombre(); }
+  });
+  // Reconciliación del nombre (async, IDB): si aparece un nombre guardado y aún no lo
+  // teníamos (p.ej. local vacío pero IDB lo conserva), lo adopta y cierra el prompt.
+  nombreStore.reconciliar().then(function (v) {
+    if (v && !nombreUsuario) {
+      nombreUsuario = v; actualizarBarraNombre();
+      if (elNombre && !elNombre.classList.contains('oculto')) { elNombre.classList.add('oculto'); mostrarPantallaInicio(); }
+    }
   });
 
   // Retardo del próximo spawn de NARANJAS: rango base por score (rangoVigente)
@@ -1355,9 +1400,15 @@
   redimensionar();
   actualizarMarcador();  // arranca en 0 (no el placeholder del HTML)
   actualizarRecord();    // récord del modo por defecto (60 seg) hasta elegir
+  actualizarBarraNombre(); // muestra el nombre guardado en la barra (si existe)
   marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
   escalada = P.crearEscalada(performance.now(), Math.random); // estado inicial válido
-  mostrarPantallaInicio(); // FASE 19: pantalla de bienvenida (título + récord + JUGAR)
+  // Primera pantalla (FASE 21): si ya hay nombre → bienvenida; si no y el almacén
+  // sirve → pedir nombre (bloquea hasta tenerlo); si el almacén está roto → jugar
+  // sin nombre (no se bloquea). El bucle corre congelado detrás.
+  if (nombreUsuario) mostrarPantallaInicio();
+  else if (puedeGuardarNombre) mostrarPantallaNombre();
+  else mostrarPantallaInicio();
   arrancarBucle();       // el bucle corre (congelado hasta tocar JUGAR)
 
   if ('serviceWorker' in navigator) {

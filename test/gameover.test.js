@@ -30,9 +30,10 @@ console.log('\n=== FASE 10: SIN historial en el DOM (login/tableros/página de r
   const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
   const records = (html.match(/id="records"/g) || []).length;
   const ver = (html.match(/id="verRecords"/g) || []).length;
-  const nombre = (html.match(/id="nombre"/g) || []).length;
   const tablero = (html.match(/id="tablero"/g) || []).length;
-  console.log(`  #records:${records} #verRecords:${ver} #nombre:${nombre} #tablero:${tablero} (todos 0)  ${records===0&&ver===0&&nombre===0&&tablero===0 ? 'OK ✓' : 'NO ✗'}`);
+  // (FASE 21: #nombre volvió como el overlay de NOMBRE DE USUARIO, feature distinta;
+  //  ya no es marcador del viejo login. Se valida en usuario.test.js.)
+  console.log(`  #records:${records} #verRecords:${ver} #tablero:${tablero} (todos 0)  ${records===0&&ver===0&&tablero===0 ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== Reiniciar estado: resetea el marcador (record intacto) ===');

@@ -119,6 +119,34 @@
     };
   }
 
+  // ── TEXTO PERSISTENTE (FASE 21) — mismo doble almacén de la fase 10 para un STRING.
+  // localStorage (síncrono) + IndexedDB (asíncrono) bajo una llave versionada. Se usa
+  // para el NOMBRE de usuario. reconciliar() (async, IDB lo es) toma el valor que
+  // exista (si ambos, el local; repuebla el faltante). Todo con try/catch: si un
+  // almacén falla, NO lanza (el juego no se bloquea). No hay "mayor" que elegir: es texto.
+  function crearTextoPersistente(local, idb, clave) {
+    let valor = '';
+    try { if (local) { const v = local.getItem(clave); if (typeof v === 'string') valor = v; } } catch (e) { /* storage no disponible */ }
+    function escribir() {
+      try { if (local) local.setItem(clave, valor); } catch (e) { /* cuota/privado */ }
+      try { if (idb) { const p = idb.set(clave, valor); if (p && p.catch) p.catch(function () {}); } } catch (e) { /* IDB caído */ }
+    }
+    return {
+      get valor() { return valor; },
+      guardar: function (v) { valor = String(v == null ? '' : v); escribir(); },
+      reconciliar: function () {
+        const leerIdb = (function () { try { if (idb) return Promise.resolve(idb.get(clave)); } catch (e) {} return Promise.resolve(null); })();
+        return leerIdb.then(function (rawIdb) {
+          let loc = ''; try { if (local) { const v = local.getItem(clave); if (typeof v === 'string') loc = v; } } catch (e) {}
+          const idbv = (typeof rawIdb === 'string') ? rawIdb : '';
+          if (!valor) valor = loc || idbv; // toma el que exista (prioridad local)
+          if (valor) escribir();           // repuebla el almacén que falte
+          return valor;
+        }, function () { return valor; });
+      },
+    };
+  }
+
   // Abreviatura de números grandes (fuente ÚNICA). >=10,000 → K/M con UNA
   // decimal TRUNCADA (no redondea hacia arriba): 10,499 → "10.4K". Debajo de
   // 10,000, número completo. Se descarta la decimal .0 (125,000 → "125K").
@@ -297,6 +325,7 @@
 
   const U = {
     leerToken: leerToken, crearPersistencia: crearPersistencia,
+    crearTextoPersistente: crearTextoPersistente,
     parseEntrada: parseEntrada, abreviarNumero: abreviarNumero,
     SEC: SEC, faseCloudover: faseCloudover, valorVaciado: valorVaciado,
     estelaMeteoro: estelaMeteoro, crearMedidorFps: crearMedidorFps,

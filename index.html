@@ -17,6 +17,7 @@
 <body>
   <header class="barra">
     <div class="marcador marcador--record">
+      <span class="etiqueta barra-nombre" id="barraNombre"></span>
       <span class="etiqueta">Record</span>
       <span class="valor">0</span>
     </div>
@@ -35,6 +36,16 @@
   <canvas id="juego"></canvas>
 
   <div class="hitmaker" aria-hidden="true"></div>
+
+  <div id="nombre" class="oculto" role="dialog" aria-modal="true">
+    <div class="go-panel">
+      <p class="ini-titulo">Tu nombre</p>
+      <input id="nombreInput" class="nombre-input" type="text" maxlength="8"
+             autocomplete="off" autocapitalize="characters" spellcheck="false"
+             inputmode="text" placeholder="hasta 8" aria-label="Tu nombre">
+      <button id="nombreOk" class="go-reiniciar">Confirmar</button>
+    </div>
+  </div>
 
   <div id="inicio" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
