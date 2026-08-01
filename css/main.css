@@ -145,9 +145,9 @@ body {
 .oculto { display: none; }
 /* Una clase utilitaria (0-0-1-0) NO puede anular #gameover{display:flex}
    (ID, 0-1-0-0). Regla ID+clase (0-1-1-0) para que ocultar gane. */
-#gameover.oculto, #pausa.oculto { display: none; }
+#gameover.oculto, #pausa.oculto, #inicio.oculto { display: none; }
 
-#gameover, #pausa {
+#gameover, #pausa, #inicio {
   position: fixed;
   inset: 0;
   z-index: 3;
@@ -156,6 +156,30 @@ body {
   justify-content: center;
   background: rgba(8, 8, 14, 0.82); /* --amenaza translúcido */
   padding: env(safe-area-inset-top) 24px 24px;
+}
+
+/* ── Pantalla de INICIO (FASE 19): título grande, récord y botón JUGAR ─────
+   Reusa #gameover/#pausa (mismo mecanismo de overlays DOM + .oculto) y el estilo
+   .go-panel / .go-reiniciar. Paleta naranja normal (acento), sin hardcodear. */
+.ini-titulo {
+  font: 800 44px/1.05 var(--fuente);
+  color: var(--acento-vivo, #FF8764);
+  letter-spacing: -0.5px;
+  margin: 4px 0 20px;
+}
+/* Récord con la MISMA tipografía que el marcador Record del juego
+   (.marcador--record hereda: etiqueta 15px claro, valor 24px claro), centrado. */
+.ini-record { align-items: center; margin-bottom: 24px; }
+/* Botón JUGAR: dominante. Reusa .go-reiniciar; sólo lo hago más prominente. */
+.ini-jugar {
+  font: var(--texto-xl);
+  min-height: 56px; /* zona táctil ≥44px (Material) con margen */
+  margin-top: 8px;
+}
+/* Ley de tacto: :active en móvil; hover SÓLO donde hay puntero fino. */
+.ini-jugar:active { background: var(--acento-profundo, #A84A2E); transform: scale(0.98); }
+@media (hover: hover) {
+  .ini-jugar:hover { background: var(--acento-vivo, #FF8764); }
 }
 
 .go-panel {

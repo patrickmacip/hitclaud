@@ -86,10 +86,19 @@
   let record = record60; // activo (se ajusta al elegir modo)
   const elRecord = document.querySelector('.marcador--record .valor');
   function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record.valor); }
+  // Récord de la PANTALLA DE INICIO (FASE 19). Blindado: si el almacenamiento falla
+  // y algo lanza, muestra 0 y NO rompe (lección de congelamiento). El botón JUGAR
+  // vive aparte, así que un fallo acá jamás lo desactiva.
+  const elIniRecord = document.getElementById('iniRecord');
+  function actualizarRecordInicio() {
+    if (!elIniRecord) return;
+    try { elIniRecord.textContent = U.abreviarNumero(record.valor); }
+    catch (e) { elIniRecord.textContent = '0'; }
+  }
   // RECONCILIACIÓN al arrancar (async): funde localStorage e IndexedDB, se queda
-  // con el record más alto y repuebla el almacén faltante. Refresca el display.
+  // con el record más alto y repuebla el almacén faltante. Refresca ambos displays.
   [record60, recordLibre].forEach(function (r) {
-    r.reconciliar().then(function () { if (r === record) actualizarRecord(); });
+    r.reconciliar().then(function () { if (r === record) { actualizarRecord(); actualizarRecordInicio(); } });
   });
 
   // ── Modo de juego + ciclo de partida ───────────────────────────────
@@ -189,7 +198,7 @@
     }
     secuencia = null;
   }
-  // Pantalla de inicio al cargar (sin score todavía).
+  // Overlay de fin/selección al reiniciar desde la pausa (sin score todavía).
   function mostrarInicio() {
     jugando = false;
     elGameOver.querySelector('.go-score').classList.add('oculto');
@@ -200,6 +209,22 @@
   const btnLibre = document.getElementById('jugarLibre');
   if (btn60) btn60.addEventListener('click', function () { iniciarPartida('60'); });
   if (btnLibre) btnLibre.addEventListener('click', function () { iniciarPartida('libre'); });
+
+  // ── PANTALLA DE BIENVENIDA (FASE 19): lo PRIMERO que se ve al abrir. Mismo
+  // mecanismo de overlays DOM que #gameover/#pausa (no un sistema paralelo). El
+  // mundo queda QUIETO detrás (jugando=false → sin física/spawn/reloj); el fondo de
+  // datos sigue dibujándose. Al tocar JUGAR arranca la partida de 60s desde cero.
+  const elInicio = document.getElementById('inicio');
+  function mostrarPantallaInicio() {
+    jugando = false;
+    actualizarRecordInicio();
+    if (elInicio) elInicio.classList.remove('oculto');
+  }
+  const btnJugar = document.getElementById('jugar');
+  if (btnJugar) btnJugar.addEventListener('click', function () {
+    if (elInicio) elInicio.classList.add('oculto');
+    iniciarPartida('60'); // partida de siempre, reloj de 60s desde cero
+  });
 
   // Retardo del próximo spawn de NARANJAS: rango base por score (rangoVigente)
   // con caos superpuesto (ráfagas/pausas), recortado a ≤800ms (SPAWN_GAP_MAX): la
@@ -1305,8 +1330,8 @@
   actualizarRecord();    // récord del modo por defecto (60 seg) hasta elegir
   marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
   escalada = P.crearEscalada(performance.now(), Math.random); // estado inicial válido
-  mostrarInicio();       // pantalla de inicio: elegí modo (60 seg / Relax) para jugar
-  arrancarBucle();       // el bucle corre (congelado hasta elegir modo)
+  mostrarPantallaInicio(); // FASE 19: pantalla de bienvenida (título + récord + JUGAR)
+  arrancarBucle();       // el bucle corre (congelado hasta tocar JUGAR)
 
   if ('serviceWorker' in navigator) {
     // AUTO-ACTUALIZACIÓN: cuando un SW NUEVO toma el control (tras skipWaiting +
