@@ -20,8 +20,8 @@ console.log('=== CONTENIDO: título "HitClaud", récord (estilo marcador Record)
 
 console.log('=== MECANISMO: mismo sistema de overlays DOM que #gameover/#pausa ===');
 {
-  chk('#inicio en la regla .oculto de overlays', /#gameover\.oculto, #pausa\.oculto, #inicio\.oculto \{ display: none; \}/.test(css));
-  chk('#inicio en la regla de posición fixed/z-index de overlays', /#gameover, #pausa, #inicio \{/.test(css));
+  chk('#inicio en la regla .oculto compuesta de overlays', /#inicio\.oculto[,{]/.test(css) && /\.oculto[^{]*\{ display: none; \}/.test(css));
+  chk('#inicio en la regla de posición fixed/z-index de overlays', /#gameover, #pausa, #inicio[,{ ]/.test(css));
   chk('main.js muestra/oculta #inicio con .classList (mismo mecanismo)', /elInicio\.classList\.remove\('oculto'\)/.test(main) && /elInicio\.classList\.add\('oculto'\)/.test(main));
   chk('NO hay dibujo en canvas de la pantalla (es DOM, no un mecanismo paralelo)', !/dibujarInicio|pantallaInicioCanvas/.test(main));
 }

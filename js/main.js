@@ -267,6 +267,7 @@
   const elNombre = document.getElementById('nombre');
   const nombreInput = document.getElementById('nombreInput');
   const btnNombreOk = document.getElementById('nombreOk');
+  const btnNombreOmitir = document.getElementById('nombreOmitir');
   function mostrarPantallaNombre() {
     if (nombreInput) nombreInput.value = '';
     if (elNombre) elNombre.classList.remove('oculto'); // NO .focus(): teclado bajo demanda
@@ -280,7 +281,15 @@
     if (elNombre) elNombre.classList.add('oculto');
     mostrarPantallaInicio();
   }
+  // SALIDA DE EMERGENCIA (FASE 22, ley del dueño): "Omitir" entra al juego SIN nombre.
+  // Ninguna pantalla puede dejar el juego sin salida — si el campo falla o el almacén
+  // está roto, este botón SIEMPRE lleva a jugar. No guarda nada.
+  function omitirNombre() {
+    if (elNombre) elNombre.classList.add('oculto');
+    mostrarPantallaInicio();
+  }
   if (btnNombreOk) btnNombreOk.addEventListener('click', confirmarNombre);
+  if (btnNombreOmitir) btnNombreOmitir.addEventListener('click', omitirNombre);
   if (nombreInput) nombreInput.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { e.preventDefault(); confirmarNombre(); }
   });
