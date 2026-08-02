@@ -1285,7 +1285,8 @@
       ctx.scale(esc, esc);
       ctx.font = '800 32px ' + COLOR.fuente;
       const colTimer = urgente ? ROJO_BORDE : ACENTO.claro;
-      haloTexto(txt, 0, 0, colTimer, 5); // halo barato en lugar de shadowBlur 8
+      // FASE 23: SIN contorno. El número del contador queda limpio (se quitó el trazo
+      // haloTexto). Legible por su relleno claro (#FFC9B8, o #FF0055 urgente) sobre #121216.
       ctx.fillStyle = colTimer;
       ctx.fillText(txt, 0, 0);
       ctx.restore();

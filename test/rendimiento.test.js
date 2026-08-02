@@ -51,7 +51,7 @@ console.log('\n=== Halo sustituto SIN blur en los 3 sitios de móvil ===');
   chk('badge ×N usa haloTexto', /haloTexto\(txtMult,/.test(main));
   chk('flotante grande usa haloTexto (si fl.glow)', /if \(fl\.glow\) haloTexto\(/.test(main));
   // (Extra declarado) el temporizador también recibió el halo barato.
-  chk('temporizador usa haloTexto (extra, declarado)', /haloTexto\(txt, 0, 0, colTimer/.test(main));
+  chk('temporizador SIN haloTexto (FASE 23: contador sin contorno) — sigue sin shadowBlur', !/haloTexto\(txt, 0, 0, colTimer/.test(main) && (main.match(/ctx\.shadowBlur/g) || []).length === 1);
 }
 
 console.log('\n=== Nada más cambió: colores, tamaños y posiciones idénticos ===');
