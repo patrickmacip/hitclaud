@@ -62,6 +62,18 @@ body {
   align-items: center;
 }
 
+/* Nombre de usuario (FASE 23): al CENTRO de la barra, entre Record (izq) y Actual
+   (centro). Posicionado en 25% → no pisa a ninguno; absoluto → no afecta el flujo
+   (con o sin nombre la barra NO se descuadra). Tipografía de etiqueta (reusada). */
+.marcador--nombre {
+  position: absolute;
+  left: 25%;
+  transform: translateX(-50%);
+  align-items: center;
+}
+.marcador--nombre .etiqueta { color: var(--acento-claro, #FFC9B8); }
+.barra-nombre { white-space: nowrap; }  /* 8 caracteres caben completos, no se recorta */
+
 .marcador--actual .etiqueta { color: var(--acento-claro, #FFC9B8); transition: color 0.25s ease-out; }
 .marcador--actual .valor {
   font: var(--texto-xl);

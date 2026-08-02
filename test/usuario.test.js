@@ -43,7 +43,7 @@ console.log('=== PRIMERA carga pide nombre y BLOQUEA; SEGUNDA no ===');
 
 console.log('=== VISIBLE en la barra con la tipografía de etiqueta del marcador ===');
 {
-  chk('span del nombre en el marcador Record (reusa .etiqueta)', /<span class="etiqueta barra-nombre" id="barraNombre"><\/span>/.test(html));
+  chk('span del nombre en la barra (reusa .etiqueta) — FASE 23: en su propio contenedor', /<span class="etiqueta barra-nombre" id="barraNombre"><\/span>/.test(html));
   chk('actualizarBarraNombre pinta el nombre (blindado try/catch)', /function actualizarBarraNombre\(\)[\s\S]{0,140}elBarraNombre\.textContent = nombreUsuario \|\| ''/.test(main) && /catch \(e\) \{ \/\* nunca rompe/.test(main));
   chk('se muestra al arrancar (actualizarBarraNombre en la secuencia de carga)', /actualizarBarraNombre\(\); \/\/ muestra el nombre guardado/.test(main));
   chk('vacío = invisible (.barra-nombre:empty display none, sin componente nuevo)', /\.barra-nombre:empty \{ display: none; \}/.test(css));
