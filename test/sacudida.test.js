@@ -25,7 +25,12 @@ console.log('=== ZOOM/CENTRADO eliminados por completo (sin código muerto de c�
   chk('util.js: sin camFin', !/camFin/.test(util));
   chk('main.js: sin camaraCloudover (renombrado a sacudidaCloudover)', !/camaraCloudover/.test(main));
   chk('main.js: sin escalaCam/focoCam/camFin', !/escalaCam|focoCam|camFin/.test(main));
-  chk('main.js: no queda un 1.6× de cámara (sólo el 1.6 de la explosión)', (main.match(/1\.6/g) || []).length === 1);
+  // No queda ningún 1.6× de CÁMARA. La ausencia de zoom se prueba con los checks de
+  // escalaCam/focoCam/camaraCloudover (arriba) y de ctx.scale(s,s)/translate(W/2,H/2)
+  // (abajo). Los 1.6 que SÍ existen son legítimos y no son cámara: la magnitud de la
+  // explosión del CloudOver y el radio del disco-halo del bono (1.6× el alto del texto).
+  chk('main.js: el 1.6 de la explosión sigue (debris del CloudOver, no cámara)', /explotarCubos\(centros, px, py, 1\.6,/.test(main));
+  chk('main.js: el 1.6 del halo es el radio del disco (1.6 * niv.asiento), no un zoom', /1\.6 \* niv\.asiento/.test(main));
 }
 
 console.log('=== La matriz base del MUNDO vuelve a antes de la fase 15: sólo translate ===');

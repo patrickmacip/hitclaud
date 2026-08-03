@@ -385,16 +385,59 @@
     if (flotantes.length > MAX_FLOTANTES) flotantes.shift();
   }
 
-  // BONO DE CARAMBOLA flotante (canvas): dos renglones grandes en la posición del
-  // ÚLTIMO impacto de la bola que encadenó. Uno a la vez (el nuevo reemplaza al
-  // anterior). 900ms: sube 40px, opacidad 1→0, letra 48→32px; renglón 2 al 55%.
-  const BONO_VIDA = 900;      // ms de vida del bono flotante
-  const BONO_SUBE = 40;       // px que sube durante su vida
-  const BONO_TAM_INI = 48;    // px de letra al nacer (renglón 1)
-  const BONO_TAM_FIN = 32;    // px de letra al morir (renglón 1)
-  let bonoCaram = null;       // { x, y, valor, hits, inicio } | null
-  function mostrarBonoCarambola(x, y, valor, hits) {
-    bonoCaram = { x: x, y: y, valor: valor, hits: hits, inicio: performance.now() };
+  // ── BONO DE CARAMBOLA flotante (canvas) ────────────────────────────
+  // Un número por GOLPE (desde el 2º), en el momento y el punto del impacto, con el
+  // INCREMENTO que aporta ese golpe. TRES NIVELES por el VALOR mostrado (más puntos →
+  // más grande y más amarillo). Colores LITERALES con respaldo (nunca vacíos: un token
+  // vacío rompe el canvas). El halo es un DISCO de degradado radial CACHEADO (uno por
+  // nivel, creado UNA sola vez): NUNCA shadowBlur (puerta cerrada, 9246c33), NUNCA se
+  // crea un gradiente dentro del bucle rAF. Uno visible a la vez: el nuevo CORTA de
+  // golpe al anterior; el final (bola muerta) usa la vida larga y se disipa suave.
+  const BONO_NIVELES = [
+    { max: 1000,     pico: 52, asiento: 34, color: '#FF9E2C' }, // nivel 1: valor < 1000
+    { max: 3500,     pico: 62, asiento: 40, color: '#FFC233' }, // nivel 2: 1000–3499
+    { max: Infinity, pico: 74, asiento: 48, color: '#FFE566' }, // nivel 3: ≥ 3500
+  ];
+  const BONO_VIDA_INT = 380;  // ms de vida de un número INTERMEDIO (la bola sigue viva)
+  const BONO_VIDA_FIN = 1100; // ms del número FINAL (la bola murió)
+  const BONO_SUBE_INT = 24;   // px que sube un intermedio
+  const BONO_SUBE_FIN = 56;   // px que sube el final
+  function hexRgb(h) {
+    h = String(h).replace('#', '');
+    return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+  }
+  // Disco de halo cacheado: degradado radial del color del nivel (centro) a
+  // transparente (borde). Radio = 1.6× el alto del texto en su tamaño de asiento.
+  function construirDiscoBono(niv) {
+    const rad = Math.round(1.6 * niv.asiento);
+    const cv = document.createElement('canvas');
+    cv.width = rad * 2; cv.height = rad * 2;
+    const dctx = cv.getContext('2d');
+    const c = hexRgb(niv.color);
+    const grad = dctx.createRadialGradient(rad, rad, 0, rad, rad, rad);
+    grad.addColorStop(0, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',1)');
+    grad.addColorStop(1, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0)');
+    dctx.fillStyle = grad;
+    dctx.beginPath(); dctx.arc(rad, rad, rad, 0, Math.PI * 2); dctx.fill();
+    return { canvas: cv, r: rad };
+  }
+  // Los TRES discos, UNA sola vez al arrancar (blindado por si el canvas falla).
+  BONO_NIVELES.forEach(function (niv) { try { niv.disco = construirDiscoBono(niv); } catch (e) { niv.disco = null; } });
+  function nivelBono(valor) {
+    for (let i = 0; i < BONO_NIVELES.length; i++) if (valor < BONO_NIVELES[i].max) return BONO_NIVELES[i];
+    return BONO_NIVELES[BONO_NIVELES.length - 1];
+  }
+  // Interpolaciones suavizadas (no lineales).
+  function suave(t) { t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); }   // smoothstep
+  function frena(t) { t = t < 0 ? 0 : t > 1 ? 1 : t; return 1 - (1 - t) * (1 - t); } // ease-out (rápido→lento)
+  function lerpColor(a, b, t) {
+    const A = hexRgb(a), B = hexRgb(b);
+    return 'rgb(' + Math.round(A.r + (B.r - A.r) * t) + ',' + Math.round(A.g + (B.g - A.g) * t) + ',' + Math.round(A.b + (B.b - A.b) * t) + ')';
+  }
+  let bonoCaram = null; // { x, y, valor, hits, nivel, inicio, modo } | null (uno a la vez)
+  // Nace/relevo: el nuevo CORTA de golpe al anterior. Jitter X −8..+8. modo: 'intermedio'|'final'.
+  function mostrarBonoCarambola(x, y, valor, hits, modo) {
+    bonoCaram = { x: x + rnd(-8, 8), y: y, valor: valor, hits: hits, nivel: nivelBono(valor), inicio: performance.now(), modo: modo };
   }
   // Tamaño de fuente de una GANANCIA según su magnitud (20px chico → 44px enorme;
   // glow desde +300). A mayor ganancia, más grande y brillante.
@@ -1067,6 +1110,9 @@
         cascEvento('resolverImpacto', 'tipo:' + r.tipo + ' destruidos:' + r.destruidos + ' muerto:' + r.muerto);
         b.golpes += 1;                         // cadena: cuenta CADA impacto (mismo target o no)
         b.ultimoX = r.px; b.ultimoY = r.py;    // dónde nace el bono si esta bola encadena
+        // Desde el 2º golpe, cada golpe dispara su número EN EL IMPACTO (incremento
+        // de ese golpe). El 1º no muestra nada. El puntaje se anota entero al morir.
+        if (b.golpes >= 2) mostrarBonoCarambola(r.px, r.py, P.incrementoCarambola(b.golpes), b.golpes, 'intermedio');
         tg.destelloHasta = t + DESTELLO_MS;    // destello en CUALQUIER contacto
         if (!b.tocado) {                       // primer toque = hit (sube la racha continua)
           b.tocado = true;
@@ -1116,10 +1162,16 @@
         } else if (b.golpes >= 2 && !secuencia) {
           // CARAMBOLA: la bola encadenó ≥2 golpes en su vida. Bono LIMPIO (sin racha).
           // !secuencia excluye la muerte por CloudOver (la partida terminó → no anota).
-          const bono = P.anotarCarambola(marcador, b.golpes);
+          const bono = P.anotarCarambola(marcador, b.golpes); // TOTAL entero = bono(n), sin cambio
           cascEvento('anotarCarambola', 'golpes:' + b.golpes + ' bono:' + bono);
           actualizarMarcador();
-          if (bono > 0) mostrarBonoCarambola(b.ultimoX, b.ultimoY, bono, b.golpes);
+          // El número vigente (el del último golpe) SE CONVIERTE en el final EN EL
+          // SITIO: mismo valor/posición, sólo pasa a modo 'final' (vida y subida largas,
+          // se disipa suave) sin re-pop. Si ya expiró, se crea el final en el impacto.
+          if (bono > 0) {
+            if (bonoCaram) bonoCaram.modo = 'final';
+            else mostrarBonoCarambola(b.ultimoX, b.ultimoY, P.incrementoCarambola(b.golpes), b.golpes, 'final');
+          }
         }
         bolitas.splice(i, 1);
       }
@@ -1302,29 +1354,48 @@
       ctx.fillText(fl.texto, 0, 0);
       ctx.restore();
     }
-    // BONO DE CARAMBOLA flotante: dos renglones centrados en el último impacto de la
-    // bola que encadenó. Sube 40px, se desvanece y encoge (48→32px) en 900ms. Contorno
-    // barato con strokeText (haloTexto), NUNCA shadowBlur (puerta cerrada). Uno a la vez.
+    // BONO DE CARAMBOLA flotante: dos renglones centrados en el impacto. Rebote de
+    // escala (0→pico→asiento), destello blanco→color, subida con frenado, fade tardío
+    // y HALO por disco cacheado. Sin shadowBlur y sin crear gradientes en el bucle.
     if (bonoCaram) {
-      const p = (performance.now() - bonoCaram.inicio) / BONO_VIDA;
-      if (p >= 1) {
+      const bc = bonoCaram;
+      const niv = bc.nivel;
+      const age = performance.now() - bc.inicio;
+      const vida = bc.modo === 'final' ? BONO_VIDA_FIN : BONO_VIDA_INT;
+      if (age >= vida) {
         bonoCaram = null;
       } else {
-        const tam = BONO_TAM_INI + (BONO_TAM_FIN - BONO_TAM_INI) * p; // 48 → 32
-        const tam2 = tam * 0.55;                                      // renglón 2 al 55%
-        const colBono = ACENTO.vivo; // coral de la bolita (literal, nunca vacío)
+        const p = age / vida;
+        // REBOTE de escala (px de fuente): 0→pico en 90ms, pico→asiento en 130ms, luego asiento.
+        let fs;
+        if (age < 90) fs = suave(age / 90) * niv.pico;
+        else if (age < 220) fs = niv.pico + suave((age - 90) / 130) * (niv.asiento - niv.pico);
+        else fs = niv.asiento;
+        // SUBIDA con frenado (ease-out): intermedio 24px/380ms, final 56px/1100ms.
+        const dy = frena(p) * (bc.modo === 'final' ? BONO_SUBE_FIN : BONO_SUBE_INT);
+        // OPACIDAD: 1 hasta el 55% de la vida; del 55% al 100% cae suave a 0.
+        const alpha = p <= 0.55 ? 1 : 1 - suave((p - 0.55) / 0.45);
+        // DESTELLO: 0–80ms blanco; 80–180ms blanco→color de nivel; luego color puro.
+        let col;
+        if (age < 80) col = '#FFFFFF';
+        else if (age < 180) col = lerpColor('#FFFFFF', niv.color, (age - 80) / 100);
+        else col = niv.color;
+        const cx = bc.x, cy = bc.y - dy;
         ctx.save();
-        ctx.globalAlpha = Math.max(0, 1 - p);
-        ctx.translate(bonoCaram.x, bonoCaram.y - p * BONO_SUBE);
+        // HALO: disco cacheado del nivel, escalado por el rebote; misma opacidad/posición (máx 35%).
+        if (niv.disco) {
+          const rr = niv.disco.r * (fs / niv.asiento);
+          ctx.globalAlpha = Math.max(0, alpha) * 0.35;
+          ctx.drawImage(niv.disco.canvas, cx - rr, cy - rr, rr * 2, rr * 2);
+        }
+        // TEXTO dos renglones (sin contorno; el halo lo reemplaza). Renglón 2 al 55%.
+        ctx.globalAlpha = Math.max(0, alpha);
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.font = '800 ' + tam + 'px ' + COLOR.fuente;
-        haloTexto('+' + bonoCaram.valor, 0, -tam * 0.35, colBono, 5);
-        ctx.fillStyle = colBono;
-        ctx.fillText('+' + bonoCaram.valor, 0, -tam * 0.35);
-        ctx.font = '800 ' + tam2 + 'px ' + COLOR.fuente;
-        haloTexto('HITS ×' + bonoCaram.hits, 0, tam * 0.5, colBono, 4);
-        ctx.fillStyle = colBono;
-        ctx.fillText('HITS ×' + bonoCaram.hits, 0, tam * 0.5);
+        ctx.fillStyle = col;
+        ctx.font = '800 ' + fs.toFixed(1) + 'px ' + COLOR.fuente;
+        ctx.fillText('+' + bc.valor, cx, cy - fs * 0.36);
+        ctx.font = '800 ' + (fs * 0.55).toFixed(1) + 'px ' + COLOR.fuente;
+        ctx.fillText('HITS ×' + bc.hits, cx, cy + fs * 0.5);
         ctx.restore();
       }
     }

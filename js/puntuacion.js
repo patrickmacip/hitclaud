@@ -74,6 +74,13 @@
     m.puntos += g;
     return g;
   }
+  // Incremento que APORTA el golpe n de una cadena (para mostrarlo en vivo, golpe a
+  // golpe): la diferencia entre el bono acumulado en n y en n−1. incremento(2)=500,
+  // (3)=1000, (4)=3500, y desde el 5º cada golpe aporta 5000. La SUMA de
+  // incremento(2..n) = bonoCarambola(n) → el TOTAL no cambia, sólo el desglose.
+  function incrementoCarambola(n) {
+    return bonoCarambola(n) - bonoCarambola(n - 1);
+  }
 
   // Fallo: resta FALLO (50) plano. Piso en 0, rompe racha. Devuelve el castigo.
   function anotarFallo(m) {
@@ -173,6 +180,7 @@
     anotarFallo: anotarFallo,
     bonoCarambola: bonoCarambola,
     anotarCarambola: anotarCarambola,
+    incrementoCarambola: incrementoCarambola,
     valorCubo: valorCubo,
     multRacha: multRacha,
     rangoRetardo: rangoRetardo,
