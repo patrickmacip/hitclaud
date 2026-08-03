@@ -399,6 +399,16 @@
   // pantalla no queda más de 800ms sin un target (habiendo lugar).
   const SPAWN_GAP_MAX = 800;
 
+  // ── FRAGMENTOS DESPRENDIBLES (FASE 23 commit B) ────────────────────
+  // Al partir un target, los trozos sueltos se suman a `targets` como objetos
+  // golpeables propios (F.partirTarget). El SPAWN sigue mirando MAX_EN_PANTALLA
+  // (2): los fragmentos NO abren cupo para nuevos targets, sólo persisten hasta
+  // caer. TOPE de targets vivos EN PANTALLA para blindar el dibujo: los más
+  // VIEJOS mueren primero. Nunca se retira el CloudOver (rojo) por el tope: su
+  // desaparición silenciosa quitaría la amenaza sin game over.
+  const IMPULSO_FRAGMENTO = 0.5; // fracción del |vImpact| del golpe repartida entre los trozos
+  const MAX_TARGETS_VIVOS = 10;  // tope duro de targets simultáneos (spawneados + fragmentos)
+
   // ── ROJO (parpadea y termina la partida) ───────────────────────────
   // Sale como cualquier target (crearTarget: 4 orígenes, velocidad del rango).
   // Su CANTIDAD/FRECUENCIA escala con el nivel (P.escalada, sube cada 5–10s).
@@ -649,6 +659,33 @@
     targets.push(t);
   }
 
+  // ── FRAGMENTOS: tope de targets vivos y desprendimiento ────────────
+  // aplicarTopeTargets: los más VIEJOS (mayor edad) mueren primero al pasarse del
+  // tope. No retira el CloudOver (rojo) — su desaparición silenciosa quitaría la
+  // amenaza sin game over; muere por su propia física/secuencia.
+  function aplicarTopeTargets() {
+    while (targets.length > MAX_TARGETS_VIVOS) {
+      let viejo = -1;
+      for (let i = 0; i < targets.length; i++) {
+        if (targets[i].rojo) continue;
+        if (viejo < 0 || targets[i].edad > targets[viejo].edad) viejo = i;
+      }
+      if (viejo < 0) break; // sólo quedan rojos → no se toca
+      targets.splice(viejo, 1);
+    }
+  }
+
+  // quizasPartir: tras un golpe que DESTRUYÓ celdas (nunca por cuadro), ve si el
+  // target quedó partido y desprende los trozos sueltos como targets golpeables;
+  // luego aplica el tope. px,py = punto de impacto (dirección del reparto de
+  // impulso); vImpact = rapidez del golpe (hitscan usa un nominal de 1.0).
+  function quizasPartir(tg, px, py, vImpact) {
+    const frags = F.partirTarget(tg, px, py, vImpact, IMPULSO_FRAGMENTO);
+    if (!frags || !frags.length) return;
+    for (let k = 0; k < frags.length; k++) targets.push(frags[k]);
+    aplicarTopeTargets();
+  }
+
   // FUENTE ÚNICA de la posición del hitmaker (FASE 11): centrado horizontal
   // (x = mitad del ancho), pegado al borde inferior (misma altura de siempre).
   // Todo lo que dependía del ancla del hitmaker — dibujo de la bola en reposo,
@@ -773,6 +810,7 @@
       if (g >= 50) popMarcador();
       actualizarMarcador();
       if (tg.vivos <= 0) { targets.splice(ti, 1); sacudidaHasta = ahora + SACUDIDA_MS; }
+      else quizasPartir(tg, mx, my, 1.0); // ¿quedó partido? desprende trozos (vImpact nominal)
       return; // un tiro impacta un solo target
     }
     // No tocó ningún cubo → FALLO.
@@ -960,8 +998,11 @@
     function colisionar(b) {
       for (let ti = targets.length - 1; ti >= 0; ti--) {
         const tg = targets[ti];
-        if (tg.rojo) {
+        if (tg.rojo && !tg.fragmento) {
           // ROJO (CloudOver): cualquier contacto de la hitball arranca la secuencia.
+          // Sólo el CloudOver ENTERO mata: un fragmento NUNCA es rojo (los rojos no se
+          // parten — cualquier toque los dispara antes de destruir celdas), pero el
+          // guard `!tg.fragmento` lo blinda: un trozo jamás termina la partida.
           if (!F.colisionCirculoRect(b, tg)) continue;
           golpeCloudover(tg, b.x, b.y);
           return; // corta el cuadro; la secuencia toma el control
@@ -990,6 +1031,8 @@
         if (r.muerto) {
           sacudidaHasta = t + SACUDIDA_MS;     // micro-sacudida solo en muerte
           targets.splice(ti, 1);
+        } else if (r.destruidos > 0) {
+          quizasPartir(tg, r.px, r.py, r.vImpact); // ¿quedó partido? desprende trozos
         }
       }
     }

@@ -509,6 +509,105 @@
     return Object.assign(base, { tipo: 'mordido', cubosLiberados: libres, destruidos: libres.length, muerto: muerto });
   }
 
+  // ── FRAGMENTOS DESPRENDIBLES (FASE 23 commit B) ───────────────────────────
+  // Tras un golpe que destruye celdas, un target puede quedar en VARIOS trozos
+  // sin puente entre sí. Los trozos sueltos se desprenden como targets propios.
+  //
+  // CRITERIO DE VECINDAD: 4-vecinos (von Neumann) — dos cubos están conectados
+  // SÓLO si comparten un LADO (arriba/abajo/izq/der), NUNCA por una esquina.
+  // Es el criterio físico correcto: los cubos se dibujan como cuadrados que se
+  // tocan por sus CARAS; dos que apenas se rozan en diagonal no comparten borde
+  // y, perdido el puente, se separan. (8-vecinos mantendría pegado un trozo que
+  // sólo cuelga de una esquina — visualmente colgaría en el aire; se descarta.)
+  // Flood-fill iterativo (pila propia, sin recursión) sobre las celdas vivas.
+  function gruposConectados(celdas, cols, filas) {
+    const visto = new Array(celdas.length);
+    const grupos = [];
+    for (let s = 0; s < celdas.length; s++) {
+      if (!celdas[s] || visto[s]) continue;
+      const grupo = [];
+      const pila = [s];
+      visto[s] = true;
+      while (pila.length) {
+        const i = pila.pop();
+        grupo.push(i);
+        const c = i % cols, f = (i / cols) | 0;
+        if (c > 0 && celdas[i - 1] && !visto[i - 1]) { visto[i - 1] = true; pila.push(i - 1); }
+        if (c < cols - 1 && celdas[i + 1] && !visto[i + 1]) { visto[i + 1] = true; pila.push(i + 1); }
+        if (f > 0 && celdas[i - cols] && !visto[i - cols]) { visto[i - cols] = true; pila.push(i - cols); }
+        if (f < filas - 1 && celdas[i + cols] && !visto[i + cols]) { visto[i + cols] = true; pila.push(i + cols); }
+      }
+      grupos.push(grupo);
+    }
+    return grupos;
+  }
+
+  // partirTarget(t, px, py, vImpact, impulsoFactor): se llama SÓLO tras un golpe
+  // que destruyó celdas (NUNCA por cuadro). Si el target sigue de una pieza (0 ó 1
+  // grupo) → null y no toca nada. Si quedó en varios trozos:
+  //   · el MAYOR conserva la identidad (este mismo objeto t: su vx/vy/rot/velRot y
+  //     sus flags rojo/grande/pesoExtra) → sólo se le recortan las celdas.
+  //   · cada OTRO trozo se DESPRENDE como target independiente golpeable que hereda
+  //     posición, velocidad, rotación y gravedad del padre + parte del impulso.
+  // REPARTO DEL IMPULSO: el golpe imparte un empuje total |vImpact|·impulsoFactor
+  // que se DIVIDE en partes iguales entre los N trozos desprendidos (más trozos →
+  // empuje más suave a cada uno); cada trozo sale RADIALMENTE desde el punto de
+  // impacto (px,py) hacia su centroide → se abren en abanico. El grupo mayor NO
+  // recibe empuje extra (ya recibió la transferencia de momento en el golpe).
+  // Los fragmentos son targets NORMALES (no rojo, no grande): puntúan igual (por
+  // cubo × multiplicador), caen con gravedad, mueren al salir y pueden re-partirse.
+  // PURO: muta t.celdas/t.vivos/t.masa y devuelve los objetos fragmento (el
+  // llamador los inserta y aplica el tope de targets vivos).
+  function partirTarget(t, px, py, vImpact, impulsoFactor) {
+    const grupos = gruposConectados(t.celdas, t.cols, t.filas);
+    if (grupos.length <= 1) return null;
+    let mayor = 0;
+    for (let g = 1; g < grupos.length; g++) if (grupos[g].length > grupos[mayor].length) mayor = g;
+    const otros = [];
+    for (let g = 0; g < grupos.length; g++) if (g !== mayor) otros.push(grupos[g]);
+    const empujeCadaUno = (Math.abs(vImpact || 0) * (impulsoFactor || 0)) / otros.length;
+    const fragmentos = [];
+    for (let g = 0; g < otros.length; g++) {
+      const idxs = otros[g];
+      const total = t.celdas.length;
+      const celdas = new Array(total);
+      for (let i = 0; i < total; i++) celdas[i] = false;
+      let cxm = 0, cym = 0;
+      for (let k = 0; k < idxs.length; k++) {
+        celdas[idxs[k]] = true;
+        const w = celdaMundo(t, idxs[k]);
+        cxm += w.x; cym += w.y;
+      }
+      const vivos = idxs.length;
+      cxm /= vivos; cym /= vivos;
+      let dx = cxm - px, dy = cym - py, d = Math.hypot(dx, dy);
+      if (d < 1e-6) { dx = 0; dy = -1; d = 1; } // degenerado: empuja hacia arriba
+      const ux = dx / d, uy = dy / d;
+      const ojos = (t.ojos || []).filter(function (oi) { return celdas[oi]; });
+      fragmentos.push({
+        x: t.x, y: t.y, rot: t.rot, velRot: t.velRot,
+        vx: t.vx + ux * empujeCadaUno,
+        vy: t.vy + uy * empujeCadaUno,
+        radio: t.radio || FISICA.RADIO_TARGET,
+        gravedad: t.gravedad || FISICA.G_TARGET,
+        celdas: celdas, cols: t.cols, filas: t.filas,
+        vivos: vivos, vivosMax: vivos, ojos: ojos,
+        masa: FISICA.MASA_TARGET * (vivos / 20),
+        golpeado: true, haEntrado: true, edad: t.edad || 0, viva: true,
+        origen: t.origen, fragmento: true,
+      });
+    }
+    // Recorta el target original al grupo mayor (conserva su identidad y flags).
+    const idxMayor = grupos[mayor];
+    const nuevas = new Array(t.celdas.length);
+    for (let i = 0; i < nuevas.length; i++) nuevas[i] = false;
+    for (let k = 0; k < idxMayor.length; k++) nuevas[idxMayor[k]] = true;
+    t.celdas = nuevas;
+    t.vivos = idxMayor.length;
+    t.masa = FISICA.MASA_TARGET * (t.vivos / 20) * (t.pesoExtra || 1);
+    return fragmentos;
+  }
+
   const Fisica = {
     FISICA: FISICA,
     LANZA: LANZA,
@@ -524,6 +623,8 @@
     cubosVivosMundo: cubosVivosMundo,
     celdaEnPunto: celdaEnPunto,
     celdasCercanas: celdasCercanas,
+    gruposConectados: gruposConectados,
+    partirTarget: partirTarget,
   };
 
   if (typeof module !== 'undefined' && module.exports) {
