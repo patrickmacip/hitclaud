@@ -38,6 +38,7 @@
     TARGET_HH: 16,
     RESTITUCION_GOLPE: 0.3,   // FASE 14: el impacto PESA (antes 0.6) → rebota menos, se siente pesado
     MASA_TARGET: 2.5,         // "peso" de un target intacto (20 cubos); baja con el daño
+    MASA_HITBALL: 1.1,        // FASE 23: masa de la hitball (antes 1, implícita) → +10%, pesa más
     // Umbral de destrucción (rapidez normal de impacto, px/ms). Cuenta: la
     // salida a velSuelta≈0.68 px/ms (flick deliberado) es 2.26·tanh(0.619·0.68)
     // ≈ 0.9; por encima destruye entero.
@@ -420,7 +421,7 @@
   // La bolita rebota; el target recibe empuje. Usa la masa ACTUAL del target.
   function transferirMomento(bolita, t, nx, ny, vn) {
     const e = FISICA.RESTITUCION_GOLPE;
-    const m = 1;
+    const m = FISICA.MASA_HITBALL; // masa de la hitball (FASE 23: 1 → 1.1)
     const M = t.masa;
     const u1 = vn;
     const u2 = t.vx * nx + t.vy * ny;
@@ -458,11 +459,12 @@
     if (poder >= FISICA.UMBRAL_DESTRUCCION && !t.grande) {
       // Golpe fuerte: destrucción total. NUNCA para el target grande (es más
       // pesado y la hitball es chica → se demuele por zonas, mín. 4 golpes).
-      // Rebote con restitución y frenado por la masa actual: conserva M/(1+M).
+      // Rebote con restitución y frenado por la masa: conserva M/(mb+M). La restitución
+      // (0.3) NO cambia; sólo la masa de la hitball mb (FASE 23: 1 → MASA_HITBALL).
       const e = FISICA.RESTITUCION_GOLPE;
       bolita.vx -= (1 + e) * vn * nx;
       bolita.vy -= (1 + e) * vn * ny;
-      const drag = t.masa / (1 + t.masa);
+      const drag = t.masa / (FISICA.MASA_HITBALL + t.masa);
       bolita.vx *= drag;
       bolita.vy *= drag;
       const libres = cubosVivosMundo(t);
