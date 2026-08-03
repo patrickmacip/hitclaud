@@ -48,7 +48,7 @@ console.log('\n=== Halo sustituto SIN blur en los 3 sitios de móvil ===');
   chk('bolita: alfas del halo 0.18 y 0.30', /globalAlpha = 0\.18[\s\S]*?globalAlpha = 0\.30/.test(cuerpoBolita));
   // 2) Badge ×N y 3) Flotante grande: halo de texto barato (haloTexto).
   chk('helper haloTexto() existe (trazo sin blur)', /function haloTexto\(/.test(main) && /strokeText\(/.test(main));
-  chk('badge ×N usa haloTexto', /haloTexto\(txtMult,/.test(main));
+  chk('badge ×N sin haloTexto (FASE 29: halo por disco cacheado, sin contorno)', !/haloTexto\(txtMult/.test(main) && /ctx\.drawImage\(discoMult\.canvas/.test(main));
   chk('flotante grande usa haloTexto (si fl.glow)', /if \(fl\.glow\) haloTexto\(/.test(main));
   // (Extra declarado) el temporizador también recibió el halo barato.
   chk('temporizador SIN haloTexto (FASE 23: contador sin contorno) — sigue sin shadowBlur', !/haloTexto\(txt, 0, 0, colTimer/.test(main) && (main.match(/ctx\.shadowBlur/g) || []).length === 1);
@@ -59,7 +59,9 @@ console.log('\n=== Nada más cambió: colores, tamaños y posiciones idénticos 
   chk('FRANJA_PX = 28 (ancho de borde intacto)', /const FRANJA_PX = 28;/.test(main));
   chk('colores de borde/contador intactos', /ROJO_BORDE = '#FF0055', ROJO_CONTADOR = '#FF4583'/.test(main));
   chk('timer: 800 32px y posición (W/2, 88) intactas', /ctx\.font = '800 32px '/.test(main) && /ctx\.translate\(W \/ 2, 88\)/.test(main));
-  chk('badge: 800 (26+…) y posición (W/2, max(158,H*0.16)) intactas', /'800 ' \+ \(26 \+ Math\.min\(20, marcador\.racha\)\)/.test(main) && /translate\(W \/ 2, Math\.max\(158, H \* 0\.16\)\)/.test(main));
+  // FASE 29: badge de tamaño FIJO 42 (MULT_ASIENTO), sin crecer con la racha; posición
+  // por mx/my (W/2, max(158,H*0.16)) sin translate (dibuja en coords absolutas).
+  chk('badge: tamaño fijo 42 (MULT_ASIENTO) y posición (W/2, max(158,H*0.16)) intactas', /const MULT_ASIENTO = 42;/.test(main) && /mx = W \/ 2, my = Math\.max\(158, H \* 0\.16\)/.test(main) && !/26 \+ Math\.min\(20, marcador\.racha\)/.test(main));
   chk('bolita: disco RADIO-1.5 y stroke intactos (tamaño no cambió)', /arc\(cx, cy, RADIO - 1\.5,/.test(cuerpoBolita));
   chk('flotante: fuente 700 fl.tam intacta', /ctx\.font = '700 ' \+ fl\.tam \+ 'px '/.test(main));
   // El dpr/resolución del canvas NO se tocó en este commit.

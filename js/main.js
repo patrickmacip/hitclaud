@@ -137,7 +137,7 @@
   const DURACIONES = { '15': 15 * 1000, '30': 30 * 1000, '60': 60 * 1000 };
   function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
-    targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; bonoCaram = null;
+    targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; bonos.length = 0; multAnterior = 1;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null; sacudidaCloudover = null;
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
@@ -412,46 +412,39 @@
   }
 
   // ── BONO DE CARAMBOLA flotante (canvas) ────────────────────────────
-  // Un número por GOLPE (desde el 2º), en el momento y el punto del impacto, con el
-  // INCREMENTO que aporta ese golpe. TRES NIVELES por el VALOR mostrado (más puntos →
-  // más grande y más amarillo). Colores LITERALES con respaldo (nunca vacíos: un token
-  // vacío rompe el canvas). El halo es un DISCO de degradado radial CACHEADO (uno por
-  // nivel, creado UNA sola vez): NUNCA shadowBlur (puerta cerrada, 9246c33), NUNCA se
-  // crea un gradiente dentro del bucle rAF. Uno visible a la vez: el nuevo CORTA de
-  // golpe al anterior; el final (bola muerta) usa la vida larga y se disipa suave.
-  const BONO_NIVELES = [
-    { max: 1000,     pico: 52, asiento: 34, color: '#FF9E2C' }, // nivel 1: valor < 1000
-    { max: 3500,     pico: 62, asiento: 40, color: '#FFC233' }, // nivel 2: 1000–3499
-    { max: Infinity, pico: 74, asiento: 48, color: '#FFE566' }, // nivel 3: ≥ 3500
-  ];
-  const BONO_VIDA_INT = 380;  // ms de vida de un número INTERMEDIO (la bola sigue viva)
-  const BONO_VIDA_FIN = 1100; // ms del número FINAL (la bola murió)
-  const BONO_SUBE_INT = 24;   // px que sube un intermedio
-  const BONO_SUBE_FIN = 56;   // px que sube el final
+  // UN solo número por bola: al 2º golpe se anota +500 Y se muestra, JUNTOS (número
+  // ACOPLADO al marcador — nunca uno sin el otro). Valor fijo 500 (un solo escalón).
+  // Cada número es INDEPENDIENTE (lista `bonos`): cuelga de su propia carambola, dos
+  // bolas nunca comparten un número, y cada número cumple su animación aunque su bola
+  // muera. El halo es un DISCO de degradado radial CACHEADO (creado UNA sola vez):
+  // NUNCA shadowBlur (puerta cerrada, 9246c33), NUNCA se crea un gradiente en el bucle.
+  const BONO_COLOR = '#FFC233'; // color único del número del bono (literal, con respaldo)
+  const BONO_PICO = 62;         // px: pico del rebote
+  const BONO_ASIENTO = 40;      // px: tamaño de asiento
+  const BONO_VIDA = 1100;       // ms de vida (única)
+  const BONO_SUBE = 56;         // px que sube (con frenado)
+  const MULT_COLOR = '#FFB25C'; // color del badge de multiplicador (literal, con respaldo)
+  const MULT_ASIENTO = 42;      // px: tamaño FIJO del multiplicador
+  const MULT_PICO = 52;         // px: pico del rebote al cambiar de valor
   function hexRgb(h) {
     h = String(h).replace('#', '');
     return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
   }
-  // Disco de halo cacheado: degradado radial del color del nivel (centro) a
-  // transparente (borde). Radio = 1.6× el alto del texto en su tamaño de asiento.
-  function construirDiscoBono(niv) {
-    const rad = Math.round(1.6 * niv.asiento);
+  // Disco de halo cacheado: degradado radial del color (centro) a transparente (borde).
+  // Radio = 1.6× el alto del texto en su tamaño de asiento. La opacidad se aplica AL
+  // DIBUJAR (globalAlpha), no se hornea. Se construye UNA sola vez al arrancar.
+  function construirDisco(color, altoTexto) {
+    const rad = Math.round(1.6 * altoTexto);
     const cv = document.createElement('canvas');
     cv.width = rad * 2; cv.height = rad * 2;
     const dctx = cv.getContext('2d');
-    const c = hexRgb(niv.color);
+    const c = hexRgb(color);
     const grad = dctx.createRadialGradient(rad, rad, 0, rad, rad, rad);
     grad.addColorStop(0, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',1)');
     grad.addColorStop(1, 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',0)');
     dctx.fillStyle = grad;
     dctx.beginPath(); dctx.arc(rad, rad, rad, 0, Math.PI * 2); dctx.fill();
     return { canvas: cv, r: rad };
-  }
-  // Los TRES discos, UNA sola vez al arrancar (blindado por si el canvas falla).
-  BONO_NIVELES.forEach(function (niv) { try { niv.disco = construirDiscoBono(niv); } catch (e) { niv.disco = null; } });
-  function nivelBono(valor) {
-    for (let i = 0; i < BONO_NIVELES.length; i++) if (valor < BONO_NIVELES[i].max) return BONO_NIVELES[i];
-    return BONO_NIVELES[BONO_NIVELES.length - 1];
   }
   // Interpolaciones suavizadas (no lineales).
   function suave(t) { t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); }   // smoothstep
@@ -460,16 +453,19 @@
     const A = hexRgb(a), B = hexRgb(b);
     return 'rgb(' + Math.round(A.r + (B.r - A.r) * t) + ',' + Math.round(A.g + (B.g - A.g) * t) + ',' + Math.round(A.b + (B.b - A.b) * t) + ')';
   }
-  let bonoCaram = null; // { x, y, valor, hits, nivel, inicio, modo, finalInicio, dyBase, alphaBase } | null
-  // Nace/relevo: el nuevo CORTA de golpe al anterior. Jitter X −8..+8. modo: 'intermedio'|'final'.
-  // finalInicio/dyBase/alphaBase = ancla del modo FINAL: para un número recién creado
-  // (incluido el final del caso expirado) arrancan desde cero (finalInicio=inicio,
-  // dyBase=0, alphaBase=1); al MUTAR un intermedio a final se sobrescriben con el
-  // progreso alcanzado para que la animación CONTINÚE sin salto (ver la muerte de la bola).
-  function mostrarBonoCarambola(x, y, valor, hits, modo) {
-    const ahora = performance.now();
-    bonoCaram = { x: x + rnd(-8, 8), y: y, valor: valor, hits: hits, nivel: nivelBono(valor),
-      inicio: ahora, modo: modo, finalInicio: ahora, dyBase: 0, alphaBase: 1 };
+  // Discos cacheados UNA sola vez (blindado): el del bono y el del multiplicador.
+  let discoBono = null, discoMult = null;
+  try { discoBono = construirDisco(BONO_COLOR, BONO_ASIENTO); } catch (e) { discoBono = null; }
+  try { discoMult = construirDisco(MULT_COLOR, MULT_ASIENTO); } catch (e) { discoMult = null; }
+  // Estado del badge de multiplicador: para detectar el CAMBIO de valor (rebote+destello).
+  let multAnterior = 1, multCambioEn = -Infinity;
+  // Lista de números de bono activos (uno por carambola; independientes de su bola).
+  const bonos = [];
+  // Crea el número del bono en el impacto del 2º golpe. Jitter X −8..+8. Texto fijo
+  // "+500 / HITS ×2" (el bono ya no varía), una sola duración.
+  function mostrarBonoCarambola(x, y) {
+    bonos.push({ x: x + rnd(-8, 8), y: y, inicio: performance.now() });
+    if (bonos.length > 8) bonos.shift(); // tope de seguridad (no se alcanza en juego)
   }
   // Tamaño de fuente de una GANANCIA según su magnitud (20px chico → 44px enorme;
   // glow desde +300). A mayor ganancia, más grande y brillante.
@@ -1148,10 +1144,14 @@
         if (!r) continue;
         cascEvento('resolverImpacto', 'tipo:' + r.tipo + ' destruidos:' + r.destruidos + ' muerto:' + r.muerto);
         b.golpes += 1;                         // cadena: cuenta CADA impacto (mismo target o no)
-        b.ultimoX = r.px; b.ultimoY = r.py;    // dónde nace el bono si esta bola encadena
-        // Desde el 2º golpe, cada golpe dispara su número EN EL IMPACTO (incremento
-        // de ese golpe). El 1º no muestra nada. El puntaje se anota entero al morir.
-        if (b.golpes >= 2) mostrarBonoCarambola(r.px, r.py, P.incrementoCarambola(b.golpes), b.golpes, 'intermedio');
+        // CARAMBOLA en el 2º golpe: se ANOTA +500 Y se MUESTRA el número, JUNTOS, en el
+        // impacto (número acoplado al marcador). Una sola vez por bola: del 3er golpe en
+        // adelante NO pasa nada (ni puntos, ni número). No se cobra a la muerte.
+        if (b.golpes === 2) {
+          P.anotarCarambola(marcador, 2);      // +500 (limpio, sin racha), una sola vez
+          cascEvento('anotarCarambola', 'golpes:2 bono:500');
+          mostrarBonoCarambola(r.px, r.py);    // mismo instante y punto (actualizarMarcador abajo lo refleja)
+        }
         tg.destelloHasta = t + DESTELLO_MS;    // destello en CUALQUIER contacto
         if (!b.tocado) {                       // primer toque = hit (sube la racha continua)
           b.tocado = true;
@@ -1198,31 +1198,10 @@
           cascEvento('anotarFallo', 'pen:' + pen);
           actualizarMarcador();
           registrarPerdida(pen);
-        } else if (b.golpes >= 2 && !secuencia) {
-          // CARAMBOLA: la bola encadenó ≥2 golpes en su vida. Bono LIMPIO (sin racha).
-          // !secuencia excluye la muerte por CloudOver (la partida terminó → no anota).
-          const bono = P.anotarCarambola(marcador, b.golpes); // TOTAL entero = bono(n), sin cambio
-          cascEvento('anotarCarambola', 'golpes:' + b.golpes + ' bono:' + bono);
-          actualizarMarcador();
-          // El número vigente (el del último golpe) SE CONVIERTE en el final EN EL SITIO,
-          // CONTINUANDO su animación desde donde iba: se captura la opacidad y la altura
-          // ya alcanzadas (curvas del modo intermedio) y se reancla el reloj de vida a
-          // este instante. Así la opacidad no vuelve a subir, la altura no baja y el
-          // tamaño no salta (el rebote sigue con `inicio` intacto). Si ya expiró, se crea
-          // uno nuevo en modo final (arranca desde cero).
-          if (bono > 0) {
-            if (bonoCaram) {
-              const ahora = performance.now();
-              const p0 = (ahora - bonoCaram.inicio) / BONO_VIDA_INT; // progreso en el reloj intermedio
-              bonoCaram.dyBase = frena(p0) * BONO_SUBE_INT;          // altura ya recorrida (se conserva)
-              bonoCaram.alphaBase = p0 <= 0.55 ? 1 : 1 - suave((p0 - 0.55) / 0.45); // opacidad actual (tope, nunca sube)
-              bonoCaram.finalInicio = ahora;                         // reancla el reloj de vida (1100ms desde aquí)
-              bonoCaram.modo = 'final';
-            } else {
-              mostrarBonoCarambola(b.ultimoX, b.ultimoY, P.incrementoCarambola(b.golpes), b.golpes, 'final');
-            }
-          }
         }
+        // La CARAMBOLA ya se cobró y se mostró en el 2º golpe (arriba). Al morir NO se
+        // anota nada: no hay bono a la muerte, ni modo final, ni caso expirado. El número
+        // vive su animación completa por su cuenta (lista `bonos`), aunque su bola muera.
         bolitas.splice(i, 1);
       }
     }
@@ -1404,61 +1383,46 @@
       ctx.fillText(fl.texto, 0, 0);
       ctx.restore();
     }
-    // BONO DE CARAMBOLA flotante: dos renglones centrados en el impacto. Rebote de
-    // escala (0→pico→asiento), destello blanco→color, subida con frenado, fade tardío
+    // BONO DE CARAMBOLA flotante: "+500 / HITS ×2", uno por carambola (lista `bonos`,
+    // independiente de su bola: vive su animación completa aunque la bola muera). Rebote
+    // de escala (0→pico→asiento), destello blanco→color, subida con frenado, fade tardío
     // y HALO por disco cacheado. Sin shadowBlur y sin crear gradientes en el bucle.
-    if (bonoCaram) {
-      const bc = bonoCaram;
-      const niv = bc.nivel;
-      const esFinal = bc.modo === 'final';
-      // REBOTE de escala: SIEMPRE desde `inicio` (no se reinicia al pasar a final →
-      // el tamaño no salta; si el rebote ya terminó, queda en asiento).
+    for (let bi = bonos.length - 1; bi >= 0; bi--) {
+      const bc = bonos[bi];
       const age = performance.now() - bc.inicio;
-      // VIDA/SUBIDA/OPACIDAD: en final corren desde finalInicio (reanclado en la muerte);
-      // en intermedio, desde inicio. Así el modo final ALARGA el tiempo sin re-brillar.
-      const vida = esFinal ? BONO_VIDA_FIN : BONO_VIDA_INT;
-      const tVida = esFinal ? (performance.now() - bc.finalInicio) : age;
-      if (tVida >= vida) {
-        bonoCaram = null;
-      } else {
-        const p = tVida / vida;
-        // REBOTE de escala (px de fuente): 0→pico en 90ms, pico→asiento en 130ms, luego asiento.
-        let fs;
-        if (age < 90) fs = suave(age / 90) * niv.pico;
-        else if (age < 220) fs = niv.pico + suave((age - 90) / 130) * (niv.asiento - niv.pico);
-        else fs = niv.asiento;
-        // SUBIDA con frenado (ease-out): intermedio 24px/380ms desde 0; final 56px/1100ms
-        // CONTINUANDO desde la altura ya recorrida (dyBase) → nunca baja ni salta.
-        const dy = esFinal
-          ? (bc.dyBase + (BONO_SUBE_FIN - bc.dyBase) * frena(p))
-          : (frena(p) * BONO_SUBE_INT);
-        // OPACIDAD: envolvente estándar (1 hasta 55%, luego cae suave a 0). En final se
-        // ACOTA por la opacidad alcanzada (alphaBase) → nunca vuelve a subir; termina en 0.
-        const env = p <= 0.55 ? 1 : 1 - suave((p - 0.55) / 0.45);
-        const alpha = esFinal ? Math.min(bc.alphaBase, env) : env;
-        // DESTELLO: 0–80ms blanco; 80–180ms blanco→color de nivel; luego color puro.
-        let col;
-        if (age < 80) col = '#FFFFFF';
-        else if (age < 180) col = lerpColor('#FFFFFF', niv.color, (age - 80) / 100);
-        else col = niv.color;
-        const cx = bc.x, cy = bc.y - dy;
-        ctx.save();
-        // HALO: disco cacheado del nivel, escalado por el rebote; misma opacidad/posición (máx 35%).
-        if (niv.disco) {
-          const rr = niv.disco.r * (fs / niv.asiento);
-          ctx.globalAlpha = Math.max(0, alpha) * 0.35;
-          ctx.drawImage(niv.disco.canvas, cx - rr, cy - rr, rr * 2, rr * 2);
-        }
-        // TEXTO dos renglones (sin contorno; el halo lo reemplaza). Renglón 2 al 55%.
-        ctx.globalAlpha = Math.max(0, alpha);
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = col;
-        ctx.font = '800 ' + fs.toFixed(1) + 'px ' + COLOR.fuente;
-        ctx.fillText('+' + bc.valor, cx, cy - fs * 0.36);
-        ctx.font = '800 ' + (fs * 0.55).toFixed(1) + 'px ' + COLOR.fuente;
-        ctx.fillText('HITS ×' + bc.hits, cx, cy + fs * 0.5);
-        ctx.restore();
+      if (age >= BONO_VIDA) { bonos.splice(bi, 1); continue; }
+      const p = age / BONO_VIDA;
+      // REBOTE de escala (px de fuente): 0→pico(62) en 90ms, pico→asiento(40) en 130ms, luego asiento.
+      let fs;
+      if (age < 90) fs = suave(age / 90) * BONO_PICO;
+      else if (age < 220) fs = BONO_PICO + suave((age - 90) / 130) * (BONO_ASIENTO - BONO_PICO);
+      else fs = BONO_ASIENTO;
+      // SUBIDA con frenado (ease-out): 56px en 1100ms.
+      const dy = frena(p) * BONO_SUBE;
+      // OPACIDAD: 1 hasta el 55% de la vida; del 55% al 100% cae suave a 0.
+      const alpha = p <= 0.55 ? 1 : 1 - suave((p - 0.55) / 0.45);
+      // DESTELLO: 0–80ms blanco; 80–180ms blanco→color; luego color puro.
+      let col;
+      if (age < 80) col = '#FFFFFF';
+      else if (age < 180) col = lerpColor('#FFFFFF', BONO_COLOR, (age - 80) / 100);
+      else col = BONO_COLOR;
+      const cx = bc.x, cy = bc.y - dy;
+      ctx.save();
+      // HALO: disco cacheado, escalado por el rebote; misma opacidad/posición (máx 35%).
+      if (discoBono) {
+        const rr = discoBono.r * (fs / BONO_ASIENTO);
+        ctx.globalAlpha = Math.max(0, alpha) * 0.35;
+        ctx.drawImage(discoBono.canvas, cx - rr, cy - rr, rr * 2, rr * 2);
       }
+      // TEXTO dos renglones (sin contorno; el halo lo reemplaza). Renglón 2 al 55%.
+      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = col;
+      ctx.font = '800 ' + fs.toFixed(1) + 'px ' + COLOR.fuente;
+      ctx.fillText('+500', cx, cy - fs * 0.36);
+      ctx.font = '800 ' + (fs * 0.55).toFixed(1) + 'px ' + COLOR.fuente;
+      ctx.fillText('HITS ×2', cx, cy + fs * 0.5);
+      ctx.restore();
     }
     ctx.globalAlpha = 1;
 
@@ -1468,19 +1432,36 @@
     // A partir de aquí: capa de UI SIN transformar (pegada al viewport real): badge de
     // racha, bordes, monto, temporizador y medidor v41-fps → tamaño normal, sin cámara.
 
-    // BADGE del multiplicador de racha: "×N" prominente arriba-centro (UI: NO se
-    // transforma con la cámara). Solo cuando el multiplicador supera ×1 (racha ≥ 3).
+    // BADGE del multiplicador de racha "×N" (UI, arriba-centro, NO se transforma con la
+    // cámara/sacudida). Aparece con mult>1. SIN contorno ni latido: halo por disco
+    // cacheado (máx 30%), tamaño FIJO 42px que sólo REBOTA (→52px) y DESTELLA
+    // (blanco→color) al CAMBIAR de valor; fuera de ese momento queda quieto en 42px.
     const mult = P.multRacha(marcador.racha);
+    const nowM = performance.now();
+    if (mult !== multAnterior) { multCambioEn = nowM; multAnterior = mult; } // detecta el cambio
     if (mult > 1) {
-      const now = performance.now();
-      ctx.save();
-      ctx.translate(W / 2, Math.max(158, H * 0.16)); // bajo la banda del temporizador
-      ctx.scale(1 + 0.06 * Math.sin(now / 150), 1 + 0.06 * Math.sin(now / 150));
-      ctx.font = '800 ' + (26 + Math.min(20, marcador.racha)) + 'px ' + COLOR.fuente;
+      const dc = nowM - multCambioEn; // ms desde el último cambio de valor
+      // REBOTE al cambiar: brinca a 52px y regresa a 42px en 220ms (suavizado); luego quieto.
+      const fs = dc < 220 ? MULT_PICO + suave(dc / 220) * (MULT_ASIENTO - MULT_PICO) : MULT_ASIENTO;
+      // DESTELLO: 0–80ms blanco; 80–180ms blanco→color; luego color.
+      let col;
+      if (dc < 80) col = '#FFFFFF';
+      else if (dc < 180) col = lerpColor('#FFFFFF', MULT_COLOR, (dc - 80) / 100);
+      else col = MULT_COLOR;
       const txtMult = '×' + (mult % 1 === 0 ? mult.toFixed(0) : mult.toFixed(1));
-      haloTexto(txtMult, 0, 0, ACENTO.vivo, 5); // halo barato en lugar de shadowBlur 12
-      ctx.fillStyle = ACENTO.vivo;
-      ctx.fillText(txtMult, 0, 0);
+      const mx = W / 2, my = Math.max(158, H * 0.16); // posición actual (bajo el temporizador)
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      // HALO: disco cacheado, escalado por el rebote (máx 30%).
+      if (discoMult) {
+        const rr = discoMult.r * (fs / MULT_ASIENTO);
+        ctx.globalAlpha = 0.30;
+        ctx.drawImage(discoMult.canvas, mx - rr, my - rr, rr * 2, rr * 2);
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = col;
+      ctx.font = '800 ' + fs.toFixed(1) + 'px ' + COLOR.fuente;
+      ctx.fillText(txtMult, mx, my);
       ctx.restore();
       ctx.globalAlpha = 1;
     }

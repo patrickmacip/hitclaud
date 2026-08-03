@@ -40,7 +40,8 @@ console.log('=== El resto de estilos del marcador INTACTO ===');
   chk('.marcador--actual .valor intacto (font texto-xl, color acento-vivo, sin stroke)', /\.marcador--actual \.valor \{\s*font: var\(--texto-xl\);\s*color: var\(--acento-vivo/.test(css) && !/text-stroke/.test(css));
   chk('.marcador--record .valor intacto', /\.marcador--record \.valor \{\s*font: var\(--texto-l\);/.test(css));
   // Otros halos (badge ×N, flotantes) NO se tocaron: sólo el del contador se quitó.
-  chk('badge ×N conserva su halo (haloTexto)', /haloTexto\(txtMult, 0, 0, ACENTO\.vivo/.test(main));
+  // FASE 29: el badge ×N ya NO usa haloTexto (contorno vetado); su halo es un disco cacheado.
+  chk('badge ×N sin haloTexto; halo por disco cacheado (discoMult)', !/haloTexto\(txtMult/.test(main) && /ctx\.drawImage\(discoMult\.canvas/.test(main));
   chk('flotantes conservan su halo (haloTexto)', /if \(fl\.glow\) haloTexto\(fl\.texto, 0, 0/.test(main));
   chk('el helper haloTexto sigue existiendo (no se borró, sólo dejó de usarse en el timer)', /function haloTexto\(/.test(main));
 }

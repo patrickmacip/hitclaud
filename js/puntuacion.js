@@ -57,29 +57,17 @@
   }
 
   // ── BONO DE CARAMBOLA ──────────────────────────────────────────────
-  // Premia los GOLPES que dio UNA misma bola durante su vida (cadena de impactos,
-  // sin importar si repite target). Escalera por nº de golpes n:
-  //   2 → 500 · 3 → 1500 · 4 → 5000 · y desde el 4º, cada golpe extra suma otros
-  //   5000 → n≥4 ⇒ 5000·(n−3). Ej.: 5 → 10000, 6 → 15000, 10 → 35000. Sin tope.
-  // Entra LIMPIO: NO se multiplica por la racha (no toca multRacha/anotarDestruidos).
+  // UN SOLO ESCALÓN: encadenar 2 o más golpes con una misma bola vale 500, siempre.
+  // 1 golpe o menos → 0. Sin escalada (fuera los 1500/5000). Se otorga UNA sola vez
+  // por bola (al 2º golpe). Entra LIMPIO: NO se multiplica por la racha.
   function bonoCarambola(n) {
-    if (n < 2) return 0;
-    if (n === 2) return 500;
-    if (n === 3) return 1500;
-    return 5000 * (n - 3);
+    return n >= 2 ? 500 : 0;
   }
   // Suma el bono de carambola al marcador y devuelve el valor sumado (0 si n<2).
   function anotarCarambola(m, n) {
     const g = bonoCarambola(n);
     m.puntos += g;
     return g;
-  }
-  // Incremento que APORTA el golpe n de una cadena (para mostrarlo en vivo, golpe a
-  // golpe): la diferencia entre el bono acumulado en n y en n−1. incremento(2)=500,
-  // (3)=1000, (4)=3500, y desde el 5º cada golpe aporta 5000. La SUMA de
-  // incremento(2..n) = bonoCarambola(n) → el TOTAL no cambia, sólo el desglose.
-  function incrementoCarambola(n) {
-    return bonoCarambola(n) - bonoCarambola(n - 1);
   }
 
   // Fallo: resta FALLO (50) plano. Piso en 0, rompe racha. Devuelve el castigo.
@@ -180,7 +168,6 @@
     anotarFallo: anotarFallo,
     bonoCarambola: bonoCarambola,
     anotarCarambola: anotarCarambola,
-    incrementoCarambola: incrementoCarambola,
     valorCubo: valorCubo,
     multRacha: multRacha,
     rangoRetardo: rangoRetardo,

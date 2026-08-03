@@ -30,7 +30,7 @@ console.log('=== ZOOM/CENTRADO eliminados por completo (sin código muerto de c�
   // (abajo). Los 1.6 que SÍ existen son legítimos y no son cámara: la magnitud de la
   // explosión del CloudOver y el radio del disco-halo del bono (1.6× el alto del texto).
   chk('main.js: el 1.6 de la explosión sigue (debris del CloudOver, no cámara)', /explotarCubos\(centros, px, py, 1\.6,/.test(main));
-  chk('main.js: el 1.6 del halo es el radio del disco (1.6 * niv.asiento), no un zoom', /1\.6 \* niv\.asiento/.test(main));
+  chk('main.js: el 1.6 del halo es el radio del disco (1.6 * altoTexto), no un zoom', /1\.6 \* altoTexto/.test(main));
 }
 
 console.log('=== La matriz base del MUNDO vuelve a antes de la fase 15: sólo translate ===');

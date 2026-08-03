@@ -1,5 +1,5 @@
-// hitclaud — FASE 24: bono de carambola (golpes encadenados de una misma bola).
-// node test/carambola.test.js  (lógica pura P + grep del cableado en main.js)
+// hitclaud — FASE 29: carambola de UN escalón (500), número ACOPLADO al marcador,
+// por bola (no global). node test/carambola.test.js  (lógica pura P + grep de main.js)
 
 const fs = require('fs');
 const P = require('../js/puntuacion.js');
@@ -8,178 +8,86 @@ const main = fs.readFileSync(__dirname + '/../js/main.js', 'utf8');
 let ok = 0, ko = 0;
 function chk(n, c) { console.log(`  ${n}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) ok++; else ko++; }
 
-console.log('=== ESCALERA bonoCarambola(n): 2→500, 3→1500, 4→5000, +5000/golpe extra ===');
+console.log('=== UN SOLO ESCALÓN: siempre 500 (sin escalada) ===');
 {
+  chk('bono(1) = 0 (un golpe no encadena)', P.bonoCarambola(1) === 0);
   chk('bono(0) = 0', P.bonoCarambola(0) === 0);
-  chk('bono(1) = 0 (un solo golpe no encadena)', P.bonoCarambola(1) === 0);
   chk('bono(2) = 500', P.bonoCarambola(2) === 500);
-  chk('bono(3) = 1500', P.bonoCarambola(3) === 1500);
-  chk('bono(4) = 5000', P.bonoCarambola(4) === 5000);
-  chk('bono(5) = 10000', P.bonoCarambola(5) === 10000);
-  chk('bono(6) = 15000', P.bonoCarambola(6) === 15000);
-  chk('SIN TOPE: bono(10) = 35000', P.bonoCarambola(10) === 35000);
+  chk('bono(3) = 500 (ya no 1500)', P.bonoCarambola(3) === 500);
+  chk('bono(5) = 500', P.bonoCarambola(5) === 500);
+  chk('bono(10) = 500 (ya no 35000)', P.bonoCarambola(10) === 500);
+  chk('el bono es SIEMPRE 500 para n>=2', [2, 3, 4, 5, 6, 10, 25].every(function (n) { return P.bonoCarambola(n) === 500; }));
 }
 
-console.log('=== anotarCarambola suma exactamente el bono al marcador ===');
+console.log('=== anotarCarambola: 500 una sola vez, sin multiplicar por racha ===');
 {
   const m = { puntos: 1000, racha: 0 };
-  const g = P.anotarCarambola(m, 4);
-  chk('devuelve 5000', g === 5000);
-  chk('suma 5000 al marcador (1000 → 6000)', m.puntos === 6000);
+  chk('anotarCarambola(m,2) devuelve 500 y suma 500', P.anotarCarambola(m, 2) === 500 && m.puntos === 1500);
+  const m1 = { puntos: 0, racha: 0 };
+  chk('un solo golpe (n=1) no anota (0)', P.anotarCarambola(m1, 1) === 0 && m1.puntos === 0);
+  // NO se multiplica por la racha: con racha altísima el bono sigue siendo 500.
+  const m0 = { puntos: 0, racha: 0 }, m9 = { puntos: 0, racha: 50 };
+  chk('con racha 0 y racha alta el bono es idéntico (500, limpio)', P.anotarCarambola(m0, 4) === 500 && P.anotarCarambola(m9, 4) === 500);
+  chk('multRacha(50)=3.0 pero el bono NO lo aplica', P.multRacha(50) === 3.0 && P.bonoCarambola(4) === 500);
 }
 
-console.log('=== Una bola con UN solo golpe (n<2) no anota carambola ===');
+console.log('=== Cableado: se cobra Y se muestra en el 2º golpe, JUNTOS, una vez por bola ===');
 {
-  const m = { puntos: 100, racha: 0 };
-  const g = P.anotarCarambola(m, 1);
-  chk('anotarCarambola(m,1) = 0 y no cambia los puntos', g === 0 && m.puntos === 100);
+  chk('la bola nace con golpes:0', /golpes: 0,/.test(main));
+  chk('cada impacto resuelto suma 1 golpe', /b\.golpes \+= 1;/.test(main));
+  // El bono se ANOTA en el 2º golpe (=== 2, no >= 2 → una sola vez por bola).
+  chk('anota +500 exactamente en el 2º golpe (b.golpes === 2)', /if \(b\.golpes === 2\) \{[\s\S]{0,120}P\.anotarCarambola\(marcador, 2\)/.test(main));
+  // ACOPLADO: mostrar va JUNTO al anotar, en el mismo bloque, misma línea de ejecución.
+  chk('muestra el número en el MISMO bloque del anotar (acoplado)', /P\.anotarCarambola\(marcador, 2\)[\s\S]{0,200}mostrarBonoCarambola\(r\.px, r\.py\)/.test(main));
+  // No hay número sin puntos ni puntos sin número: mostrarBonoCarambola se llama UNA vez
+  // (fuera de su definición) y SIEMPRE tras anotarCarambola.
+  chk('mostrarBonoCarambola se llama UNA sola vez (tras anotar)', (main.match(/mostrarBonoCarambola\(r\.px, r\.py\)/g) || []).length === 1);
+  chk('NO se anota carambola al morir la bola (bloque eliminado)', !/b\.golpes >= 2 && !secuencia/.test(main) && !/anotarCarambola\(marcador, b\.golpes\)/.test(main));
 }
 
-console.log('=== El bono NO se multiplica por la racha (entra limpio) ===');
+console.log('=== 3er golpe en adelante: NADA (ni puntos, ni número, ni relevo) ===');
 {
-  const m0 = { puntos: 0, racha: 0 };
-  const m9 = { puntos: 0, racha: 50 }; // racha altísima → multRacha tope 3.0
-  const g0 = P.anotarCarambola(m0, 6);
-  const g9 = P.anotarCarambola(m9, 6);
-  chk('con racha 0 y con racha alta el bono es idéntico', g0 === 15000 && g9 === 15000 && g0 === g9);
-  chk('multRacha(50) = 3.0 pero el bono NO lo aplica (= bonoCarambola crudo)', P.multRacha(50) === 3.0 && g9 === P.bonoCarambola(6));
+  // Como el gate es ===2, del 3º en adelante no se ejecuta el bloque del bono.
+  chk('el bloque del bono está gateado por ===2 (no >=2)', /if \(b\.golpes === 2\)/.test(main) && !/if \(b\.golpes >= 2\) mostrarBonoCarambola/.test(main));
 }
 
-console.log('=== Cableado en main.js: conteo por bola y guardas de muerte ===');
+console.log('=== NÚMERO POR BOLA (no global): lista `bonos`, sobrevive a su bola ===');
 {
-  chk('la bola nace con golpes:0 (contador por bola)', /golpes: 0,/.test(main));
-  chk('cada impacto resuelto suma 1 (mismo target o no)', /b\.golpes \+= 1;/.test(main));
-  // El incremento va JUSTO tras `if (!r) continue;` → cuenta CUALQUIER impacto
-  // resuelto, incluidos dos golpes al MISMO Big Claude.
-  chk('el conteo no está gateado por identidad de target (2 golpes al mismo = 2)', /if \(!r\) continue;[\s\S]{0,160}b\.golpes \+= 1;/.test(main));
-  // Al morir la bola: si tocó y golpes>=2 y NO hay secuencia → carambola.
-  chk('muerte con golpes>=2 y sin secuencia → anotarCarambola(marcador, b.golpes)', /else if \(b\.golpes >= 2 && !secuencia\) \{[\s\S]{0,360}anotarCarambola\(marcador, b\.golpes\)/.test(main));
-  // Bola que no tocó nada → fallo, NO carambola (ramas mutuamente excluyentes).
-  chk('bola sin tocar nada → anotarFallo (no carambola)', /if \(!b\.tocado\) \{[\s\S]{0,220}anotarFallo/.test(main));
-  // Muerte por CloudOver no anota: el guard !secuencia lo bloquea (la partida terminó).
-  chk('muerte por CloudOver no anota carambola (guard !secuencia)', /b\.golpes >= 2 && !secuencia/.test(main));
+  chk('el número ya NO es una variable global bonoCaram', !/bonoCaram\b/.test(main));
+  chk('existe una LISTA de números activos (bonos)', /const bonos = \[\];/.test(main));
+  chk('mostrarBonoCarambola AGREGA a la lista (no reemplaza un global)', /function mostrarBonoCarambola\(x, y\) \{\s*bonos\.push\(/.test(main));
+  // Cada número vive su animación completa aunque su bola muera: el draw recorre `bonos`
+  // por edad propia (inicio del número), independiente de las bolas.
+  chk('el draw recorre la lista `bonos` y expira por edad propia', /for \(let bi = bonos\.length - 1[\s\S]{0,200}age >= BONO_VIDA[\s\S]{0,60}bonos\.splice\(bi, 1\)/.test(main));
+  chk('la muerte de la bola NO toca los números (no corta la animación)', !/if \(!b\.viva\)[\s\S]{0,300}bonos/.test(main));
+  // Reinicio de partida limpia la lista.
+  chk('reiniciarEstado limpia la lista `bonos`', /bonos\.length = 0/.test(main));
 }
 
-console.log('=== FASE 25: incremento por golpe (número EN VIVO) ===');
+console.log('=== DOS BOLAS SIMULTÁNEAS → dos números distintos (lógica) ===');
 {
-  chk('incremento(2) = 500', P.incrementoCarambola(2) === 500);
-  chk('incremento(3) = 1000 (de 500 a 1500)', P.incrementoCarambola(3) === 1000);
-  chk('incremento(4) = 3500 (de 1500 a 5000)', P.incrementoCarambola(4) === 3500);
-  chk('incremento(5) = 5000', P.incrementoCarambola(5) === 5000);
-  chk('incremento(6) = 5000', P.incrementoCarambola(6) === 5000);
+  // mostrarBonoCarambola SIEMPRE hace push de un objeto NUEVO (sin dueño compartido):
+  // dos llamadas (una por bola) = dos entradas independientes en `bonos`.
+  const bonos = [];
+  function mostrarBono(x, y) { bonos.push({ x: x, y: y, inicio: 0 }); }
+  mostrarBono(100, 400); // bola A
+  mostrarBono(250, 500); // bola B
+  chk('dos carambolas → dos entradas distintas en la lista', bonos.length === 2 && bonos[0] !== bonos[1] && bonos[0].x !== bonos[1].x);
 }
 
-console.log('=== La SUMA de incrementos 2..n = bono(n) (el TOTAL no cambia) ===');
+console.log('=== La racha sigue subiendo UNA vez por bola (sin cambios) ===');
 {
-  function sumaIncrementos(n) {
-    let s = 0;
-    for (let k = 2; k <= n; k++) s += P.incrementoCarambola(k);
-    return s;
-  }
-  [2, 3, 4, 5, 6, 10].forEach(function (n) {
-    chk(`suma incremento(2..${n}) = bono(${n}) = ${P.bonoCarambola(n)}`, sumaIncrementos(n) === P.bonoCarambola(n));
-  });
-  // El puntaje que recibe el marcador tras una cadena de n golpes sigue siendo bono(n)
-  // (se anota entero al morir; los números en vivo son sólo el desglose visual).
-  [2, 4, 6, 10].forEach(function (n) {
-    const m = { puntos: 0, racha: 0 };
-    P.anotarCarambola(m, n);
-    chk(`total al marcador tras ${n} golpes = bono(${n}) = ${P.bonoCarambola(n)} (sin cambio)`, m.puntos === P.bonoCarambola(n));
-  });
+  chk('anotarHit gateado por b.tocado (primer toque, una vez por bola)', /if \(!b\.tocado\) \{[\s\S]{0,120}b\.tocado = true;[\s\S]{0,80}P\.anotarHit\(marcador\)/.test(main));
+  const m = { puntos: 0, racha: 0 };
+  P.anotarHit(m); chk('anotarHit sube la racha en 1', m.racha === 1);
 }
 
-console.log('=== FASE 25: tres niveles visuales por el VALOR mostrado (config en main.js) ===');
+console.log('=== Sin restos de lo eliminado ===');
 {
-  // La config de niveles vive en main.js (BONO_NIVELES); se verifica su literal exacto.
-  chk('nivel 1: max 1000, pico 52, asiento 34, color #FF9E2C', /\{ max: 1000,\s*pico: 52, asiento: 34, color: '#FF9E2C' \}/.test(main));
-  chk('nivel 2: max 3500, pico 62, asiento 40, color #FFC233', /\{ max: 3500,\s*pico: 62, asiento: 40, color: '#FFC233' \}/.test(main));
-  chk('nivel 3: max Infinity, pico 74, asiento 48, color #FFE566', /\{ max: Infinity, pico: 74, asiento: 48, color: '#FFE566' \}/.test(main));
-  chk('nivelBono elige por valor < max (más puntos → nivel más alto)', /for \(let i = 0; i < BONO_NIVELES\.length; i\+\+\) if \(valor < BONO_NIVELES\[i\]\.max\)/.test(main));
-  // Espejo local de nivelBono (mismos umbrales) para probar las fronteras exactas.
-  const NIV = [{ max: 1000, n: 1 }, { max: 3500, n: 2 }, { max: Infinity, n: 3 }];
-  function nivelDe(v) { for (let i = 0; i < NIV.length; i++) if (v < NIV[i].max) return NIV[i].n; return 3; }
-  chk('500 → nivel 1', nivelDe(500) === 1);
-  chk('1000 → nivel 2', nivelDe(1000) === 2);
-  chk('3499 → nivel 2', nivelDe(3499) === 2);
-  chk('3500 → nivel 3', nivelDe(3500) === 3);
-  chk('5000 → nivel 3', nivelDe(5000) === 3);
-}
-
-console.log('=== FASE 25: el número sale con el GOLPE; el 1º no muestra ===');
-{
-  // Desde el 2º golpe, cada golpe dispara su número en el impacto; el 1º no.
-  chk('golpe >= 2 dispara el número en el impacto (intermedio, incremento del golpe)', /if \(b\.golpes >= 2\) mostrarBonoCarambola\(r\.px, r\.py, P\.incrementoCarambola\(b\.golpes\), b\.golpes, 'intermedio'\)/.test(main));
-  chk('el 1er golpe NO muestra número (gateado por golpes >= 2)', !/if \(b\.golpes >= 1\) mostrarBonoCarambola/.test(main));
-  // Al morir: el número vigente SE CONVIERTE en final en el sitio; si expiró, se crea.
-  // FASE 27: al morir, el número vigente pasa a final CONTINUANDO su animación (captura
-  // dyBase/alphaBase y reancla finalInicio), sin re-pop. Si no hay, se crea uno nuevo.
-  chk('al morir: el número vigente pasa a modo final capturando el progreso', /if \(bonoCaram\) \{[\s\S]{0,400}bonoCaram\.dyBase = frena\(p0\) \* BONO_SUBE_INT;[\s\S]{0,400}bonoCaram\.modo = 'final';/.test(main));
-  chk('al morir sin número vigente: se crea el final con el incremento del último golpe', /else \{\s*mostrarBonoCarambola\(b\.ultimoX, b\.ultimoY, P\.incrementoCarambola\(b\.golpes\), b\.golpes, 'final'\)/.test(main));
-}
-
-console.log('=== FASE 27: transición intermedio→final SIN salto (lógica pura) ===');
-{
-  // Espejo EXACTO de las curvas de main.js: suave (smoothstep), frena (ease-out),
-  // opacidad (1 hasta 55%, luego cae), subida (frena·sube), rebote (bandas 90/220).
-  function suave(t) { t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); }
-  function frena(t) { t = t < 0 ? 0 : t > 1 ? 1 : t; return 1 - (1 - t) * (1 - t); }
-  const VINT = 380, VFIN = 1100, SINT = 24, SFIN = 56;
-  const niv = { pico: 62, asiento: 40 }; // nivel 2 de ejemplo
-  function alphaInt(f) { return f <= 0.55 ? 1 : 1 - suave((f - 0.55) / 0.45); } // p = age/VINT = f
-  function dyInt(f) { return frena(f) * SINT; }
-  function fsFromAge(age) { if (age < 90) return suave(age / 90) * niv.pico; if (age < 220) return niv.pico + suave((age - 90) / 130) * (niv.asiento - niv.pico); return niv.asiento; }
-  // Final CONTINUADO: captura en la fracción f y avanza con pf (reloj final reanclado).
-  function alphaFin(f, pf) { const env = pf <= 0.55 ? 1 : 1 - suave((pf - 0.55) / 0.45); return Math.min(alphaInt(f), env); }
-  function dyFin(f, pf) { const dyBase = dyInt(f); return dyBase + (SFIN - dyBase) * frena(pf); }
-
-  // En el INSTANTE de la mutación (pf=0), todo debe igualar el valor previo (sin salto).
-  [0.2, 0.6, 0.9].forEach(function (f) {
-    chk('f=' + f + ': opacidad tras mutar NUNCA mayor que antes (sin re-brillo)', alphaFin(f, 0) <= alphaInt(f) + 1e-9);
-    chk('f=' + f + ': altura tras mutar NUNCA menor que antes (no baja ni salta)', dyFin(f, 0) >= dyInt(f) - 1e-9);
-    const age = f * VINT;
-    if (age >= 220) chk('f=' + f + ': tamaño igual antes/después (rebote terminado → asiento)', fsFromAge(age) === niv.asiento);
-  });
-
-  // A lo largo de toda la vida final: opacidad monótona no creciente hasta 0; altura
-  // monótona no decreciente hasta 56 (subida completa). Nada se queda pegado.
-  let okA = true, okD = true, prevA = Infinity, prevD = -Infinity;
-  for (let pf = 0; pf <= 1.0001; pf += 0.05) {
-    const a = alphaFin(0.6, pf), d = dyFin(0.6, pf);
-    if (a > prevA + 1e-9) okA = false;
-    if (d < prevD - 1e-9) okD = false;
-    prevA = a; prevD = d;
-  }
-  chk('opacidad final monótona NO creciente', okA);
-  chk('altura final monótona NO decreciente', okD);
-  chk('el número final termina en opacidad 0 (no se queda pegado)', Math.abs(alphaFin(0.6, 1)) < 1e-9);
-  chk('la subida final llega a 56px (completa)', Math.abs(dyFin(0.6, 1) - SFIN) < 1e-9);
-
-  // Contraste con el DEFECTO viejo: mutar sin reanclar (vida 380→1100, mismo age) hacía
-  // p = age/1100 → la opacidad SALTABA de vuelta a 1 (re-brillo). La nueva NO.
-  const fLate = 0.9, pOld = (fLate * VINT) / VFIN;
-  const alphaViejaBug = pOld <= 0.55 ? 1 : 1 - suave((pOld - 0.55) / 0.45);
-  chk('la fórmula VIEJA habría re-brillado (alpha viejo > alpha nuevo en f tardía)', alphaViejaBug > alphaFin(fLate, 0) + 1e-6);
-}
-
-console.log('=== FASE 25: sin contorno (strokeText) y sin shadowBlur en el bono ===');
-{
-  // Aísla el bloque de dibujo del bono para verificar que no tiene stroke ni blur.
-  const iBono = main.indexOf('BONO DE CARAMBOLA flotante: dos renglones centrados en el impacto');
-  const bloque = main.slice(iBono, main.indexOf('ctx.globalAlpha = 1;', iBono));
-  chk('el bono NO usa strokeText (contorno retirado)', !/strokeText/.test(bloque) && !/haloTexto/.test(bloque));
-  chk('el bono NO asigna ctx.shadowBlur', !/ctx\.shadowBlur/.test(bloque));
-  chk('el halo es un disco cacheado dibujado con drawImage', /ctx\.drawImage\(niv\.disco\.canvas/.test(bloque));
-  chk('el disco se escala con el rebote (fs / niv.asiento)', /niv\.disco\.r \* \(fs \/ niv\.asiento\)/.test(bloque));
-}
-
-console.log('=== FASE 25: discos cacheados una vez, sin gradientes en el bucle ===');
-{
-  const iDib = main.indexOf('function dibujar()');
-  const finDib = main.indexOf('function dibujarEstela', iDib);
-  const cuerpoDibujar = main.slice(iDib, finDib);
-  chk('dibujar() NO crea gradientes (ni radial ni lineal) en el bucle', !/createRadialGradient|createLinearGradient/.test(cuerpoDibujar));
-  chk('los 3 discos se construyen UNA vez al arrancar (BONO_NIVELES.forEach)', /BONO_NIVELES\.forEach\(function \(niv\) \{ try \{ niv\.disco = construirDiscoBono\(niv\); \}/.test(main));
-  chk('construirDiscoBono crea el radial FUERA del bucle (en la fábrica del disco)', /function construirDiscoBono\(niv\)[\s\S]{0,400}createRadialGradient/.test(main));
+  chk('sin incrementoCarambola en puntuacion.js', !/incrementoCarambola/.test(fs.readFileSync(__dirname + '/../js/puntuacion.js', 'utf8')));
+  chk('sin incrementoCarambola en main.js', !/incrementoCarambola/.test(main));
+  chk('sin modo final / BONO_VIDA_INT/FIN / BONO_SUBE_INT-FIN', !/BONO_VIDA_INT|BONO_VIDA_FIN|BONO_SUBE_INT|BONO_SUBE_FIN|'final'/.test(main));
+  chk('sin BONO_NIVELES ni nivelBono (un solo estilo)', !/BONO_NIVELES|nivelBono/.test(main));
 }
 
 console.log(`\n== RESUMEN carambola: ${ok} OK, ${ko} NO ==`);
