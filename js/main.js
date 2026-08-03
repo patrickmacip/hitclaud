@@ -915,6 +915,7 @@
     disparos.push({ x: mx, y: my, inicio: ahora }); // destello del tiro
     for (let ti = targets.length - 1; ti >= 0; ti--) {
       const tg = targets[ti];
+      if (!tg.haEntrado) continue;           // NO golpeable hasta ENTRAR (mismo criterio que la bola)
       const idx = F.celdaEnPunto(tg, mx, my);
       if (idx < 0) continue;                 // la mira no está sobre un cubo vivo
       if (tg.rojo) { golpeCloudover(tg, mx, my); return; } // impacto en ROJO → secuencia CloudOver
@@ -1127,6 +1128,12 @@
     function colisionar(b) {
       for (let ti = targets.length - 1; ti >= 0; ti--) {
         const tg = targets[ti];
+        // NO golpeable hasta ENTRAR a escena: un target recién spawneado nace fuera del
+        // viewport (fisica.js) con haEntrado=false y su caja puede solapar el borde. Se
+        // salta ANTES de todo (rojo y naranja): no resuelve impacto, no dispara CloudOver,
+        // no suma golpe, no puntúa, no se parte. Los fragmentos nacen con haEntrado=true
+        // (fisica.js) → golpeables desde el primer cuadro.
+        if (!tg.haEntrado) continue;
         if (tg.rojo && !tg.fragmento) {
           // ROJO (CloudOver): cualquier contacto de la hitball arranca la secuencia.
           // Sólo el CloudOver ENTERO mata: un fragmento NUNCA es rojo (los rojos no se
