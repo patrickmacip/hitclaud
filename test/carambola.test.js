@@ -111,8 +111,54 @@ console.log('=== FASE 25: el número sale con el GOLPE; el 1º no muestra ===');
   chk('golpe >= 2 dispara el número en el impacto (intermedio, incremento del golpe)', /if \(b\.golpes >= 2\) mostrarBonoCarambola\(r\.px, r\.py, P\.incrementoCarambola\(b\.golpes\), b\.golpes, 'intermedio'\)/.test(main));
   chk('el 1er golpe NO muestra número (gateado por golpes >= 2)', !/if \(b\.golpes >= 1\) mostrarBonoCarambola/.test(main));
   // Al morir: el número vigente SE CONVIERTE en final en el sitio; si expiró, se crea.
-  chk('al morir: el número vigente pasa a modo final en el sitio (sin re-pop)', /if \(bonoCaram\) bonoCaram\.modo = 'final';/.test(main));
-  chk('al morir sin número vigente: se crea el final con el incremento del último golpe', /else mostrarBonoCarambola\(b\.ultimoX, b\.ultimoY, P\.incrementoCarambola\(b\.golpes\), b\.golpes, 'final'\)/.test(main));
+  // FASE 27: al morir, el número vigente pasa a final CONTINUANDO su animación (captura
+  // dyBase/alphaBase y reancla finalInicio), sin re-pop. Si no hay, se crea uno nuevo.
+  chk('al morir: el número vigente pasa a modo final capturando el progreso', /if \(bonoCaram\) \{[\s\S]{0,400}bonoCaram\.dyBase = frena\(p0\) \* BONO_SUBE_INT;[\s\S]{0,400}bonoCaram\.modo = 'final';/.test(main));
+  chk('al morir sin número vigente: se crea el final con el incremento del último golpe', /else \{\s*mostrarBonoCarambola\(b\.ultimoX, b\.ultimoY, P\.incrementoCarambola\(b\.golpes\), b\.golpes, 'final'\)/.test(main));
+}
+
+console.log('=== FASE 27: transición intermedio→final SIN salto (lógica pura) ===');
+{
+  // Espejo EXACTO de las curvas de main.js: suave (smoothstep), frena (ease-out),
+  // opacidad (1 hasta 55%, luego cae), subida (frena·sube), rebote (bandas 90/220).
+  function suave(t) { t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); }
+  function frena(t) { t = t < 0 ? 0 : t > 1 ? 1 : t; return 1 - (1 - t) * (1 - t); }
+  const VINT = 380, VFIN = 1100, SINT = 24, SFIN = 56;
+  const niv = { pico: 62, asiento: 40 }; // nivel 2 de ejemplo
+  function alphaInt(f) { return f <= 0.55 ? 1 : 1 - suave((f - 0.55) / 0.45); } // p = age/VINT = f
+  function dyInt(f) { return frena(f) * SINT; }
+  function fsFromAge(age) { if (age < 90) return suave(age / 90) * niv.pico; if (age < 220) return niv.pico + suave((age - 90) / 130) * (niv.asiento - niv.pico); return niv.asiento; }
+  // Final CONTINUADO: captura en la fracción f y avanza con pf (reloj final reanclado).
+  function alphaFin(f, pf) { const env = pf <= 0.55 ? 1 : 1 - suave((pf - 0.55) / 0.45); return Math.min(alphaInt(f), env); }
+  function dyFin(f, pf) { const dyBase = dyInt(f); return dyBase + (SFIN - dyBase) * frena(pf); }
+
+  // En el INSTANTE de la mutación (pf=0), todo debe igualar el valor previo (sin salto).
+  [0.2, 0.6, 0.9].forEach(function (f) {
+    chk('f=' + f + ': opacidad tras mutar NUNCA mayor que antes (sin re-brillo)', alphaFin(f, 0) <= alphaInt(f) + 1e-9);
+    chk('f=' + f + ': altura tras mutar NUNCA menor que antes (no baja ni salta)', dyFin(f, 0) >= dyInt(f) - 1e-9);
+    const age = f * VINT;
+    if (age >= 220) chk('f=' + f + ': tamaño igual antes/después (rebote terminado → asiento)', fsFromAge(age) === niv.asiento);
+  });
+
+  // A lo largo de toda la vida final: opacidad monótona no creciente hasta 0; altura
+  // monótona no decreciente hasta 56 (subida completa). Nada se queda pegado.
+  let okA = true, okD = true, prevA = Infinity, prevD = -Infinity;
+  for (let pf = 0; pf <= 1.0001; pf += 0.05) {
+    const a = alphaFin(0.6, pf), d = dyFin(0.6, pf);
+    if (a > prevA + 1e-9) okA = false;
+    if (d < prevD - 1e-9) okD = false;
+    prevA = a; prevD = d;
+  }
+  chk('opacidad final monótona NO creciente', okA);
+  chk('altura final monótona NO decreciente', okD);
+  chk('el número final termina en opacidad 0 (no se queda pegado)', Math.abs(alphaFin(0.6, 1)) < 1e-9);
+  chk('la subida final llega a 56px (completa)', Math.abs(dyFin(0.6, 1) - SFIN) < 1e-9);
+
+  // Contraste con el DEFECTO viejo: mutar sin reanclar (vida 380→1100, mismo age) hacía
+  // p = age/1100 → la opacidad SALTABA de vuelta a 1 (re-brillo). La nueva NO.
+  const fLate = 0.9, pOld = (fLate * VINT) / VFIN;
+  const alphaViejaBug = pOld <= 0.55 ? 1 : 1 - suave((pOld - 0.55) / 0.45);
+  chk('la fórmula VIEJA habría re-brillado (alpha viejo > alpha nuevo en f tardía)', alphaViejaBug > alphaFin(fLate, 0) + 1e-6);
 }
 
 console.log('=== FASE 25: sin contorno (strokeText) y sin shadowBlur en el bono ===');

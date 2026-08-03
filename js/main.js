@@ -460,10 +460,16 @@
     const A = hexRgb(a), B = hexRgb(b);
     return 'rgb(' + Math.round(A.r + (B.r - A.r) * t) + ',' + Math.round(A.g + (B.g - A.g) * t) + ',' + Math.round(A.b + (B.b - A.b) * t) + ')';
   }
-  let bonoCaram = null; // { x, y, valor, hits, nivel, inicio, modo } | null (uno a la vez)
+  let bonoCaram = null; // { x, y, valor, hits, nivel, inicio, modo, finalInicio, dyBase, alphaBase } | null
   // Nace/relevo: el nuevo CORTA de golpe al anterior. Jitter X −8..+8. modo: 'intermedio'|'final'.
+  // finalInicio/dyBase/alphaBase = ancla del modo FINAL: para un número recién creado
+  // (incluido el final del caso expirado) arrancan desde cero (finalInicio=inicio,
+  // dyBase=0, alphaBase=1); al MUTAR un intermedio a final se sobrescriben con el
+  // progreso alcanzado para que la animación CONTINÚE sin salto (ver la muerte de la bola).
   function mostrarBonoCarambola(x, y, valor, hits, modo) {
-    bonoCaram = { x: x + rnd(-8, 8), y: y, valor: valor, hits: hits, nivel: nivelBono(valor), inicio: performance.now(), modo: modo };
+    const ahora = performance.now();
+    bonoCaram = { x: x + rnd(-8, 8), y: y, valor: valor, hits: hits, nivel: nivelBono(valor),
+      inicio: ahora, modo: modo, finalInicio: ahora, dyBase: 0, alphaBase: 1 };
   }
   // Tamaño de fuente de una GANANCIA según su magnitud (20px chico → 44px enorme;
   // glow desde +300). A mayor ganancia, más grande y brillante.
@@ -1191,12 +1197,23 @@
           const bono = P.anotarCarambola(marcador, b.golpes); // TOTAL entero = bono(n), sin cambio
           cascEvento('anotarCarambola', 'golpes:' + b.golpes + ' bono:' + bono);
           actualizarMarcador();
-          // El número vigente (el del último golpe) SE CONVIERTE en el final EN EL
-          // SITIO: mismo valor/posición, sólo pasa a modo 'final' (vida y subida largas,
-          // se disipa suave) sin re-pop. Si ya expiró, se crea el final en el impacto.
+          // El número vigente (el del último golpe) SE CONVIERTE en el final EN EL SITIO,
+          // CONTINUANDO su animación desde donde iba: se captura la opacidad y la altura
+          // ya alcanzadas (curvas del modo intermedio) y se reancla el reloj de vida a
+          // este instante. Así la opacidad no vuelve a subir, la altura no baja y el
+          // tamaño no salta (el rebote sigue con `inicio` intacto). Si ya expiró, se crea
+          // uno nuevo en modo final (arranca desde cero).
           if (bono > 0) {
-            if (bonoCaram) bonoCaram.modo = 'final';
-            else mostrarBonoCarambola(b.ultimoX, b.ultimoY, P.incrementoCarambola(b.golpes), b.golpes, 'final');
+            if (bonoCaram) {
+              const ahora = performance.now();
+              const p0 = (ahora - bonoCaram.inicio) / BONO_VIDA_INT; // progreso en el reloj intermedio
+              bonoCaram.dyBase = frena(p0) * BONO_SUBE_INT;          // altura ya recorrida (se conserva)
+              bonoCaram.alphaBase = p0 <= 0.55 ? 1 : 1 - suave((p0 - 0.55) / 0.45); // opacidad actual (tope, nunca sube)
+              bonoCaram.finalInicio = ahora;                         // reancla el reloj de vida (1100ms desde aquí)
+              bonoCaram.modo = 'final';
+            } else {
+              mostrarBonoCarambola(b.ultimoX, b.ultimoY, P.incrementoCarambola(b.golpes), b.golpes, 'final');
+            }
           }
         }
         bolitas.splice(i, 1);
@@ -1386,21 +1403,32 @@
     if (bonoCaram) {
       const bc = bonoCaram;
       const niv = bc.nivel;
+      const esFinal = bc.modo === 'final';
+      // REBOTE de escala: SIEMPRE desde `inicio` (no se reinicia al pasar a final →
+      // el tamaño no salta; si el rebote ya terminó, queda en asiento).
       const age = performance.now() - bc.inicio;
-      const vida = bc.modo === 'final' ? BONO_VIDA_FIN : BONO_VIDA_INT;
-      if (age >= vida) {
+      // VIDA/SUBIDA/OPACIDAD: en final corren desde finalInicio (reanclado en la muerte);
+      // en intermedio, desde inicio. Así el modo final ALARGA el tiempo sin re-brillar.
+      const vida = esFinal ? BONO_VIDA_FIN : BONO_VIDA_INT;
+      const tVida = esFinal ? (performance.now() - bc.finalInicio) : age;
+      if (tVida >= vida) {
         bonoCaram = null;
       } else {
-        const p = age / vida;
+        const p = tVida / vida;
         // REBOTE de escala (px de fuente): 0→pico en 90ms, pico→asiento en 130ms, luego asiento.
         let fs;
         if (age < 90) fs = suave(age / 90) * niv.pico;
         else if (age < 220) fs = niv.pico + suave((age - 90) / 130) * (niv.asiento - niv.pico);
         else fs = niv.asiento;
-        // SUBIDA con frenado (ease-out): intermedio 24px/380ms, final 56px/1100ms.
-        const dy = frena(p) * (bc.modo === 'final' ? BONO_SUBE_FIN : BONO_SUBE_INT);
-        // OPACIDAD: 1 hasta el 55% de la vida; del 55% al 100% cae suave a 0.
-        const alpha = p <= 0.55 ? 1 : 1 - suave((p - 0.55) / 0.45);
+        // SUBIDA con frenado (ease-out): intermedio 24px/380ms desde 0; final 56px/1100ms
+        // CONTINUANDO desde la altura ya recorrida (dyBase) → nunca baja ni salta.
+        const dy = esFinal
+          ? (bc.dyBase + (BONO_SUBE_FIN - bc.dyBase) * frena(p))
+          : (frena(p) * BONO_SUBE_INT);
+        // OPACIDAD: envolvente estándar (1 hasta 55%, luego cae suave a 0). En final se
+        // ACOTA por la opacidad alcanzada (alphaBase) → nunca vuelve a subir; termina en 0.
+        const env = p <= 0.55 ? 1 : 1 - suave((p - 0.55) / 0.45);
+        const alpha = esFinal ? Math.min(bc.alphaBase, env) : env;
         // DESTELLO: 0–80ms blanco; 80–180ms blanco→color de nivel; luego color puro.
         let col;
         if (age < 80) col = '#FFFFFF';
