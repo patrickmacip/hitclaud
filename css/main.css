@@ -157,9 +157,9 @@ body {
 .oculto { display: none; }
 /* Una clase utilitaria (0-0-1-0) NO puede anular #gameover{display:flex}
    (ID, 0-1-0-0). Regla ID+clase (0-1-1-0) para que ocultar gane. */
-#gameover.oculto, #pausa.oculto, #inicio.oculto, #nombre.oculto, #novedades.oculto { display: none; }
+#gameover.oculto, #pausa.oculto, #inicio.oculto, #nombre.oculto, #actualizaciones.oculto { display: none; }
 
-#gameover, #pausa, #inicio, #nombre, #novedades {
+#gameover, #pausa, #inicio, #nombre, #actualizaciones {
   position: fixed;
   inset: 0;
   z-index: 3;
@@ -183,26 +183,78 @@ body {
    (.marcador--record hereda: etiqueta 15px claro, valor 24px claro), centrado. */
 .ini-record { align-items: center; margin-bottom: 24px; }
 
-/* AVISO de novedades (FASE 23): intro + lista sobre el mismo panel/paleta que el
-   resto de overlays (tokens de acento, sin colores nuevos). Reusa .go-reiniciar
-   para el botón. Texto alineado a la izquierda para leer la lista con comodidad. */
-.nov-intro {
+/* Botón "Actualizaciones" en el inicio (FASE 26): SECUNDARIO — no compite con JUGAR.
+   Sin relleno, texto chico y apagado; reusa la paleta de acento, sin colores nuevos. */
+.ini-actu {
+  margin-top: 14px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: var(--acento-claro, #FFC9B8);
+  font: var(--texto-s);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* PANTALLA DE ACTUALIZACIONES (FASE 26): panel en columna con la LISTA scrolleable
+   y el botón Cerrar SIEMPRE visible (fuera del área que scrollea). Reusa .go-reiniciar
+   para Cerrar y los tokens de acento; sin colores nuevos ni cambios en tokens.css. */
+.actu-panel {
+  background: var(--superficie);
+  border-radius: 16px;
+  padding: 24px 22px 20px;
+  max-width: 360px;
+  width: 100%;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.actu-titulo {
+  font: 800 28px/1.05 var(--fuente);
+  color: var(--acento-vivo, #FF8764);
+  letter-spacing: -0.5px;
+  margin: 0 0 16px;
+  text-align: center;
+}
+.actu-lista {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 6px;
+  padding-right: 4px;
+}
+/* Jerarquía: versión (destaca) > fecha > puntos. */
+.actu-version { margin-bottom: 20px; }
+.actu-ver {
+  font: 800 20px/1.1 var(--fuente);
+  color: var(--acento-vivo, #FF8764);
+  margin: 0;
+}
+.actu-fecha {
   font: var(--texto-s);
   color: var(--acento-claro, #FFC9B8);
-  margin: 0 0 12px;
+  margin: 2px 0 8px;
 }
-.nov-lista {
+.actu-puntos {
   list-style: disc;
-  margin: 0 0 20px;
-  padding-left: 22px;
-  text-align: left;
-  max-width: 320px;
+  margin: 0;
+  padding-left: 20px;
 }
-.nov-lista li {
+.actu-puntos li {
   font: var(--texto-s);
   color: var(--texto, #F4E9E2);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   line-height: 1.35;
+}
+/* Puntos retirados: menor contraste + la palabra "Retirado" al final de la línea. */
+.actu-retirado { color: var(--texto-apagado, #8989B1); }
+.actu-tag {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--texto-apagado, #8989B1);
 }
 /* Botón JUGAR: dominante. Reusa .go-reiniciar; sólo lo hago más prominente. */
 .ini-jugar {

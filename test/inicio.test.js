@@ -28,9 +28,9 @@ console.log('=== MECANISMO: mismo sistema de overlays DOM que #gameover/#pausa =
 
 console.log('=== COMPORTAMIENTO: inicio primero, JUGAR → 60s, mundo quieto ===');
 {
-  chk('al cargar entra por la decisión de pantalla (nombre → irAInicioOAviso)', /if \(nombreUsuario\) irAInicioOAviso\(\);/.test(main));
+  chk('al cargar entra por la decisión de pantalla (nombre → mostrarPantallaInicio)', /if \(nombreUsuario\) mostrarPantallaInicio\(\);/.test(main));
   chk('mostrarPantallaInicio deja jugando=false (mundo quieto)', /function mostrarPantallaInicio\(\) \{\s*jugando = false;/.test(main));
-  chk('al cargar NO se llama iniciarPartida (sin partida corriendo)', main.indexOf('iniciarPartida') < main.indexOf('if (nombreUsuario) irAInicioOAviso();'));
+  chk('al cargar NO se llama iniciarPartida (sin partida corriendo)', main.indexOf('iniciarPartida') < main.indexOf('if (nombreUsuario) mostrarPantallaInicio();'));
   chk('JUGAR arranca el modo seleccionado (default 60)', /btnJugar\.addEventListener\('click'[\s\S]{0,180}iniciarPartida\(modoInicioSel\)/.test(main) && /let modoInicioSel = '60';/.test(main));
   chk('modo 60 = 60·1000 (reloj de 60s desde cero, en DURACIONES)', /'60': 60 \* 1000/.test(main));
   chk('iniciarPartida fija tiempoRestante = DURACIONES[modo]', /modoJuego = modo;[\s\S]{0,200}tiempoRestante = DURACIONES\[modo\] \|\| 0;/.test(main));

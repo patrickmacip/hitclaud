@@ -27,10 +27,10 @@ console.log('=== PERSISTENCIA doble almacén (fase 10) para el nombre; llave hit
 console.log('=== PRIMERA carga pide nombre y BLOQUEA; SEGUNDA no ===');
 {
   // Decisión de arranque parametrizada por el nombre guardado.
-  chk('arranque: si hay nombre → bienvenida (vía irAInicioOAviso: nombre → aviso → inicio)', /if \(nombreUsuario\) irAInicioOAviso\(\);/.test(main));
+  chk('arranque: si hay nombre → bienvenida (directo al inicio)', /if \(nombreUsuario\) mostrarPantallaInicio\(\);/.test(main));
   chk('arranque: sin nombre y con almacén → pedir nombre (bloquea)', /else if \(puedeGuardarNombre\) mostrarPantallaNombre\(\);/.test(main));
   // FASE 22: #nombre debe estar REGISTRADO en AMBAS reglas de overlay (no solo existir en HTML).
-  chk('overlay #nombre registrado como overlay real (posición z-index:3 + ocultado compuesto)', /<div id="nombre" class="oculto" role="dialog"/.test(html) && /#gameover, #pausa, #inicio, #nombre, #novedades \{/.test(css) && /#nombre\.oculto/.test(css));
+  chk('overlay #nombre registrado como overlay real (posición z-index:3 + ocultado compuesto)', /<div id="nombre" class="oculto" role="dialog"/.test(html) && /#gameover, #pausa, #inicio, #nombre, #actualizaciones \{/.test(css) && /#nombre\.oculto/.test(css));
   // Simulación de las dos cargas con el mismo almacén.
   const local = mockLocal(), idb = mockIdb();
   const carga1 = U.crearTextoPersistente(local, idb, KEY);
@@ -69,7 +69,7 @@ console.log('=== ROBUSTEZ: almacén roto → se juega igual, se re-pide luego (n
   let lanzo = false, s;
   try { s = U.crearTextoPersistente(null, null, KEY); s.guardar('X'); s.reconciliar(); } catch (e) { lanzo = true; }
   chk('crearTextoPersistente(null,null) no lanza', !lanzo && s.valor === 'X');
-  chk('arranque: sin almacén → jugar SIN nombre (no bloquea)', /else irAInicioOAviso\(\);/.test(main) && /const puedeGuardarNombre = !!\(almacen \|\| idbKV\);/.test(main));
+  chk('arranque: sin almacén → jugar SIN nombre (no bloquea)', /else mostrarPantallaInicio\(\);/.test(main) && /const puedeGuardarNombre = !!\(almacen \|\| idbKV\);/.test(main));
   chk('confirmarNombre guarda best-effort (try/catch, no bloquea)', /try \{ nombreStore\.guardar\(v\); \} catch \(e\) \{[\s\S]{0,80}se re-pide luego/.test(main));
   // setItem que lanza no rompe.
   const localMalo = { getItem: () => null, setItem: () => { throw new Error('quota'); } };

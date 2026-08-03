@@ -115,15 +115,13 @@
   let nombreUsuario = nombreStore.valor;               // lectura síncrona inicial
   const puedeGuardarNombre = !!(almacen || idbKV);     // si no hay almacén → jugar sin nombre
 
-  // ── AVISO DE NOVEDADES (FASE 23 commit C) ──────────────────────────────────
-  // VERSION única (subir aquí en cada actualización) y llave del último visto
-  // (double-store: localStorage + IndexedDB, vía crearTextoPersistente). Ver la
-  // decisión pura U.decidirAviso. MANTENIMIENTO: para publicar la próxima versión,
-  // subir NOVEDADES_VERSION y cambiar el título/intro/lista en index.html (#novedades).
-  const NOVEDADES_VERSION = '1.0';
-  const NOVEDADES_KEY = 'hitclaud.novedades.v1';
-  const novedadesStore = U.crearTextoPersistente(almacen, idbKV, NOVEDADES_KEY);
-  let versionVista = novedadesStore.valor;             // última versión que vio (o null)
+  // AVISO EMERGENTE RETIRADO (FASE 26): el overlay que mostraba las novedades y toda
+  // su lógica (constante de versión + decisión pura) se eliminaron de aquí — nunca era
+  // alcanzable (la rama 'mostrar' exigía una versión previa guardada, imposible porque
+  // la llave nació con la primera versión). Lo reemplaza la PANTALLA DE ACTUALIZACIONES
+  // (bitacora.js). La llave 'hitclaud.novedades.v1' queda HUÉRFANA en el almacén (como
+  // 'hitclaud.record.v2.libre'): NO se lee ni se escribe, y NO se borra (persistencia
+  // sellada). La función pura de decisión sigue viva en util.js como código muerto.
   const elBarraNombre = document.getElementById('barraNombre');
   function actualizarBarraNombre() {
     try { if (elBarraNombre) elBarraNombre.textContent = nombreUsuario || ''; } catch (e) { /* nunca rompe */ }
@@ -289,14 +287,14 @@
     try { nombreStore.guardar(v); } catch (e) { /* almacén roto: queda en memoria, se re-pide luego */ }
     actualizarBarraNombre();
     if (elNombre) elNombre.classList.add('oculto');
-    irAInicioOAviso();
+    mostrarPantallaInicio();
   }
   // SALIDA DE EMERGENCIA (FASE 22, ley del dueño): "Omitir" entra al juego SIN nombre.
   // Ninguna pantalla puede dejar el juego sin salida — si el campo falla o el almacén
   // está roto, este botón SIEMPRE lleva a jugar. No guarda nada.
   function omitirNombre() {
     if (elNombre) elNombre.classList.add('oculto');
-    irAInicioOAviso();
+    mostrarPantallaInicio();
   }
   if (btnNombreOk) btnNombreOk.addEventListener('click', confirmarNombre);
   if (btnNombreOmitir) btnNombreOmitir.addEventListener('click', omitirNombre);
@@ -304,41 +302,69 @@
     if (e.key === 'Enter') { e.preventDefault(); confirmarNombre(); }
   });
 
-  // ── AVISO de novedades: entre el nombre y el inicio, UNA vez por actualización.
-  // ORDEN garantizado nombre → aviso → inicio (nunca dos overlays a la vez): cada
-  // paso oculta el suyo antes de abrir el siguiente. irAInicioOAviso es el ÚNICO
-  // camino al inicio tras el nombre/carga; decide con U.decidirAviso:
-  //   'mostrar'          → abre el aviso (usuario venía de una versión anterior).
-  //   'guardar-silencio' → usuario NUEVO (nada guardado): NO muestra, guarda la
-  //                        versión en silencio y va directo al inicio.
-  //   'nada'             → ya vio esta versión → va directo al inicio.
-  const elNovedades = document.getElementById('novedades');
-  const btnNovedadesOk = document.getElementById('novedadesOk');
-  function irAInicioOAviso() {
-    const accion = U.decidirAviso(versionVista, NOVEDADES_VERSION);
-    if (accion === 'mostrar') { if (elNovedades) elNovedades.classList.remove('oculto'); return; }
-    if (accion === 'guardar-silencio') {
-      versionVista = NOVEDADES_VERSION;
-      try { novedadesStore.guardar(NOVEDADES_VERSION); } catch (e) { /* best-effort: no bloquea */ }
+  // ── PANTALLA DE ACTUALIZACIONES (FASE 26): bitácora completa desde bitacora.js ──
+  // Overlay de SOLO LECTURA (sin interacción salvo desplazarse) al que se entra desde
+  // el botón "Actualizaciones" del inicio y se sale con "Cerrar". La lista se genera
+  // desde js/bitacora.js — NO está escrita a mano en el HTML. Se construye UNA vez.
+  const elActualizaciones = document.getElementById('actualizaciones');
+  const elActuLista = document.getElementById('actuLista');
+  const btnVerActualizaciones = document.getElementById('verActualizaciones');
+  const btnActuCerrar = document.getElementById('actuCerrar');
+  function construirBitacora() {
+    const B = (typeof window !== 'undefined' && window.Bitacora) ? window.Bitacora : null;
+    if (!elActuLista || !B || !B.versiones) return;
+    elActuLista.textContent = ''; // limpia (se llama una vez, pero es idempotente)
+    for (let i = 0; i < B.versiones.length; i++) {
+      const v = B.versiones[i];
+      const cont = document.createElement('div');
+      cont.className = 'actu-version';
+      const ver = document.createElement('p');
+      ver.className = 'actu-ver';
+      ver.textContent = 'VERSIÓN ' + v.version;
+      const fecha = document.createElement('p');
+      fecha.className = 'actu-fecha';
+      fecha.textContent = v.fecha;
+      const ul = document.createElement('ul');
+      ul.className = 'actu-puntos';
+      const puntos = v.puntos || [];
+      for (let k = 0; k < puntos.length; k++) {
+        const p = puntos[k];
+        const li = document.createElement('li');
+        li.textContent = p.texto; // textContent: sin inyección, texto plano
+        if (p.retirado) {
+          li.classList.add('actu-retirado');
+          const tag = document.createElement('span');
+          tag.className = 'actu-tag';
+          tag.textContent = 'Retirado';
+          li.appendChild(document.createTextNode(' — '));
+          li.appendChild(tag);
+        }
+        ul.appendChild(li);
+      }
+      cont.appendChild(ver);
+      cont.appendChild(fecha);
+      cont.appendChild(ul);
+      elActuLista.appendChild(cont);
     }
-    mostrarPantallaInicio();
   }
-  // Cerrar el aviso: guarda la versión vista (best-effort) y pasa al inicio. SIEMPRE
-  // se cierra aunque el guardado falle (ninguna pantalla deja el juego sin salida);
-  // si falló, a lo sumo se re-mostrará la próxima carga, nunca traba.
-  function cerrarNovedades() {
-    versionVista = NOVEDADES_VERSION;
-    try { novedadesStore.guardar(NOVEDADES_VERSION); } catch (e) { /* se re-mostraría luego, nunca traba */ }
-    if (elNovedades) elNovedades.classList.add('oculto');
-    mostrarPantallaInicio();
+  construirBitacora();
+  function abrirActualizaciones() {
+    if (elInicio) elInicio.classList.add('oculto');
+    if (elActualizaciones) { elActualizaciones.scrollTop = 0; elActualizaciones.classList.remove('oculto'); }
+    if (elActuLista) elActuLista.scrollTop = 0; // arranca arriba de la lista
   }
-  if (btnNovedadesOk) btnNovedadesOk.addEventListener('click', cerrarNovedades);
+  function cerrarActualizaciones() {
+    if (elActualizaciones) elActualizaciones.classList.add('oculto');
+    mostrarPantallaInicio(); // vuelve al inicio (siempre hay salida)
+  }
+  if (btnVerActualizaciones) btnVerActualizaciones.addEventListener('click', abrirActualizaciones);
+  if (btnActuCerrar) btnActuCerrar.addEventListener('click', cerrarActualizaciones);
   // Reconciliación del nombre (async, IDB): si aparece un nombre guardado y aún no lo
   // teníamos (p.ej. local vacío pero IDB lo conserva), lo adopta y cierra el prompt.
   nombreStore.reconciliar().then(function (v) {
     if (v && !nombreUsuario) {
       nombreUsuario = v; actualizarBarraNombre();
-      if (elNombre && !elNombre.classList.contains('oculto')) { elNombre.classList.add('oculto'); irAInicioOAviso(); }
+      if (elNombre && !elNombre.classList.contains('oculto')) { elNombre.classList.add('oculto'); mostrarPantallaInicio(); }
     }
   });
 
@@ -1629,14 +1655,13 @@
   actualizarBarraNombre(); // muestra el nombre guardado en la barra (si existe)
   marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
   escalada = P.crearEscalada(performance.now(), Math.random); // estado inicial válido
-  // Primera pantalla (FASE 21+23): si ya hay nombre → aviso-o-inicio; si no y el
-  // almacén sirve → pedir nombre (el nombre llama a irAInicioOAviso al confirmar/
-  // omitir); si el almacén está roto → jugar sin nombre (aviso-o-inicio, que sin
-  // almacén cae en inicio). El bucle corre congelado detrás. ORDEN: nombre → aviso
-  // → inicio, nunca dos overlays a la vez.
-  if (nombreUsuario) irAInicioOAviso();
+  // Primera pantalla (FASE 21+26): si ya hay nombre → inicio; si no y el almacén sirve
+  // → pedir nombre (confirmar/omitir llevan al inicio); si el almacén está roto → jugar
+  // sin nombre (directo al inicio). El bucle corre congelado detrás. Sin aviso emergente:
+  // las actualizaciones se ven en su propia pantalla desde el inicio.
+  if (nombreUsuario) mostrarPantallaInicio();
   else if (puedeGuardarNombre) mostrarPantallaNombre();
-  else irAInicioOAviso();
+  else mostrarPantallaInicio();
   arrancarBucle();       // el bucle corre (congelado hasta tocar JUGAR)
 
   if ('serviceWorker' in navigator) {

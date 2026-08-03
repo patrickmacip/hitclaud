@@ -50,25 +50,6 @@
     </div>
   </div>
 
-  <!-- AVISO de novedades (FASE 23): se muestra UNA vez por actualización, entre el
-       nombre y el inicio. Reusa .go-panel / .go-reiniciar (sin componentes nuevos).
-       Para publicar la próxima versión: subir NOVEDADES_VERSION en main.js y cambiar
-       el título/intro/lista de abajo. Los usuarios que venían de la versión previa
-       lo verán una sola vez; los nuevos no (se les guarda la versión en silencio). -->
-  <div id="novedades" class="oculto" role="dialog" aria-modal="true">
-    <div class="go-panel">
-      <p class="ini-titulo">Actualización 1.0</p>
-      <p class="nov-intro">Novedades de esta versión:</p>
-      <ul class="nov-lista">
-        <li>La hitball pesa un 10% más: el impacto se siente más contundente.</li>
-        <li>Los targets se parten: los trozos sueltos se desprenden y también puntúan.</li>
-        <li>Tu nombre aparece al centro del fondo.</li>
-        <li>El contador va limpio, sin contorno.</li>
-      </ul>
-      <button id="novedadesOk" class="go-reiniciar">Entendido</button>
-    </div>
-  </div>
-
   <div id="inicio" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
       <p class="ini-titulo">HitClaud</p>
@@ -82,6 +63,19 @@
         <button id="sel60" class="go-reiniciar ini-sel sel-activo">60 seg</button>
       </div>
       <button id="jugar" class="go-reiniciar ini-jugar">JUGAR</button>
+      <button id="verActualizaciones" class="ini-actu">Actualizaciones</button>
+    </div>
+  </div>
+
+  <!-- PANTALLA DE ACTUALIZACIONES (FASE 26): bitácora completa (reemplaza al aviso
+       emergente de novedades, retirado). Las entradas se generan desde js/bitacora.js
+       (NO se escriben a mano aquí). El panel scrollea internamente y el botón Cerrar
+       queda SIEMPRE visible (ley: toda pantalla tiene salida). -->
+  <div id="actualizaciones" class="oculto" role="dialog" aria-modal="true">
+    <div class="actu-panel">
+      <p class="actu-titulo">Actualizaciones</p>
+      <div class="actu-lista" id="actuLista"></div>
+      <button id="actuCerrar" class="go-reiniciar">Cerrar</button>
     </div>
   </div>
 
@@ -108,6 +102,7 @@
   <script src="js/fisica.js"></script>
   <script src="js/puntuacion.js"></script>
   <script src="js/render.js"></script>
+  <script src="js/bitacora.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
