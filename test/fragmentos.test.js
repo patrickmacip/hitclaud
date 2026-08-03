@@ -41,36 +41,41 @@ console.log('=== PARTIR: >1 grupo → el mayor conserva identidad, el resto se d
   const vxAntes = t.vx, rotAntes = t.rot;
   const frags = F.partirTarget(t, 195, 400, 1.0, 0.5);
   chk('devuelve 1 fragmento (2 grupos → mayor se queda, 1 se desprende)', frags && frags.length === 1);
-  chk('el grupo MAYOR conserva la identidad (mismo objeto t): vx y rot intactos', t.vx === vxAntes && t.rot === rotAntes);
-  chk('el target original queda recortado a su grupo (8 cubos vivos)', t.vivos === 8 && t.celdas.filter(Boolean).length === 8);
+  // FASE 24: el mayor conserva la IDENTIDAD (mismo objeto y sus flags) y el ángulo
+  // de rotación, pero AL PARTIRSE cae de verdad y recibe su propio empujón → su vx cambia.
+  chk('el grupo MAYOR conserva la identidad (mismo objeto t): rot (ángulo) intacto, celdas recortadas', t.rot === rotAntes && t.celdas.filter(Boolean).length === 8);
+  chk('al partirse el MAYOR también recibe empujón (su vx cambió respecto al previo)', t.vx !== vxAntes);
+  chk('el target original queda recortado a su grupo (8 cubos vivos)', t.vivos === 8);
   chk('conservación de cubos: mayor + fragmento = los 16 que sobrevivieron', t.vivos + frags[0].vivos === 16);
   chk('sin partir cuando sigue de una pieza (0/1 grupo → null)', F.partirTarget(target5x4(), 195, 400, 1, 0.5) === null);
 }
 
-console.log('=== HERENCIA + REPARTO DE IMPULSO ===');
+console.log('=== HERENCIA + EMPUJÓN COMPLETO (FASE 24: sin reparto) ===');
 {
   const t = target5x4();
   for (let f = 0; f < 4; f++) t.celdas[f * 5 + 2] = false;
   t.vivos = t.celdas.filter(Boolean).length;
+  const vxAntes = t.vx, vyAntes = t.vy; // el fragmento se calcula con el vx ORIGINAL del padre
   const frags = F.partirTarget(t, 195, 400, 1.0, 0.5);
   const fr = frags[0];
   chk('hereda posición del padre (x,y)', fr.x === t.x && fr.y === t.y);
-  chk('hereda rotación y giro (rot, velRot)', fr.rot === 0 && fr.velRot === t.velRot);
-  chk('hereda gravedad del padre', fr.gravedad === (t.gravedad || F.FISICA.G_TARGET));
-  // Empuje = |vImpact|·impulsoFactor / nFrag = 1·0.5/1 = 0.5, radial desde el impacto.
-  // El trozo derecho (centroide a la derecha del impacto en 195) sale hacia +x.
-  const kick = Math.hypot(fr.vx - t.vx, fr.vy - t.vy);
-  chk('recibe empuje |kick| = |vImpact|·impulsoFactor/N = 0.5 (repartido)', Math.abs(kick - 0.5) < 1e-6);
-  chk('el empuje es RADIAL desde el impacto (trozo derecho → +x)', fr.vx > t.vx);
-  // Reparto: con 2 trozos desprendidos, cada uno recibe 0.5/2 = 0.25.
+  chk('hereda el ángulo de rotación (rot) del padre', fr.rot === 0);
+  chk('NO copia el velRot del padre: giro propio dentro de ±0.06', typeof fr.velRot === 'number' && Math.abs(fr.velRot) <= 0.06);
+  chk('al partirse cae de verdad: gravedad = G_TARGET (no la del padre)', fr.gravedad === F.FISICA.G_TARGET);
+  // Empuje COMPLETO = |vImpact|·impulsoFactor = 1·0.5 = 0.5 (NO se divide), radial desde
+  // el impacto. El trozo derecho (centroide a la derecha de 195) sale hacia +x.
+  const kick = Math.hypot(fr.vx - vxAntes, fr.vy - vyAntes);
+  chk('recibe el empuje COMPLETO 0.5 (no repartido)', Math.abs(kick - 0.5) < 1e-6);
+  chk('el empuje es RADIAL desde el impacto (trozo derecho → +x)', fr.vx > vxAntes);
+  // SIN REPARTO: con 3 islas (2 desprendidas) cada trozo recibe el MISMO 0.5, no 0.25.
   const t2 = target5x4();
-  // Deja sólo 3 islas: col 0, col 2, col 4 (mata cols 1 y 3) → 3 grupos.
   for (let f = 0; f < 4; f++) { t2.celdas[f * 5 + 1] = false; t2.celdas[f * 5 + 3] = false; }
   t2.vivos = t2.celdas.filter(Boolean).length;
+  const vx2 = t2.vx, vy2 = t2.vy;
   const frags2 = F.partirTarget(t2, 195, 400, 1.0, 0.5);
   chk('3 grupos → 2 fragmentos desprendidos (el mayor se queda)', frags2 && frags2.length === 2);
-  const kick2 = Math.hypot(frags2[0].vx - t2.vx, frags2[0].vy - t2.vy);
-  chk('impulso DIVIDIDO entre los 2 trozos: cada uno 0.5/2 = 0.25', Math.abs(kick2 - 0.25) < 1e-6);
+  const kick2 = Math.hypot(frags2[0].vx - vx2, frags2[0].vy - vy2);
+  chk('empuje NO dividido: con 2 trozos cada uno sigue recibiendo 0.5 (no 0.25)', Math.abs(kick2 - 0.5) < 1e-6);
 }
 
 console.log('=== FRAGMENTO: puntúa igual, cae, muere fuera, se re-parte, NUNCA mata ===');

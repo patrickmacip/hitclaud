@@ -1,15 +1,35 @@
-// hitclaud — TOPE DURO de 4 targets en pantalla (naranjas + rojos juntos):
-// node test/tope.test.js
-// Espejo de los gates de spawn de main.js: nunca un 5º vivo; los spawns
-// pospuestos por falta de lugar disparan al liberarse (el ritmo no se pierde).
+// hitclaud — TOPES de targets en pantalla. node test/tope.test.js
+// Hay DOS topes distintos en el código real, y este test los LEE de main.js
+// (antes usaba un MAX=4 hardcodeado, desalineado con el juego):
+//   · MAX_EN_PANTALLA — tope del SPAWN (naranjas + rojos + grande juntos). Los
+//     gates de spawn nunca dejan pasar de aquí; los spawns pospuestos por falta
+//     de lugar disparan al liberarse (el ritmo no se pierde).
+//   · MAX_TARGETS_VIVOS — tope DURO del total de targets vivos, incluidos los
+//     fragmentos desprendidos (que NO pasan por los gates de spawn).
 
+const fs = require('fs');
 const P = require('../js/puntuacion.js');
+const main = fs.readFileSync(__dirname + '/../js/main.js', 'utf8');
 
-function chk(nombre, ok) { console.log(`  ${nombre}  ${ok ? 'OK ✓' : 'NO ✗'}`); }
+let ok = 0, ko = 0;
+function chk(nombre, c) { console.log(`  ${nombre}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) ok++; else ko++; }
 
-const MAX = 4;
+// Lee los topes REALES del código (no se hardcodean acá).
+const MAX_EN_PANTALLA = parseInt((main.match(/const MAX_EN_PANTALLA = (\d+);/) || [])[1], 10);
+const MAX_TARGETS_VIVOS = parseInt((main.match(/const MAX_TARGETS_VIVOS = (\d+);/) || [])[1], 10);
 
-console.log('=== Bajo presión (vidas cortas, ritmo denso) nunca hay un 5º vivo ===');
+console.log('=== Los topes se leen del código real de main.js ===');
+{
+  console.log(`  MAX_EN_PANTALLA = ${MAX_EN_PANTALLA}  ·  MAX_TARGETS_VIVOS = ${MAX_TARGETS_VIVOS}`);
+  chk('MAX_EN_PANTALLA existe y es el tope de spawn (2)', MAX_EN_PANTALLA === 2);
+  chk('MAX_TARGETS_VIVOS existe y es el tope duro total (10)', MAX_TARGETS_VIVOS === 10);
+  chk('los tres gates de spawn respetan MAX_EN_PANTALLA', (main.match(/targets\.length < MAX_EN_PANTALLA/g) || []).length === 3);
+  chk('el tope duro se aplica sobre MAX_TARGETS_VIVOS (aplicarTopeTargets)', /while \(targets\.length > MAX_TARGETS_VIVOS\)/.test(main));
+}
+
+const MAX = MAX_EN_PANTALLA; // el tope que gobierna el SPAWN (espejo de los gates)
+
+console.log(`\n=== Bajo presión (vidas cortas, ritmo denso) nunca se pasa de ${MAX} por spawn ===`);
 {
   // Simula el loop: targets con vida aleatoria; gates idénticos a main.js.
   // rnd determinista para reproducibilidad.
@@ -20,16 +40,14 @@ console.log('=== Bajo presión (vidas cortas, ritmo denso) nunca hay un 5º vivo
   const caos = P.crearCaos();
   let escalada = P.crearEscalada(0, rnd);
   let proximoSpawn = 0, proximoRojo = P.intervaloRojo(escalada.nivel);
-  let picoVivos = 0, quintos = 0;
-  let spawnsHechos = 0, framesLlenoConSpawnPendiente = 0, spawnsTrasLleno = 0;
+  let picoVivos = 0, sobrepasos = 0;
+  let spawnsHechos = 0, spawnsTrasLleno = 0;
   let veniaLleno = false;
 
   const DT = 16;
   for (let t = 0; t < 60000; t += DT) {
     // muerte natural
     for (let i = targets.length - 1; i >= 0; i--) if (t >= targets[i].muereEn) targets.splice(i, 1);
-
-    const estabaLleno = targets.length >= MAX;
 
     // gate naranja (idéntico a main.js)
     if (targets.length < MAX && t >= proximoSpawn) {
@@ -49,16 +67,24 @@ console.log('=== Bajo presión (vidas cortas, ritmo denso) nunca hay un 5º vivo
     }
 
     picoVivos = Math.max(picoVivos, targets.length);
-    if (targets.length > MAX) quintos++;
-    // ¿estaba lleno y un spawn quedó pendiente (vencido) esperando lugar?
-    if (estabaLleno && (t >= proximoSpawn || t >= proximoRojo)) framesLlenoConSpawnPendiente++;
+    if (targets.length > MAX) sobrepasos++;
     veniaLleno = targets.length >= MAX;
   }
 
-  console.log(`  pico de vivos = ${picoVivos} (tope ${MAX})`);
-  chk('nunca se superó el tope (0 quintos)', quintos === 0 && picoVivos <= MAX);
+  console.log(`  pico de vivos = ${picoVivos} (tope de spawn ${MAX})`);
+  chk('nunca se superó el tope de spawn (0 sobrepasos)', sobrepasos === 0 && picoVivos <= MAX);
   chk(`hubo presión real (${spawnsHechos} spawns en 60s, pico llegó al tope)`, spawnsHechos > 60 && picoVivos === MAX);
   chk(`spawns pospuestos por lleno se dispararon al liberarse (${spawnsTrasLleno})`, spawnsTrasLleno > 0);
+}
+
+console.log('\n=== El tope duro (fragmentos) supera el de spawn y mata a los más viejos ===');
+{
+  // Los fragmentos NO pasan por los gates: quienes pueden superar MAX_EN_PANTALLA y
+  // llegar hasta MAX_TARGETS_VIVOS son las islas. aplicarTopeTargets recorta el
+  // excedente empezando por el más VIEJO (mayor edad) y NUNCA toca al rojo.
+  chk('el tope duro (10) es mayor que el de spawn (2): los fragmentos caben por encima', MAX_TARGETS_VIVOS > MAX_EN_PANTALLA);
+  chk('aplicarTopeTargets retira al más viejo (mayor edad) primero', /targets\[i\]\.edad > targets\[viejo\]\.edad/.test(main));
+  chk('aplicarTopeTargets nunca retira el CloudOver (rojo)', /if \(targets\[i\]\.rojo\) continue;/.test(main));
 }
 
 console.log('\n=== El ritmo caótico se conserva: el retardo sólo se recalcula al spawnear ===');
@@ -74,3 +100,6 @@ console.log('\n=== El ritmo caótico se conserva: el retardo sólo se recalcula 
   // (no se llama de nuevo porque está lleno)
   chk('sin spawnear, el estado de ráfaga no avanza', caos.rafaga === rafagaAntes && gap > 0);
 }
+
+console.log(`\n== RESUMEN tope: ${ok} OK, ${ko} NO ==`);
+if (ko > 0) process.exit(1);

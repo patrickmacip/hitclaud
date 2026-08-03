@@ -139,7 +139,7 @@
   const DURACIONES = { '15': 15 * 1000, '30': 30 * 1000, '60': 60 * 1000 };
   function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
-    targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0;
+    targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; bonoCaram = null;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null; sacudidaCloudover = null;
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
@@ -383,6 +383,18 @@
     }
     flotantes.push({ x: x, y: y, texto: texto, edad: 0, vida: FLOTANTE_VIDA, color: color, tam: tam || 20, glow: !!glow });
     if (flotantes.length > MAX_FLOTANTES) flotantes.shift();
+  }
+
+  // BONO DE CARAMBOLA flotante (canvas): dos renglones grandes en la posición del
+  // ÚLTIMO impacto de la bola que encadenó. Uno a la vez (el nuevo reemplaza al
+  // anterior). 900ms: sube 40px, opacidad 1→0, letra 48→32px; renglón 2 al 55%.
+  const BONO_VIDA = 900;      // ms de vida del bono flotante
+  const BONO_SUBE = 40;       // px que sube durante su vida
+  const BONO_TAM_INI = 48;    // px de letra al nacer (renglón 1)
+  const BONO_TAM_FIN = 32;    // px de letra al morir (renglón 1)
+  let bonoCaram = null;       // { x, y, valor, hits, inicio } | null
+  function mostrarBonoCarambola(x, y, valor, hits) {
+    bonoCaram = { x: x, y: y, valor: valor, hits: hits, inicio: performance.now() };
   }
   // Tamaño de fuente de una GANANCIA según su magnitud (20px chico → 44px enorme;
   // glow desde +300). A mayor ganancia, más grande y brillante.
@@ -882,6 +894,8 @@
       edad: 0,
       viva: true,
       tocado: false, // ¿tocó algún target? (para racha y fallo)
+      golpes: 0,     // nº de impactos resueltos de ESTA bola (cadena → bono de carambola)
+      ultimoX: fin.x, ultimoY: fin.y, // posición del último impacto (dónde nace el bono flotante)
       historia: [],
     });
     ultimoDisparo = performance.now();
@@ -1051,6 +1065,8 @@
         const r = F.resolverImpacto(b, tg);
         if (!r) continue;
         cascEvento('resolverImpacto', 'tipo:' + r.tipo + ' destruidos:' + r.destruidos + ' muerto:' + r.muerto);
+        b.golpes += 1;                         // cadena: cuenta CADA impacto (mismo target o no)
+        b.ultimoX = r.px; b.ultimoY = r.py;    // dónde nace el bono si esta bola encadena
         tg.destelloHasta = t + DESTELLO_MS;    // destello en CUALQUIER contacto
         if (!b.tocado) {                       // primer toque = hit (sube la racha continua)
           b.tocado = true;
@@ -1097,6 +1113,13 @@
           cascEvento('anotarFallo', 'pen:' + pen);
           actualizarMarcador();
           registrarPerdida(pen);
+        } else if (b.golpes >= 2 && !secuencia) {
+          // CARAMBOLA: la bola encadenó ≥2 golpes en su vida. Bono LIMPIO (sin racha).
+          // !secuencia excluye la muerte por CloudOver (la partida terminó → no anota).
+          const bono = P.anotarCarambola(marcador, b.golpes);
+          cascEvento('anotarCarambola', 'golpes:' + b.golpes + ' bono:' + bono);
+          actualizarMarcador();
+          if (bono > 0) mostrarBonoCarambola(b.ultimoX, b.ultimoY, bono, b.golpes);
         }
         bolitas.splice(i, 1);
       }
@@ -1278,6 +1301,32 @@
       ctx.fillStyle = colFl;
       ctx.fillText(fl.texto, 0, 0);
       ctx.restore();
+    }
+    // BONO DE CARAMBOLA flotante: dos renglones centrados en el último impacto de la
+    // bola que encadenó. Sube 40px, se desvanece y encoge (48→32px) en 900ms. Contorno
+    // barato con strokeText (haloTexto), NUNCA shadowBlur (puerta cerrada). Uno a la vez.
+    if (bonoCaram) {
+      const p = (performance.now() - bonoCaram.inicio) / BONO_VIDA;
+      if (p >= 1) {
+        bonoCaram = null;
+      } else {
+        const tam = BONO_TAM_INI + (BONO_TAM_FIN - BONO_TAM_INI) * p; // 48 → 32
+        const tam2 = tam * 0.55;                                      // renglón 2 al 55%
+        const colBono = ACENTO.vivo; // coral de la bolita (literal, nunca vacío)
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 1 - p);
+        ctx.translate(bonoCaram.x, bonoCaram.y - p * BONO_SUBE);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = '800 ' + tam + 'px ' + COLOR.fuente;
+        haloTexto('+' + bonoCaram.valor, 0, -tam * 0.35, colBono, 5);
+        ctx.fillStyle = colBono;
+        ctx.fillText('+' + bonoCaram.valor, 0, -tam * 0.35);
+        ctx.font = '800 ' + tam2 + 'px ' + COLOR.fuente;
+        haloTexto('HITS ×' + bonoCaram.hits, 0, tam * 0.5, colBono, 4);
+        ctx.fillStyle = colBono;
+        ctx.fillText('HITS ×' + bonoCaram.hits, 0, tam * 0.5);
+        ctx.restore();
+      }
     }
     ctx.globalAlpha = 1;
 

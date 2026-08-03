@@ -542,22 +542,32 @@
     return grupos;
   }
 
+  // Giro propio de una isla al partirse: rango ancho (±0.06 rad/ms, 20× el del
+  // target entero) para que cada trozo gire distinto y NO se lea como un cuerpo
+  // único. Se sortea con el mismo helper rango() que usa crearTarget para velRot.
+  const VEL_ROT_ISLA = [-0.06, 0.06];
+
   // partirTarget(t, px, py, vImpact, impulsoFactor): se llama SÓLO tras un golpe
   // que destruyó celdas (NUNCA por cuadro). Si el target sigue de una pieza (0 ó 1
-  // grupo) → null y no toca nada. Si quedó en varios trozos:
-  //   · el MAYOR conserva la identidad (este mismo objeto t: su vx/vy/rot/velRot y
-  //     sus flags rojo/grande/pesoExtra) → sólo se le recortan las celdas.
-  //   · cada OTRO trozo se DESPRENDE como target independiente golpeable que hereda
-  //     posición, velocidad, rotación y gravedad del padre + parte del impulso.
-  // REPARTO DEL IMPULSO: el golpe imparte un empuje total |vImpact|·impulsoFactor
-  // que se DIVIDE en partes iguales entre los N trozos desprendidos (más trozos →
-  // empuje más suave a cada uno); cada trozo sale RADIALMENTE desde el punto de
-  // impacto (px,py) hacia su centroide → se abren en abanico. El grupo mayor NO
-  // recibe empuje extra (ya recibió la transferencia de momento en el golpe).
+  // grupo) → null y no toca nada. Si quedó en varios trozos, TODAS las islas
+  // (incluida la mayor) se comportan como pedazos sueltos que caen y se separan:
+  //   · el MAYOR conserva la IDENTIDAD (este mismo objeto t y sus flags rojo/
+  //     grande/pesoExtra) → se le recortan las celdas, PERO al partirse deja de
+  //     flotar (gravedad → G_TARGET), gira propio y recibe su propio empujón.
+  //   · cada OTRO trozo se DESPRENDE como target independiente golpeable, con
+  //     gravedad de target normal, giro propio y su propio empujón.
+  // GRAVEDAD (1.1): al partirse ninguna isla hereda la gravedad del padre (Big
+  // Claude flota con g/9); todas pasan a FISICA.G_TARGET → caen de verdad.
+  // GIRO (1.2): cada isla recibe velRot NUEVA y aleatoria (VEL_ROT_ISLA), no la
+  // del padre.
+  // EMPUJÓN COMPLETO SIN REPARTIR (1.3): el golpe imparte a CADA isla el empuje
+  // ENTERO |vImpact|·impulsoFactor (no se divide entre el nº de trozos), en
+  // dirección RADIAL desde el punto de impacto (px,py) hacia el centroide de esa
+  // isla. El grupo mayor también recibe el suyo (con su propio centroide).
   // Los fragmentos son targets NORMALES (no rojo, no grande): puntúan igual (por
   // cubo × multiplicador), caen con gravedad, mueren al salir y pueden re-partirse.
-  // PURO: muta t.celdas/t.vivos/t.masa y devuelve los objetos fragmento (el
-  // llamador los inserta y aplica el tope de targets vivos).
+  // PURO: muta t.celdas/t.vivos/t.masa/t.vx/t.vy/t.gravedad/t.velRot y devuelve los
+  // objetos fragmento (el llamador los inserta y aplica el tope de targets vivos).
   function partirTarget(t, px, py, vImpact, impulsoFactor) {
     const grupos = gruposConectados(t.celdas, t.cols, t.filas);
     if (grupos.length <= 1) return null;
@@ -565,31 +575,34 @@
     for (let g = 1; g < grupos.length; g++) if (grupos[g].length > grupos[mayor].length) mayor = g;
     const otros = [];
     for (let g = 0; g < grupos.length; g++) if (g !== mayor) otros.push(grupos[g]);
-    const empujeCadaUno = (Math.abs(vImpact || 0) * (impulsoFactor || 0)) / otros.length;
+    // Empuje ENTERO (no se reparte): igual para cada isla, para el mismo vImpact.
+    const empuje = Math.abs(vImpact || 0) * (impulsoFactor || 0);
+    // Empujón radial desde el impacto hacia el centroide de un grupo de celdas.
+    // Degenerado (impacto justo en el centroide) → empuja hacia arriba.
+    function empujeIsla(idxs) {
+      let cxm = 0, cym = 0;
+      for (let k = 0; k < idxs.length; k++) { const w = celdaMundo(t, idxs[k]); cxm += w.x; cym += w.y; }
+      cxm /= idxs.length; cym /= idxs.length;
+      let dx = cxm - px, dy = cym - py, d = Math.hypot(dx, dy);
+      if (d < 1e-6) { dx = 0; dy = -1; d = 1; }
+      return { vx: (dx / d) * empuje, vy: (dy / d) * empuje };
+    }
     const fragmentos = [];
     for (let g = 0; g < otros.length; g++) {
       const idxs = otros[g];
       const total = t.celdas.length;
       const celdas = new Array(total);
       for (let i = 0; i < total; i++) celdas[i] = false;
-      let cxm = 0, cym = 0;
-      for (let k = 0; k < idxs.length; k++) {
-        celdas[idxs[k]] = true;
-        const w = celdaMundo(t, idxs[k]);
-        cxm += w.x; cym += w.y;
-      }
+      for (let k = 0; k < idxs.length; k++) celdas[idxs[k]] = true;
       const vivos = idxs.length;
-      cxm /= vivos; cym /= vivos;
-      let dx = cxm - px, dy = cym - py, d = Math.hypot(dx, dy);
-      if (d < 1e-6) { dx = 0; dy = -1; d = 1; } // degenerado: empuja hacia arriba
-      const ux = dx / d, uy = dy / d;
+      const kick = empujeIsla(idxs);
       const ojos = (t.ojos || []).filter(function (oi) { return celdas[oi]; });
       fragmentos.push({
-        x: t.x, y: t.y, rot: t.rot, velRot: t.velRot,
-        vx: t.vx + ux * empujeCadaUno,
-        vy: t.vy + uy * empujeCadaUno,
+        x: t.x, y: t.y, rot: t.rot, velRot: rango(VEL_ROT_ISLA),
+        vx: t.vx + kick.vx,
+        vy: t.vy + kick.vy,
         radio: t.radio || FISICA.RADIO_TARGET,
-        gravedad: t.gravedad || FISICA.G_TARGET,
+        gravedad: FISICA.G_TARGET,
         celdas: celdas, cols: t.cols, filas: t.filas,
         vivos: vivos, vivosMax: vivos, ojos: ojos,
         masa: FISICA.MASA_TARGET * (vivos / 20),
@@ -597,14 +610,20 @@
         origen: t.origen, fragmento: true,
       });
     }
-    // Recorta el target original al grupo mayor (conserva su identidad y flags).
+    // Grupo MAYOR: conserva el objeto original (identidad y flags), pero AL PARTIRSE
+    // cae de verdad (gravedad G_TARGET), gira propio y recibe su propio empujón radial.
     const idxMayor = grupos[mayor];
+    const kickMayor = empujeIsla(idxMayor);
     const nuevas = new Array(t.celdas.length);
     for (let i = 0; i < nuevas.length; i++) nuevas[i] = false;
     for (let k = 0; k < idxMayor.length; k++) nuevas[idxMayor[k]] = true;
     t.celdas = nuevas;
     t.vivos = idxMayor.length;
     t.masa = FISICA.MASA_TARGET * (t.vivos / 20) * (t.pesoExtra || 1);
+    t.gravedad = FISICA.G_TARGET;
+    t.velRot = rango(VEL_ROT_ISLA);
+    t.vx += kickMayor.vx;
+    t.vy += kickMayor.vy;
     return fragmentos;
   }
 
