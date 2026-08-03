@@ -157,9 +157,9 @@ body {
 .oculto { display: none; }
 /* Una clase utilitaria (0-0-1-0) NO puede anular #gameover{display:flex}
    (ID, 0-1-0-0). Regla ID+clase (0-1-1-0) para que ocultar gane. */
-#gameover.oculto, #pausa.oculto, #inicio.oculto, #nombre.oculto { display: none; }
+#gameover.oculto, #pausa.oculto, #inicio.oculto, #nombre.oculto, #novedades.oculto { display: none; }
 
-#gameover, #pausa, #inicio, #nombre {
+#gameover, #pausa, #inicio, #nombre, #novedades {
   position: fixed;
   inset: 0;
   z-index: 3;
@@ -182,6 +182,28 @@ body {
 /* Récord con la MISMA tipografía que el marcador Record del juego
    (.marcador--record hereda: etiqueta 15px claro, valor 24px claro), centrado. */
 .ini-record { align-items: center; margin-bottom: 24px; }
+
+/* AVISO de novedades (FASE 23): intro + lista sobre el mismo panel/paleta que el
+   resto de overlays (tokens de acento, sin colores nuevos). Reusa .go-reiniciar
+   para el botón. Texto alineado a la izquierda para leer la lista con comodidad. */
+.nov-intro {
+  font: var(--texto-s);
+  color: var(--acento-claro, #FFC9B8);
+  margin: 0 0 12px;
+}
+.nov-lista {
+  list-style: disc;
+  margin: 0 0 20px;
+  padding-left: 22px;
+  text-align: left;
+  max-width: 320px;
+}
+.nov-lista li {
+  font: var(--texto-s);
+  color: var(--texto, #F4E9E2);
+  margin-bottom: 10px;
+  line-height: 1.35;
+}
 /* Botón JUGAR: dominante. Reusa .go-reiniciar; sólo lo hago más prominente. */
 .ini-jugar {
   font: var(--texto-xl);

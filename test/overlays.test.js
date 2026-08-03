@@ -27,7 +27,7 @@ console.log('=== PARIDAD HTML ↔ CSS: cada overlay del HTML está en AMBAS regl
   console.log(`  HTML(role=dialog): [${idsHtml.join(', ')}]`);
   console.log(`  CSS posición z3  : [${idsPos.join(', ')}]`);
   console.log(`  CSS oculto comp. : [${idsOcu.join(', ')}]`);
-  chk('los 4 overlays esperados en el HTML (inicio, nombre, gameover, pausa)', set(idsHtml) === set(['inicio', 'nombre', 'gameover', 'pausa']));
+  chk('los 5 overlays esperados en el HTML (inicio, nombre, novedades, gameover, pausa)', set(idsHtml) === set(['inicio', 'nombre', 'novedades', 'gameover', 'pausa']));
   chk('PARIDAD: HTML == regla de posición (nadie olvidado)', set(idsHtml) === set(idsPos));
   chk('PARIDAD: HTML == regla de ocultado compuesto', set(idsHtml) === set(idsOcu));
   chk('#nombre presente en AMBAS reglas (el bug de la fase 21, ahora registrado)', idsPos.indexOf('nombre') !== -1 && idsOcu.indexOf('nombre') !== -1);
@@ -39,7 +39,7 @@ console.log('=== Especificidad: el ocultado de CADA overlay es COMPUESTO (0-1-1-
   const compuestoParaTodos = idsHtml.every(function (id) { return idsOcu.indexOf(id) !== -1; });
   chk('cada overlay tiene su #X.oculto (ninguno depende de la .oculto genérica)', compuestoParaTodos);
   // La genérica .oculto existe pero NO alcanza para estos (por eso el compuesto).
-  chk('existe la .oculto genérica pero los overlays usan el compuesto', /^\.oculto \{ display: none; \}$/m.test(css) && idsOcu.length === 4);
+  chk('existe la .oculto genérica pero los overlays usan el compuesto', /^\.oculto \{ display: none; \}$/m.test(css) && idsOcu.length === 5);
 }
 
 console.log('=== TOQUES: el overlay (y su input/botones) queda POR ENCIMA del canvas ===');
@@ -56,17 +56,18 @@ console.log('=== SALIDA DE EMERGENCIA: botón "Omitir" existe, es tocable y llev
 {
   chk('botón Omitir en el overlay #nombre (reusa .go-reiniciar .go-modo-libre, sin componente nuevo)', /<button id="nombreOmitir" class="go-reiniciar go-modo-libre">Omitir<\/button>/.test(html));
   chk('Omitir tocable: vive dentro de #nombre (overlay z3, por encima del canvas)', /<div id="nombre"[\s\S]*?id="nombreOmitir"[\s\S]*?<\/div>\s*<\/div>/.test(html));
-  chk('Omitir → jugar SIN nombre (oculta #nombre y muestra inicio)', /function omitirNombre\(\) \{[\s\S]{0,120}elNombre\.classList\.add\('oculto'\);[\s\S]{0,60}mostrarPantallaInicio\(\);/.test(main));
+  // FASE 23: la salida del nombre pasa por irAInicioOAviso (nombre → aviso → inicio).
+  chk('Omitir → jugar SIN nombre (oculta #nombre y sale por irAInicioOAviso)', /function omitirNombre\(\) \{[\s\S]{0,120}elNombre\.classList\.add\('oculto'\);[\s\S]{0,60}irAInicioOAviso\(\);/.test(main));
   chk('Omitir cableado (addEventListener)', /if \(btnNombreOmitir\) btnNombreOmitir\.addEventListener\('click', omitirNombre\)/.test(main));
   chk('Omitir NO guarda nombre (no llama nombreStore.guardar)', !/function omitirNombre\(\)[\s\S]{0,200}nombreStore\.guardar/.test(main));
 }
 
 console.log('=== Dos caminos de salida y con-nombre no pide ===');
 {
-  chk('con nombre guardado → NO se muestra la pantalla de nombre', /if \(nombreUsuario\) mostrarPantallaInicio\(\);/.test(main));
+  chk('con nombre guardado → NO se muestra la pantalla de nombre (sale por irAInicioOAviso)', /if \(nombreUsuario\) irAInicioOAviso\(\);/.test(main));
   chk('sin nombre y con almacén → se muestra la pantalla de nombre', /else if \(puedeGuardarNombre\) mostrarPantallaNombre\(\);/.test(main));
-  chk('salida por CONFIRMAR (nombre válido → inicio)', /function confirmarNombre\(\)[\s\S]{0,500}mostrarPantallaInicio\(\);/.test(main));
-  chk('salida por OMITIR (sin nombre → inicio)', /function omitirNombre\(\)[\s\S]{0,120}mostrarPantallaInicio\(\);/.test(main));
+  chk('salida por CONFIRMAR (nombre válido → irAInicioOAviso)', /function confirmarNombre\(\)[\s\S]{0,500}irAInicioOAviso\(\);/.test(main));
+  chk('salida por OMITIR (sin nombre → irAInicioOAviso)', /function omitirNombre\(\)[\s\S]{0,120}irAInicioOAviso\(\);/.test(main));
 }
 
 console.log('=== TECLADO / anti-zoom iOS: campo alto 48, texto 16px, sin autofocus (intacto) ===');

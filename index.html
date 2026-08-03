@@ -50,6 +50,25 @@
     </div>
   </div>
 
+  <!-- AVISO de novedades (FASE 23): se muestra UNA vez por actualización, entre el
+       nombre y el inicio. Reusa .go-panel / .go-reiniciar (sin componentes nuevos).
+       Para publicar la próxima versión: subir NOVEDADES_VERSION en main.js y cambiar
+       el título/intro/lista de abajo. Los usuarios que venían de la versión previa
+       lo verán una sola vez; los nuevos no (se les guarda la versión en silencio). -->
+  <div id="novedades" class="oculto" role="dialog" aria-modal="true">
+    <div class="go-panel">
+      <p class="ini-titulo">Actualización 1.0</p>
+      <p class="nov-intro">Novedades de esta versión:</p>
+      <ul class="nov-lista">
+        <li>La hitball pesa un 10% más: el impacto se siente más contundente.</li>
+        <li>Los targets se parten: los trozos sueltos se desprenden y también puntúan.</li>
+        <li>Tu nombre aparece al centro del fondo.</li>
+        <li>El contador va limpio, sin contorno.</li>
+      </ul>
+      <button id="novedadesOk" class="go-reiniciar">Entendido</button>
+    </div>
+  </div>
+
   <div id="inicio" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
       <p class="ini-titulo">HitClaud</p>

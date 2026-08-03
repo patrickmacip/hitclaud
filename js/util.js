@@ -323,9 +323,25 @@
     'const MAX_CUBOS = 240;',
   ];
 
+  // ── AVISO DE NOVEDADES (FASE 23 commit C): decisión pura ───────────────────
+  // Dado lo último visto (string guardado, o '' / null si NADA) y la versión actual,
+  // decide qué hacer con el aviso de novedades. Tres salidas:
+  //   'guardar-silencio' → NADA guardado = usuario NUEVO (o almacén recién limpiado):
+  //                        NO se muestra el aviso; se guarda la versión actual en
+  //                        silencio (así sólo verá el aviso a partir de la PRÓXIMA).
+  //   'mostrar'          → hay una versión vista distinta de la actual = el usuario
+  //                        venía de una versión anterior → se muestra una sola vez.
+  //   'nada'             → ya vio esta versión (vista === actual) → no se muestra.
+  // Determinista y sin efectos: el llamador ejecuta la acción (guardar/mostrar).
+  function decidirAviso(versionVista, versionActual) {
+    if (!versionVista) return 'guardar-silencio';
+    if (versionVista !== versionActual) return 'mostrar';
+    return 'nada';
+  }
+
   const U = {
     leerToken: leerToken, crearPersistencia: crearPersistencia,
-    crearTextoPersistente: crearTextoPersistente,
+    crearTextoPersistente: crearTextoPersistente, decidirAviso: decidirAviso,
     parseEntrada: parseEntrada, abreviarNumero: abreviarNumero,
     SEC: SEC, faseCloudover: faseCloudover, valorVaciado: valorVaciado,
     estelaMeteoro: estelaMeteoro, crearMedidorFps: crearMedidorFps,
