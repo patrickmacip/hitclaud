@@ -159,7 +159,7 @@ body {
 /* Elementos con display:flex propio (declarado DESPUÉS de .oculto) necesitan la regla
    COMPUESTA para que ocultar gane: la línea de récord del fin (4.2, se oculta si no hubo
    récord) y el selector de duración (3.2, se oculta si el juego tiene una sola). */
-.go-record.oculto, .ini-modos.oculto { display: none; }
+.go-record.oculto, .ini-modos.oculto, .ini-ranking.oculto { display: none; }
 
 /* REGLA GENERAL DE VENTANAS (CAMBIO 1): un ÚNICO margen para todas (arriba, abajo, lados) y
    una altura máxima acotada al alto VISIBLE con `dvh` (respeta las barras dinámicas de Safari)
@@ -563,6 +563,24 @@ body {
   color: var(--acento-vivo, #FF8764);
   margin: 0 0 var(--esp-2);
 }
+
+/* ── FIN DE PARTIDA: cabecera fija (Compartir icono) · cuerpo desplazable · "Jugar de nuevo"
+   fijo al pie. Sólo el cuerpo se desplaza; el panel sigue acotado al alto de la pantalla
+   (hereda max-height de .go-panel). Lo más usado (Jugar de nuevo) queda pegado al pulgar. */
+.fin-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;        /* el panel NO desplaza; sólo .fin-cuerpo (1.4/7) */
+  padding: var(--esp-4) 28px;
+}
+.fin-cabecera { flex: 0 0 auto; margin-bottom: 0; } /* Compartir a la izquierda, sin icono a la derecha */
+.fin-cuerpo {
+  flex: 1 1 auto;
+  min-height: 0;           /* permite encoger y desplazar de verdad (nunca recorta arriba) */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.fin-jugar { flex: 0 0 auto; margin-top: var(--esp-3); } /* fijo al pie */
 
 .go-reiniciar {
   margin-top: 12px;

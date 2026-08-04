@@ -187,7 +187,7 @@ function tituloRank(rec) { return rec.fills.find(function (s) { return s.indexOf
 
   console.log('=== V4: los botones existen y están cableados ===');
   {
-    chk('botón Compartir en el fin de partida (contorno, como Ranking)', /<button id="compartirFin" class="ini-ranking"[\s\S]{0,120}#ic-compartir/.test(html));
+    chk('botón Compartir en el fin de partida (icono en la cabecera, como en el ranking)', /<button id="compartirFin" class="hdr-icono"[\s\S]{0,140}#ic-compartir/.test(html));
     chk('botón Compartir en el ranking (icono en la cabecera)', /<button id="compartirRank" class="hdr-icono"[\s\S]{0,140}#ic-compartir/.test(html));
     chk('icono de compartir definido (SVG monocromo, currentColor)', /<symbol id="ic-compartir"/.test(html));
     chk('compartirFin cableado → Compartir.compartirRecord', /compartirFin[\s\S]{0,260}Compartir\.compartirRecord\(/.test(main));

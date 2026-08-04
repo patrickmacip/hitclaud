@@ -45,7 +45,7 @@ console.log('=== 2.4/4: selector de duración de ANCHO IDÉNTICO, un renglón, �
   chk('.ini-sel reparte el ancho por igual (flex: 1)', /\.ini-sel \{[\s\S]{0,140}flex: 1;/.test(css));
   chk('.ini-sel en un solo renglón (nowrap) y altura ≥56px', /\.ini-sel \{[\s\S]{0,160}white-space: nowrap;/.test(css) && /\.ini-sel \{[\s\S]{0,160}min-height: 56px/.test(css));
   chk('pantalla 2: los botones de duración se generan como .ini-sel con texto "Ns"', /b\.className = 'go-reiniciar ini-sel'[\s\S]{0,120}b\.textContent = dur \+ 's'/.test(main));
-  chk('fin: botón principal "Jugar de nuevo" (.go-reiniciar .ini-jugar)', /<button id="finJugarDeNuevo" class="go-reiniciar ini-jugar">Jugar de nuevo<\/button>/.test(html));
+  chk('fin: botón principal "Jugar de nuevo" (.go-reiniciar .ini-jugar, fijo al pie)', /<button id="finJugarDeNuevo" class="go-reiniciar ini-jugar fin-jugar">Jugar de nuevo<\/button>/.test(html));
   chk('fin: "Cambiar duración" se oculta si el juego tiene una sola duración', /btnFinCambiar\.classList\.toggle\('oculto', unaSola\)/.test(main));
 }
 
@@ -76,7 +76,7 @@ console.log('=== CAMBIO 4: fin de partida sin la palabra "Score" ni la línea de
   chk('récord nuevo con la corona (4.2)', /<p class="go-record oculto"><svg class="icono icono-mini"[\s\S]{0,80}#ic-corona/.test(html));
   chk('sin la línea de diagnóstico del envío (go-envio) en el HTML/CSS/JS', !/go-envio/.test(html) && !/go-envio/.test(css) && !/go-envio/.test(main));
   chk('sin las funciones del diagnóstico (estadoEnvioTexto/pintarEstadoEnvio)', !/estadoEnvioTexto/.test(main) && !/pintarEstadoEnvio/.test(main));
-  chk('botón "Menú de juegos" discreto en el fin (4.7)', /id="finMenu" class="ini-actu" type="button">Menú de juegos<\/button>/.test(html));
+  chk('botón "Menú de juegos" con contorno en el fin (ya no texto suelto)', /id="finMenu" class="ini-ranking" type="button"><span>Menú de juegos<\/span><\/button>/.test(html));
 }
 
 console.log(`\n== RESUMEN interfaz: ${ok} OK, ${ko} NO ==`);

@@ -48,7 +48,7 @@ console.log('=== ARRANQUE: pantalla 1 primero, sin partida corriendo ===');
 
 console.log('=== FIN DE PARTIDA: "Jugar de nuevo" arranca el mismo juego+duración, no la pantalla 1 ===');
 {
-  chk('#gameover con "Jugar de nuevo"', /<button id="finJugarDeNuevo" class="go-reiniciar ini-jugar">Jugar de nuevo<\/button>/.test(html));
+  chk('#gameover con "Jugar de nuevo"', /<button id="finJugarDeNuevo" class="go-reiniciar ini-jugar fin-jugar">Jugar de nuevo<\/button>/.test(html));
   chk('"Jugar de nuevo" → iniciarPartida(juegoActivo, modoJuego)', /finJugarDeNuevo[\s\S]{0,120}iniciarPartida\(juegoActivo, modoJuego\)/.test(main));
   chk('pintarFin NO muestra la pantalla de inicio (queda en el fin)', !/function pintarFin[\s\S]{0,400}elInicio\.classList\.remove/.test(main));
 }

@@ -157,21 +157,28 @@
        "Jugar de nuevo" (principal, mismo juego y duración), "Cambiar duración" (oculto si el
        juego tiene una sola), Ranking y Compartir, y "Menú de juegos" discreto abajo. -->
   <div id="gameover" class="oculto" role="dialog" aria-modal="true">
-    <div class="go-panel">
-      <p class="go-score oculto"><span class="valor">0</span></p>
-      <p class="go-record oculto"><svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg> ¡Nuevo récord!</p>
-      <p class="go-rank oculto"></p>
-      <button id="finJugarDeNuevo" class="go-reiniciar ini-jugar">Jugar de nuevo</button>
-      <button id="finCambiarDuracion" class="ini-ranking" type="button"><span>Cambiar duración</span></button>
-      <button id="verRankingFin" class="ini-ranking" type="button">
-        <img src="assets/podio-1.svg" alt="" aria-hidden="true">
-        <span>Ranking</span>
-      </button>
-      <button id="compartirFin" class="ini-ranking" type="button">
-        <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-compartir"></use></svg>
-        <span>Compartir</span>
-      </button>
-      <button id="finMenu" class="ini-actu" type="button">Menú de juegos</button>
+    <div class="go-panel fin-panel">
+      <!-- CABECERA: Compartir (icono, esquina izquierda). Sin icono a la derecha. -->
+      <div class="ov-cabecera fin-cabecera">
+        <button id="compartirFin" class="hdr-icono" type="button" aria-label="Compartir">
+          <svg class="icono" aria-hidden="true"><use href="#ic-compartir"></use></svg>
+        </button>
+      </div>
+      <!-- CONTENIDO desplazable: puntaje, récord, puesto, y los botones secundarios. Los más
+           usados quedan abajo, cerca del pulgar; "Jugar de nuevo" va fijo al pie. -->
+      <div class="fin-cuerpo">
+        <p class="go-score oculto"><span class="valor">0</span></p>
+        <p class="go-record oculto"><svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg> ¡Nuevo récord!</p>
+        <p class="go-rank oculto"></p>
+        <button id="finMenu" class="ini-ranking" type="button"><span>Menú de juegos</span></button>
+        <button id="verRankingFin" class="ini-ranking" type="button">
+          <img src="assets/podio-1.svg" alt="" aria-hidden="true">
+          <span>Ranking</span>
+        </button>
+        <button id="finCambiarDuracion" class="ini-ranking" type="button"><span>Cambiar duración</span></button>
+      </div>
+      <!-- PIE fijo: "Jugar de nuevo", relleno sólido, el más grande, hasta abajo. -->
+      <button id="finJugarDeNuevo" class="go-reiniciar ini-jugar fin-jugar">Jugar de nuevo</button>
     </div>
   </div>
 
