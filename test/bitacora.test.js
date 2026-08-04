@@ -22,15 +22,15 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 9 versiones', B.versiones.length === 9);
-  chk('la primera entrada es la 1.4 (más reciente primero)', B.versiones[0].version === '1.4');
-  chk('la 1.4 trae sus cinco puntos literales', (function () {
+  chk('hay exactamente 10 versiones', B.versiones.length === 10);
+  chk('la primera entrada es la 1.5 (más reciente primero)', B.versiones[0].version === '1.5');
+  chk('la 1.5 trae sus dos puntos literales', (function () {
     const v = B.versiones[0];
-    return v.version === '1.4' && v.fecha === '3 de agosto' && v.puntos.length === 5 &&
-      v.puntos[0].texto === 'Interfaz rediseñada: la barra ahora muestra puntaje y tiempo juntos' &&
-      v.puntos[4].texto === 'Los últimos 5 segundos se ponen rojos';
+    return v.version === '1.5' && v.fecha === '3 de agosto' && v.puntos.length === 2 &&
+      v.puntos[0].texto === 'Ahora puedes compartir tu récord con una imagen lista para presumir' &&
+      v.puntos[1].texto === 'También puedes compartir el podio del ranking';
   })());
-  chk('la segunda entrada sigue siendo la 1.3', B.versiones[1].version === '1.3');
+  chk('la segunda entrada sigue siendo la 1.4', B.versiones[1].version === '1.4');
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });

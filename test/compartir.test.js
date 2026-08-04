@@ -1,0 +1,143 @@
+// hitclaud — compartir récord y ranking con imagen. node test/compartir.test.js
+// Prueba las partes PURAS (textos, tamaño del puntaje, puesto), el DIBUJO con un ctx
+// simulado (franja de récord, fila del jugador) y la CASCADA de compartir (imagen →
+// texto → portapapeles) sin lanzar. El PNG real se valida aparte (ver V3 en el reporte).
+
+const fs = require('fs');
+const C = require('../js/compartir.js');
+const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
+const main = fs.readFileSync(__dirname + '/../js/main.js', 'utf8');
+const css = fs.readFileSync(__dirname + '/../css/main.css', 'utf8');
+
+let ok = 0, ko = 0;
+function chk(n, c) { console.log(`  ${n}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) ok++; else ko++; }
+
+// ── ctx simulado: registra fillText / stroke / drawImage; measureText desde el font. ──
+function mockCtx() {
+  const rec = { fills: [], strokes: 0, images: 0 };
+  const noop = function () {};
+  const ctx = {
+    _font: '20px', fillStyle: '', strokeStyle: '', globalAlpha: 1, lineWidth: 1, textAlign: '', textBaseline: '',
+    save: noop, restore: noop, beginPath: noop, moveTo: noop, lineTo: noop, arc: noop, arcTo: noop,
+    closePath: noop, fill: noop, translate: noop, rotate: noop, scale: noop, fillRect: noop,
+    stroke: function () { rec.strokes++; },
+    drawImage: function () { rec.images++; },
+    measureText: function (s) { const m = /(\d+)px/.exec(ctx._font || ''); const px = m ? +m[1] : 20; return { width: String(s).length * px * 0.6 }; },
+    fillText: function (t) { rec.fills.push(String(t)); },
+  };
+  Object.defineProperty(ctx, 'font', { get() { return ctx._font; }, set(v) { ctx._font = v; } });
+  ctx._rec = rec;
+  return ctx;
+}
+
+(async function () {
+  console.log('=== V4: los textos de compartir en los tres casos (4.1/4.2/4.3) ===');
+  {
+    chk('récord', C.textoRecord({ puntos: 4200, modo: '15' }) === '4200 puntos en HitClaud, modo 15s. ¿Le ganas?\nhttps://patrickmacip.github.io/hitclaud');
+    chk('ranking dentro del top', C.textoRanking({ modo: '30', puesto: 7 }) === 'Top 3 de HitClaud, modo 30s. Yo voy en el puesto 7.\nhttps://patrickmacip.github.io/hitclaud');
+    chk('ranking fuera del top', C.textoRanking({ modo: '60', puesto: null }) === 'Top 3 de HitClaud, modo 60s.\nhttps://patrickmacip.github.io/hitclaud');
+    chk('puesto > 20 se trata como fuera del top', C.textoRanking({ modo: '15', puesto: 44 }).indexOf('puesto') === -1);
+    chk('el enlace va SIEMPRE al final', /hitclaud$/.test(C.textoRecord({ puntos: 1, modo: '15' })) && /hitclaud$/.test(C.textoRanking({ modo: '15', puesto: 1 })));
+  }
+
+  console.log('=== V4: un puntaje de muchos dígitos NO se desborda de la tarjeta ===');
+  {
+    const anchoUtil = C.LADO - 2 * C.MARGEN; // 920
+    const medir = function (txt, px) { return txt.length * px * 0.6; };
+    const t4 = C.tamPuntaje('4200', anchoUtil, medir, 300);
+    const t6 = C.tamPuntaje('123456', anchoUtil, medir, 300);
+    const t9 = C.tamPuntaje('999999999', anchoUtil, medir, 300);
+    chk('4 dígitos usa el tamaño máximo (300)', t4 === 300);
+    chk('más dígitos → menor tamaño (6 < 4, 9 < 6)', t6 < t4 && t9 < t6);
+    chk('ningún caso se desborda (ancho ≤ útil)', medir('4200', t4) <= anchoUtil && medir('123456', t6) <= anchoUtil && medir('999999999', t9) <= anchoUtil);
+  }
+
+  console.log('=== V4: la franja "NUEVO RÉCORD" sólo aparece cuando corresponde ===');
+  {
+    const conRec = mockCtx(); C.dibujarTarjetaRecord(conRec, { puntos: 1234, modo: '15', nombre: 'PAT', esRecord: true });
+    const sinRec = mockCtx(); C.dibujarTarjetaRecord(sinRec, { puntos: 123456, modo: '30', nombre: 'PAT', esRecord: false });
+    chk('con récord nuevo → dibuja "NUEVO RÉCORD"', conRec._rec.fills.indexOf('NUEVO RÉCORD') !== -1);
+    chk('sin récord nuevo → NO dibuja la franja', sinRec._rec.fills.indexOf('NUEVO RÉCORD') === -1);
+    chk('dibujar la tarjeta de récord NO lanza (ctx simulado)', true);
+    // el puntaje se dibuja como texto (número completo, no abreviado)
+    chk('el puntaje completo se dibuja (123456)', sinRec._rec.fills.indexOf('123456') !== -1);
+    chk('el modo se dibuja en palabras ("30 segundos")', sinRec._rec.fills.indexOf('30 segundos') !== -1);
+  }
+
+  console.log('=== V4: la fila del jugador sólo aparece si está en top 20 y NO en el podio ===');
+  {
+    const top = [];
+    for (let i = 1; i <= 20; i++) top.push({ nombre: 'J' + i, puntos: 2000 - i * 10 });
+    // Jugador en el puesto 7 → fila extra + línea separadora (stroke).
+    const c7 = mockCtx(); C.dibujarTarjetaRanking(c7, { modo: '15', top: top, nombre: 'J7' });
+    chk('puesto 7 (top 20, no podio) → hay fila extra (separador con stroke)', c7._rec.strokes >= 1 && c7._rec.fills.indexOf('7') !== -1);
+    // Jugador en el podio (puesto 1) → NO se repite abajo, sin separador.
+    const c1 = mockCtx(); C.dibujarTarjetaRanking(c1, { modo: '15', top: top, nombre: 'J1' });
+    chk('puesto 1 (podio) → NO hay fila extra (sin separador)', c1._rec.strokes === 0);
+    // Jugador fuera del top 20 → sin fila extra.
+    const cFuera = mockCtx(); C.dibujarTarjetaRanking(cFuera, { modo: '15', top: top, nombre: 'DESCONOCIDO' });
+    chk('fuera del top 20 → sin fila extra', cFuera._rec.strokes === 0);
+    // Menos de 3 puntajes → dibuja los que haya, sin romper (3.7).
+    const cUno = mockCtx(); C.dibujarTarjetaRanking(cUno, { modo: '60', top: [{ nombre: 'SOLO', puntos: 999 }], nombre: 'SOLO' });
+    chk('con 1 solo puntaje se dibuja sin lanzar', cUno._rec.fills.indexOf('SOLO') !== -1);
+    chk('puesto 1 con 1 puntaje no repite fila (podio)', cUno._rec.strokes === 0);
+  }
+
+  console.log('=== V4: la cascada de compartir cae de imagen → texto → portapapeles, sin lanzar ===');
+  {
+    // Node 26 trae un `navigator` global de sólo lectura → hay que forzar el reemplazo con
+    // defineProperty (en el navegador real esto NO ocurre; el código usa el navigator del SO).
+    const fileReal = global.File;
+    function setNav(n) { Object.defineProperty(globalThis, 'navigator', { value: n, configurable: true, writable: true }); }
+    global.File = function (parts, name, opts) { this.name = name; this.type = opts && opts.type; };
+    const blobFalso = { size: 10 };
+
+    // (a) Soporta imagen pero compartir la IMAGEN falla → cae a TEXTO (share de texto OK).
+    setNav({
+      canShare: function () { return true; },
+      share: function (data) { return (data && data.files) ? Promise.reject(new Error('no img')) : Promise.resolve(); },
+    });
+    let via = (await C._compartir('hola', blobFalso, 'x.png')).via;
+    chk('imagen falla → cae a texto (sin excepción)', via === 'texto');
+
+    // (b) Compartir falla del todo (share siempre rechaza) → copia al portapapeles.
+    let copiado = null;
+    setNav({
+      canShare: function () { return true; },
+      share: function () { return Promise.reject(new Error('nope')); },
+      clipboard: { writeText: function (t) { copiado = t; return Promise.resolve(); } },
+    });
+    via = (await C._compartir('texto+enlace', blobFalso, 'x.png')).via;
+    chk('compartir falla del todo → copia al portapapeles', via === 'portapapeles' && copiado === 'texto+enlace');
+
+    // (c) Sin navigator.share y sin clipboard → 'nada', pero NUNCA lanza.
+    setNav({});
+    via = (await C._compartir('t', null, 'x.png')).via;
+    chk('sin ningún soporte → resuelve "nada" sin lanzar', via === 'nada');
+
+    // (d) La API pública nunca lanza aunque no haya DOM (canvas), resuelve una vía.
+    setNav({ clipboard: { writeText: function () { return Promise.resolve(); } } });
+    let lanzo = false, r = null;
+    try { r = await C.compartirRecord({ puntos: 500, modo: '15', nombre: 'PAT', esRecord: true }); } catch (e) { lanzo = true; }
+    chk('compartirRecord no lanza sin DOM y resuelve una vía', !lanzo && r && typeof r.via === 'string');
+    try { r = await C.compartirRanking({ modo: '15', top: [{ nombre: 'PAT', puntos: 9 }], nombre: 'PAT' }); } catch (e) { lanzo = true; }
+    chk('compartirRanking no lanza sin DOM y resuelve una vía', !lanzo && r && typeof r.via === 'string');
+
+    global.File = fileReal;
+  }
+
+  console.log('=== V4: los botones existen y están cableados ===');
+  {
+    chk('botón Compartir en el fin de partida (contorno, como Ranking)', /<button id="compartirFin" class="ini-ranking"[\s\S]{0,120}#ic-compartir/.test(html));
+    chk('botón Compartir en el ranking (cerca de Cerrar)', /<button id="compartirRank" class="ini-ranking rank-compartir"[\s\S]{0,120}#ic-compartir[\s\S]*?<button id="rankCerrar"/.test(html));
+    chk('icono de compartir definido (SVG monocromo, currentColor)', /<symbol id="ic-compartir"/.test(html));
+    chk('compartirFin cableado → Compartir.compartirRecord', /compartirFin[\s\S]{0,260}Compartir\.compartirRecord\(/.test(main));
+    chk('compartirRank cableado → Compartir.compartirRanking (modo visible + top actual)', /compartirRank[\s\S]{0,260}Compartir\.compartirRanking\(\{ modo: rankModo, top: rankTopActual/.test(main));
+    chk('el botón muestra que trabaja mientras genera (5.3)', /marcarCompartiendo\([^,]+, true\)/.test(main) && /Generando…/.test(main));
+    chk('área táctil del botón ≥44px (reusa .ini-ranking, min-height 52)', /\.ini-ranking \{[\s\S]{0,200}min-height: 52px/.test(css));
+    chk('script de compartir.js ANTES de main.js', main && /compartir\.js"><\/script>\s*<script src="js\/main\.js"/.test(html));
+  }
+
+  console.log(`\n== RESUMEN compartir: ${ok} OK, ${ko} NO ==`);
+  if (ko > 0) process.exit(1);
+})();

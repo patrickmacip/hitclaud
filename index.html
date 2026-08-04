@@ -22,6 +22,7 @@
     <symbol id="ic-corona" viewBox="0 0 24 24"><path d="M2.5 8l4.2 3.2L12 4.5l5.3 6.7L21.5 8l-1.7 10.5H4.2L2.5 8z"/></symbol>
     <symbol id="ic-casa" viewBox="0 0 24 24"><path d="M12 3.2 21.5 11h-2.9v9.8h-4.7v-5.7h-2.8v5.7H5.4V11H2.5z"/></symbol>
     <symbol id="ic-lapiz" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.84 1.83 3.75 3.75 1.84-1.83z"/></symbol>
+    <symbol id="ic-compartir" viewBox="0 0 24 24"><path d="M12 2.6l4 4-1.4 1.4L13 6.4V15h-2V6.4L9.4 8l-1.4-1.4 4-4z"/><path d="M5 10h3v2H6v8h12v-8h-2v-2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1z"/></symbol>
   </svg>
 
   <!-- BARRA de juego: tres zonas SIN etiquetas de texto (P1). Izquierda = récord (corona +
@@ -110,6 +111,10 @@
         <button class="go-reiniciar ini-sel rank-sel" data-modo="60">60s</button>
       </div>
       <div class="rank-cuerpo" id="rankCuerpo"></div>
+      <button id="compartirRank" class="ini-ranking rank-compartir" type="button">
+        <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-compartir"></use></svg>
+        <span>Compartir</span>
+      </button>
       <button id="rankCerrar" class="go-reiniciar">Cerrar</button>
     </div>
   </div>
@@ -126,6 +131,10 @@
         <img src="assets/podio-1.svg" alt="" aria-hidden="true">
         <span>Ranking</span>
       </button>
+      <button id="compartirFin" class="ini-ranking" type="button">
+        <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-compartir"></use></svg>
+        <span>Compartir</span>
+      </button>
       <div class="ini-modos go-modos" role="group" aria-label="Jugar de nuevo">
         <button id="jugar15" class="go-reiniciar ini-sel">15s</button>
         <button id="jugar30" class="go-reiniciar ini-sel">30s</button>
@@ -141,6 +150,7 @@
   <script src="js/render.js"></script>
   <script src="js/bitacora.js"></script>
   <script src="js/ranking.js"></script>
+  <script src="js/compartir.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

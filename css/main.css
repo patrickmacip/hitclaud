@@ -237,8 +237,11 @@ body {
   cursor: pointer;
 }
 .ini-ranking img { width: 24px; height: 24px; display: block; }
+.ini-ranking .icono-mini { width: 22px; height: 22px; } /* icono de compartir a la par del podio */
 .ini-ranking:active { transform: scale(0.98); }
 @media (hover: hover) { .ini-ranking:hover { border-color: var(--acento-vivo, #FF8764); } }
+/* Botón "Compartir" del ranking: secundario, pegado sobre "Cerrar" sin competir con él. */
+.rank-compartir { margin-top: 6px; margin-bottom: 2px; }
 
 /* PANTALLA DE ACTUALIZACIONES (FASE 26): panel en columna con la LISTA scrolleable
    y el botón Cerrar SIEMPRE visible (fuera del área que scrollea). Reusa .go-reiniciar

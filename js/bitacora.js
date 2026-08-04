@@ -14,6 +14,13 @@
 
   const versiones = [
     {
+      version: '1.5', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Ahora puedes compartir tu récord con una imagen lista para presumir' },
+        { texto: 'También puedes compartir el podio del ranking' },
+      ],
+    },
+    {
       version: '1.4', fecha: '3 de agosto',
       puntos: [
         { texto: 'Interfaz rediseñada: la barra ahora muestra puntaje y tiempo juntos' },

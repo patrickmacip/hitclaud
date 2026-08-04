@@ -164,6 +164,7 @@
   // OVERLAY de fin/selección: elegís la duración (15/30/60 seg); aparece al terminar
   // una partida. Corre una cuenta regresiva y al llegar a 0 termina por tiempo.
   const elGameOver = document.getElementById('gameover');
+  let finDatos = null; // datos de la última partida terminada, para "Compartir" (tarjeta de récord)
   // DURACIONES por modo (ms). ÚNICA diferencia entre modos: el valor de acá.
   // Parametrizado para no duplicar la maquinaria de partida: el reloj y el
   // temporizador leen DURACIONES[modo] (mismo código para 15/30/60).
@@ -300,6 +301,9 @@
     const gr = elGameOver.querySelector('.go-rank');
     if (gr) gr.classList.add('oculto'); // se muestra sólo si el envío confirma que entró
     marcarModoFin(); // resalta en el selector el modo que se acaba de jugar
+    // Datos para "Compartir" (tarjeta de récord): el puntaje REAL de esta partida, su modo
+    // y si fue récord. El nombre se resuelve al momento de compartir (puede llegar por IDB).
+    finDatos = { puntos: score, modo: modoJuego, esRecord: !!esRecord };
     elGameOver.classList.remove('oculto');
   }
   // Resalta el modo activo (modoJuego) entre los tres botones del selector del fin.
@@ -508,6 +512,7 @@
   const botonesRankSel = elRanking ? elRanking.querySelectorAll('.rank-sel') : [];
   let rankModo = '60';   // modo mostrado en el ranking
   let rankPeticion = 0;  // token de relevo: descarta respuestas viejas
+  let rankTopActual = []; // último top cargado del modo visible (para compartir la tarjeta)
   function marcarModoRank() {
     for (let i = 0; i < botonesRankSel.length; i++) {
       botonesRankSel[i].classList.toggle('sel-activo', botonesRankSel[i].getAttribute('data-modo') === rankModo);
@@ -566,8 +571,8 @@
     rankEstado('Cargando…', false);
     Ranking.pedirTop(rankModo).then(function (res) {
       if (token !== rankPeticion) return; // respuesta vieja (se cambió de modo / recargó) → ignorar
-      if (res && res.ok) pintarTabla(res.top);
-      else rankEstado('No se pudo cargar la tabla. Revisá tu conexión.', true);
+      if (res && res.ok) { rankTopActual = res.top || []; pintarTabla(res.top); }
+      else { rankTopActual = []; rankEstado('No se pudo cargar la tabla. Revisá tu conexión.', true); }
     });
   }
   function elegirModoRank(modo) { rankModo = modo; marcarModoRank(); cargarRanking(); }
@@ -593,6 +598,45 @@
   const btnVerRankingFin = document.getElementById('verRankingFin'); // Ranking desde el fin (4.4)
   if (btnVerRankingFin) btnVerRankingFin.addEventListener('click', abrirRanking);
   if (btnRankCerrar) btnRankCerrar.addEventListener('click', cerrarRanking);
+
+  // ── COMPARTIR (FASE: imagen). Todo pasa por js/compartir.js (ninguna otra parte del
+  // juego genera imágenes ni habla con navigator.share). Mientras trabaja, el botón lo
+  // muestra; el fallo a texto (>3s o sin soporte de imagen) lo maneja compartir.js. Un
+  // fallo NUNCA rompe el juego (compartir.js nunca lanza; acá igual va en try/catch). ──
+  function marcarCompartiendo(btn, on, via) {
+    if (!btn) return;
+    const span = btn.querySelector('span');
+    if (on) {
+      btn.disabled = true;
+      btn.dataset.txt = span ? span.textContent : '';
+      if (span) span.textContent = 'Generando…';
+    } else {
+      btn.disabled = false;
+      if (span) span.textContent = (via === 'portapapeles') ? '¡Copiado!' : (btn.dataset.txt || 'Compartir');
+      // Si se copió, restaura la etiqueta tras un momento (sin temporizadores si el botón se fue).
+      if (via === 'portapapeles' && span) { const t0 = btn.dataset.txt || 'Compartir'; setTimeout(function () { try { span.textContent = t0; } catch (e) {} }, 2000); }
+    }
+  }
+  const btnCompartirFin = document.getElementById('compartirFin');
+  if (btnCompartirFin) btnCompartirFin.addEventListener('click', function () {
+    if (typeof Compartir === 'undefined' || !finDatos) return;
+    marcarCompartiendo(btnCompartirFin, true);
+    try {
+      Compartir.compartirRecord({ puntos: finDatos.puntos, modo: finDatos.modo, esRecord: finDatos.esRecord, nombre: nombreUsuario })
+        .then(function (r) { marcarCompartiendo(btnCompartirFin, false, r && r.via); },
+              function () { marcarCompartiendo(btnCompartirFin, false); });
+    } catch (e) { marcarCompartiendo(btnCompartirFin, false); }
+  });
+  const btnCompartirRank = document.getElementById('compartirRank');
+  if (btnCompartirRank) btnCompartirRank.addEventListener('click', function () {
+    if (typeof Compartir === 'undefined') return;
+    marcarCompartiendo(btnCompartirRank, true);
+    try {
+      Compartir.compartirRanking({ modo: rankModo, top: rankTopActual, nombre: nombreUsuario })
+        .then(function (r) { marcarCompartiendo(btnCompartirRank, false, r && r.via); },
+              function () { marcarCompartiendo(btnCompartirRank, false); });
+    } catch (e) { marcarCompartiendo(btnCompartirRank, false); }
+  });
   // Reintenta, al arrancar y en segundo plano, los puntajes que quedaron pendientes por
   // un fallo de envío en una partida anterior (una partida buena no se pierde).
   try { if (typeof Ranking !== 'undefined') Ranking.reintentarPendientes(); } catch (e) { /* nunca rompe */ }

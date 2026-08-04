@@ -1,5 +1,5 @@
 // hitclaud — service worker: cache-first del shell
-const CACHE = 'hitclaud-shell-v70';
+const CACHE = 'hitclaud-shell-v71';
 const SHELL = [
   '.',
   'index.html',
@@ -12,6 +12,7 @@ const SHELL = [
   'js/render.js',
   'js/bitacora.js',
   'js/ranking.js',
+  'js/compartir.js',
   'manifest.json',
   'assets/icon-192.png',
   'assets/icon-512.png',
