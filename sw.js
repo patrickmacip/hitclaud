@@ -1,5 +1,5 @@
 // hitclaud — service worker: cache-first del shell
-const CACHE = 'hitclaud-shell-v72';
+const CACHE = 'hitclaud-shell-v73';
 const SHELL = [
   '.',
   'index.html',

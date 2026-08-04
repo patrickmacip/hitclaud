@@ -96,6 +96,33 @@ function tituloRank(rec) { return rec.fills.find(function (s) { return s.indexOf
     chk('el ranking dibuja la bolita/estela (arcos de círculo)', r._rec.arcs > 0);
   }
 
+  console.log('=== D1: la cinta de récord NUNCA toca los dígitos (aire proporcional) ===');
+  {
+    const medir = function (txt, px) { return txt.length * px * 0.6; };
+    const s4 = C.tamPuntaje('4200', C.LADO - 2 * C.MARGEN, medir, 300);   // 4 dígitos
+    const s6 = C.tamPuntaje('428750', C.LADO - 2 * C.MARGEN, medir, 300); // 6 dígitos
+    const g4 = C._cintaRecord(s4, 560), g6 = C._cintaRecord(s6, 560);
+    const gap4 = g4.digitTop - (g4.cy + g4.h / 2), gap6 = g6.digitTop - (g6.cy + g6.h / 2);
+    chk('con 4 dígitos hay aire (>0) entre la cinta y el tope del dígito', gap4 > 0);
+    chk('con 6 dígitos hay aire (>0) entre la cinta y el tope del dígito', gap6 > 0);
+    chk('el aire es proporcional al tamaño (más grande el puntaje, más aire)', s4 > s6 ? gap4 > gap6 : gap4 <= gap6);
+    chk('la cinta queda ENCIMA del tope del dígito (cy < digitTop)', g4.cy < g4.digitTop && g6.cy < g6.digitTop);
+  }
+
+  console.log('=== D2/D3: la bolita y su estela caben en los márgenes y no pisan filas/pie ===');
+  {
+    const M = C.MARGEN, L = C.LADO;
+    function dentro(b) { return b.minX >= M && b.minY >= M && b.maxX <= L - M && b.maxY <= L - M; }
+    const fr = C.FIRMA_RECORD, fk = C.FIRMA_RANKING;
+    const br = C._firmaBounds(fr.cx, fr.cy, fr.r, fr.dir);
+    const bk = C._firmaBounds(fk.cx, fk.cy, fk.r, fk.dir);
+    chk('firma del RÉCORD entera dentro de los márgenes (80..1000)', dentro(br));
+    chk('firma del RANKING entera dentro de los márgenes (80..1000)', dentro(bk));
+    // La firma del ranking vive por ENCIMA de la franja de filas → no pisa filas, ni la caja
+    // del jugador, ni el pie (todos ≥ RANK_REG_TOP, y el pie más abajo aún).
+    chk('firma del ranking por encima de las filas (maxY ≤ RANK_REG_TOP)', bk.maxY <= C.RANK_REG_TOP);
+  }
+
   console.log('=== V4: la fila del jugador sólo aparece si está en top 20 y NO en el podio ===');
   {
     const top = [];

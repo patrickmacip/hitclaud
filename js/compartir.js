@@ -23,6 +23,20 @@
   var FUENTE = "'Inter', system-ui, -apple-system, sans-serif";
   var MONO = 'ui-monospace, Menlo, monospace';
 
+  // Cinta de récord: alto fijo; el aire bajo la cinta y el tope del dígito son PROPORCIONALES
+  // al tamaño del puntaje (funciona con cualquier cantidad de cifras).
+  var CINTA_H = 58;
+  var CAP_PUNTAJE = 0.38; // cuánto sube el dígito desde su centro (fracción del tamaño)
+  var CINTA_AIRE = 0.18;  // aire visible entre el borde inferior de la cinta y el tope del dígito
+  // Firma (bolita + estela): estela COMPACTA para que quepa entera dentro de los márgenes.
+  var FIRMA_N = 9, FIRMA_PASO = 13, FIRMA_CURVA = 1.3;
+  // Posiciones FIJAS de la firma (no dependen de los datos): récord abajo-derecha; ranking
+  // arriba-derecha (por encima de la franja de filas, sin tocar filas/caja/pie). La estela
+  // va hacia la bolita (dir −1). Ambas dentro de [MARGEN, LADO−MARGEN].
+  var FIRMA_RECORD = { cx: 900, cy: 848, r: 30, dir: -1 };
+  var FIRMA_RANKING = { cx: 905, cy: 205, r: 22, dir: -1 };
+  var RANK_REG_TOP = 316; // tope de la franja vertical donde se centran las filas del ranking
+
   // ── Tokens con respaldo (2.5): nunca vacíos; funciona sin getComputedStyle (node/tests). ──
   function tokens() {
     var cs = null;
@@ -111,15 +125,34 @@
     ctx.fill();
     ctx.restore();
   }
-  // Bolita coral con estela (firma visual). Reutiliza U.estelaMeteoro con una historia
-  // sintética (arco corto). Sin shadowBlur: la estela es una cola de discos que se
-  // estrechan y se desvanecen (como dibujarEstela, simplificado).
-  function firmaBolita(ctx, cx, cy, radio, t, dirX) {
-    dirX = dirX || -1; // -1 = estela hacia la izquierda-abajo (récord); +1 = derecha-abajo (ranking)
-    ctx.save();
+  // Historia sintética (arco corto y COMPACTO) para la estela. dirX −1 = la cola sale hacia
+  // la izquierda-abajo, +1 hacia la derecha-abajo; en ambos casos el rastro APUNTA a la
+  // bolita (la cabeza es la bolita). PURA → la usan el dibujo y el cálculo de límites.
+  function _firmaHist(cx, cy, dirX) {
+    dirX = dirX || -1;
     var hist = [];
-    for (var k = 1; k <= 12; k++) hist.push({ x: cx + dirX * k * 14, y: cy + k * k * 0.9 });
-    var e = (U && U.estelaMeteoro) ? U.estelaMeteoro(cx, cy, hist, radio, 24) : null;
+    for (var k = 1; k <= FIRMA_N; k++) hist.push({ x: cx + dirX * k * FIRMA_PASO, y: cy + k * k * FIRMA_CURVA });
+    return hist;
+  }
+  // Caja envolvente de la firma (bolita + discos de la estela). PURA → la prueba verifica
+  // que quepa entera dentro de los márgenes (D2) y por encima de las filas del ranking (D3).
+  function _firmaBounds(cx, cy, radio, dirX) {
+    var b = { minX: cx - radio, maxX: cx + radio, minY: cy - radio, maxY: cy + radio };
+    var e = (U && U.estelaMeteoro) ? U.estelaMeteoro(cx, cy, _firmaHist(cx, cy, dirX), radio, 24) : null;
+    if (e && e.pts) {
+      for (var i = 0; i < e.pts.length; i++) {
+        var p = e.pts[i], w = Math.max(1, p.w);
+        if (p.x - w < b.minX) b.minX = p.x - w; if (p.x + w > b.maxX) b.maxX = p.x + w;
+        if (p.y - w < b.minY) b.minY = p.y - w; if (p.y + w > b.maxY) b.maxY = p.y + w;
+      }
+    }
+    return b;
+  }
+  // Bolita coral con estela (firma visual). Reutiliza U.estelaMeteoro. Sin shadowBlur: la
+  // estela es una cola de discos que se estrechan y se desvanecen hacia la cabeza (bolita).
+  function firmaBolita(ctx, cx, cy, radio, t, dirX) {
+    ctx.save();
+    var e = (U && U.estelaMeteoro) ? U.estelaMeteoro(cx, cy, _firmaHist(cx, cy, dirX), radio, 24) : null;
     if (e && e.pts) {
       for (var i = 0; i < e.pts.length; i++) {
         var p = e.pts[i];
@@ -133,6 +166,14 @@
     ctx.beginPath(); ctx.arc(cx, cy, radio, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
+  // Geometría de la cinta de récord: dado el tamaño del puntaje y su centro Y, devuelve el
+  // centro Y de la cinta y el tope visual del dígito, con AIRE proporcional entre ambos (D1).
+  // PURA → la prueba verifica que la cinta nunca toca los dígitos, con cualquier nº de cifras.
+  function _cintaRecord(size, scoreY) {
+    var digitTop = scoreY - size * CAP_PUNTAJE;   // punto más alto de los dígitos
+    var aire = size * CINTA_AIRE;                  // separación proporcional al tamaño
+    return { cy: digitTop - aire - CINTA_H / 2, h: CINTA_H, digitTop: digitTop, aire: aire };
+  }
   // CINTA horizontal "NUEVO RÉCORD" (negro sobre coral), centrada en (cx,cy). SIN inclinar
   // y del ancho JUSTO del texto + margen interno → no cruza la tarjeta ni tapa el título.
   function dibujarCinta(ctx, cx, cy, t) {
@@ -141,7 +182,7 @@
     ctx.font = '800 32px ' + FUENTE;
     try { ctx.letterSpacing = '4px'; } catch (e) {} // espaciado entre letras (navegador)
     var wText = ctx.measureText(texto).width;
-    var padX = 34, h = 58;
+    var padX = 34, h = CINTA_H;
     var wBox = wText + padX * 2;
     ctx.fillStyle = t.coral;
     _roundRect(ctx, cx - wBox / 2, cy - h / 2, wBox, h, 12);
@@ -160,8 +201,8 @@
     fondoCascada(ctx, t);
     var cx = LADO / 2;
     var anchoUtil = LADO - 2 * MARGEN; // 920
-    // Firma bolita: abajo-derecha, lejos del texto centrado (no lo tapa).
-    firmaBolita(ctx, LADO - MARGEN - 60, LADO - MARGEN - 120, 30, t);
+    // Firma bolita: abajo-derecha, con la estela entera dentro de los márgenes (posición fija).
+    firmaBolita(ctx, FIRMA_RECORD.cx, FIRMA_RECORD.cy, FIRMA_RECORD.r, t, FIRMA_RECORD.dir);
     // Encabezado "HitClaud" coral 64 / 800.
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = t.coral; ctx.font = '800 64px ' + FUENTE;
@@ -173,10 +214,7 @@
     var texto = String(_entero(o.puntos));
     var medir = function (txt, px) { ctx.font = '800 ' + px + 'px ' + FUENTE; return ctx.measureText(txt).width; };
     var size = tamPuntaje(texto, anchoUtil, medir, 300);
-    if (o.esRecord) {
-      var capTop = SCORE_Y - size * 0.36;   // tope visual aproximado del dígito
-      dibujarCinta(ctx, cx, capTop - 40, t); // cinta pegada sobre el puntaje, centrada
-    }
+    if (o.esRecord) dibujarCinta(ctx, cx, _cintaRecord(size, SCORE_Y).cy, t); // aire proporcional (D1)
     // PUNTAJE enorme blanco, tamaño ajustado a los dígitos (nunca se desborda).
     ctx.font = '800 ' + size + 'px ' + FUENTE;
     ctx.fillStyle = t.blanco; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -261,7 +299,7 @@
     // verticalmente entre el título y el pie → nunca queda medio lienzo vacío abajo.
     var filaH = 150, rowH = 118, sep = 46;
     var Hvis = Math.max(0, (n - 1)) * filaH + rowH + (hayJugador ? (sep + rowH) : 0);
-    var regTop = 316, regBot = LADO - MARGEN - 70; // franja disponible sobre el pie (~944)
+    var regTop = RANK_REG_TOP, regBot = LADO - MARGEN - 70; // franja disponible sobre el pie (~944)
     var y0 = regTop + Math.max(0, ((regBot - regTop) - Hvis) / 2);
     for (var i = 0; i < n; i++) dibujarFilaRank(ctx, t, x, y0 + i * filaH, w, i + 1, top[i], imgs[i + 1], false);
     if (hayJugador) {
@@ -272,9 +310,10 @@
       ctx.restore();
       dibujarFilaRank(ctx, t, x, yTrasPodio + sep, w, puesto, top[puesto - 1], null, true);
     }
-    // 4.1/4.2: firma visual (bolita coral con estela) también en el ranking, abajo-derecha,
-    // con la estela hacia la esquina (dirX +1) para no tapar filas ni el pie.
-    firmaBolita(ctx, LADO - MARGEN - 100, LADO - MARGEN - 60, 22, t, 1);
+    // 4.1/4.2: firma visual (bolita coral con estela) también en el ranking. Va ARRIBA-derecha,
+    // por encima de la franja de filas (RANK_REG_TOP): así no pisa filas, ni la caja del jugador,
+    // ni el pie (D3), y la estela entera queda dentro de los márgenes (D2).
+    firmaBolita(ctx, FIRMA_RANKING.cx, FIRMA_RANKING.cy, FIRMA_RANKING.r, t, FIRMA_RANKING.dir);
     ctx.fillStyle = t.tenue; ctx.font = '400 28px ' + FUENTE;
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillText(DIR_CORTA, cx, LADO - MARGEN + 10);
@@ -398,7 +437,8 @@
   }
 
   var Compartir = {
-    LADO: LADO, MARGEN: MARGEN, TIMEOUT_MS: TIMEOUT_MS,
+    LADO: LADO, MARGEN: MARGEN, TIMEOUT_MS: TIMEOUT_MS, RANK_REG_TOP: RANK_REG_TOP,
+    FIRMA_RECORD: FIRMA_RECORD, FIRMA_RANKING: FIRMA_RANKING,
     etiquetaModo: etiquetaModo, textoRecord: textoRecord, textoRanking: textoRanking,
     puestoDe: puestoDe, tamPuntaje: tamPuntaje,
     dibujarTarjetaRecord: dibujarTarjetaRecord, dibujarTarjetaRanking: dibujarTarjetaRanking,
@@ -406,6 +446,7 @@
     compartirRecord: compartirRecord, compartirRanking: compartirRanking,
     // internos expuestos para diagnóstico/pruebas
     _compartir: compartir, _compartirTexto: _compartirTexto, _copiar: _copiar,
+    _firmaBounds: _firmaBounds, _cintaRecord: _cintaRecord,
   };
 
   if (typeof module !== 'undefined' && module.exports) {
