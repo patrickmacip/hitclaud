@@ -414,6 +414,15 @@ body {
   margin: 0 0 8px;
 }
 
+/* DIAGNÓSTICO TEMPORAL: estado del último envío al ranking. Texto pequeño y discreto,
+   debajo de todo. Se quita cuando el problema del envío esté resuelto. */
+.go-envio {
+  font: var(--texto-s);
+  color: var(--tenue, #8A8A93);
+  opacity: 0.7;
+  margin: 4px 0 0;
+}
+
 .go-reiniciar {
   margin-top: 12px;
   width: 100%;

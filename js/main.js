@@ -210,13 +210,15 @@
     // el servidor, si el puntaje entró al top, se avisa (sin bloquear el fin de partida).
     const puntosScore = marcador.puntos;
     if (porTiempo && superaRecord) {
+      pintarEstadoEnvio({ estado: 'enviando' }); // DIAGNÓSTICO: se actualiza al resolver
       resolverNombre(function (nombre) {
         Ranking.enviarPuntaje({ nombre: nombre, puntos: puntosScore, modo: modo, porTiempo: true, superaRecord: true })
-          .then(function (reg) { if (reg && reg.estado === 'ok' && reg.entro) mostrarConfirmacionRanking(reg.posicion); });
+          .then(function (reg) { pintarEstadoEnvio(reg); if (reg && reg.estado === 'ok' && reg.entro) mostrarConfirmacionRanking(reg.posicion); });
       });
     } else {
       // No corresponde: sólo se registra el motivo (cloudover / no-supera-record) para diagnóstico.
-      Ranking.enviarPuntaje({ nombre: '', puntos: puntosScore, modo: modo, porTiempo: porTiempo, superaRecord: superaRecord });
+      Ranking.enviarPuntaje({ nombre: '', puntos: puntosScore, modo: modo, porTiempo: porTiempo, superaRecord: superaRecord })
+        .then(pintarEstadoEnvio); // DIAGNÓSTICO: muestra el motivo de no-envío
     }
   }
   // Resuelve el nombre más fiable SIN esperar a la red: memoria → localStorage (síncrono)
@@ -247,7 +249,44 @@
     elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
     const gr = elGameOver.querySelector('.go-rank');
     if (gr) gr.classList.add('oculto'); // se muestra sólo si el envío confirma que entró
+    // DIAGNÓSTICO TEMPORAL: limpia el estado del envío en cada fin; lo repinta enviarAlServidor.
+    const ge = elGameOver.querySelector('.go-envio');
+    if (ge) { ge.textContent = ''; ge.classList.add('oculto'); }
     elGameOver.classList.remove('oculto');
+  }
+
+  // DIAGNÓSTICO TEMPORAL: traduce el registro del último envío (Ranking.ultimoEnvio) a texto
+  // llano. PURA (sin DOM) para poder probarla. Se quita cuando el envío quede resuelto.
+  function estadoEnvioTexto(reg) {
+    if (!reg || reg.estado === 'ninguno') return '';
+    if (reg.estado === 'enviando') return 'enviando…';
+    if (reg.estado === 'no-intentado') {
+      if (reg.motivo === 'cloudover') return 'no se intentó: no terminó por tiempo';
+      if (reg.motivo === 'no-supera-record') return 'no se intentó: no superó tu récord';
+      if (reg.motivo === 'sin-nombre') return 'no se intentó: sin nombre';
+      return 'no se intentó';
+    }
+    if (reg.estado === 'fallo-red') return 'falló: sin conexión';
+    if (reg.estado === 'error-servidor') {
+      let msg = '';
+      if (reg.data) msg = typeof reg.data === 'string' ? reg.data : (reg.data.error || reg.data.mensaje || '');
+      const cod = reg.status ? String(reg.status) : '?';
+      return 'falló: el servidor rechazó (' + cod + (msg ? (' — ' + msg) : '') + ')';
+    }
+    if (reg.estado === 'ok') {
+      if (reg.entro) return 'enviado: entró en el puesto ' + (reg.posicion || '?');
+      return 'enviado: no entró al top 20';
+    }
+    return '';
+  }
+  // Pinta el estado del envío en la línea discreta del overlay de fin (o la oculta si no hay texto).
+  function pintarEstadoEnvio(reg) {
+    if (!elGameOver) return;
+    const el = elGameOver.querySelector('.go-envio');
+    if (!el) return;
+    const txt = estadoEnvioTexto(reg);
+    el.textContent = txt;
+    el.classList.toggle('oculto', !txt);
   }
 
   // ── SECUENCIA de CloudOver (FASE 12 commit 2) ──────────────────────────────
