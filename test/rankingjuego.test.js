@@ -47,9 +47,8 @@ console.log('=== CAMBIO 3: el ranking es por juego (sin selector de juego) ===')
 
 console.log('=== CAMBIO 4: botón JUGAR en el ranking, antes de Compartir; usa la duración de la tabla ===');
 {
-  chk('orden al pie del ranking: JUGAR → Compartir → Cerrar', /id="rankJugar"[\s\S]*?id="compartirRank"[\s\S]*?id="rankCerrar"/.test(html));
-  chk('JUGAR relleno sólido (.go-reiniciar .ini-jugar)', /<button id="rankJugar" class="go-reiniciar ini-jugar rank-jugar">JUGAR<\/button>/.test(html));
-  chk('Compartir y Cerrar con contorno (ini-ranking / go-modo-libre)', /id="compartirRank" class="ini-ranking rank-compartir"/.test(html) && /id="rankCerrar" class="go-reiniciar go-modo-libre"/.test(html));
+  chk('Compartir y Cerrar son iconos en la cabecera; JUGAR va fijo al pie', /rank-cabecera[\s\S]*?id="compartirRank"[\s\S]*?id="rankCerrar"[\s\S]*?id="rankModos"[\s\S]*?id="rankCuerpo"[\s\S]*?id="rankJugar"/.test(html));
+  chk('JUGAR relleno sólido, ancho completo, al pie (.go-reiniciar .ini-jugar .rank-jugar)', /<button id="rankJugar" class="go-reiniciar ini-jugar rank-jugar">JUGAR<\/button>/.test(html));
   chk('JUGAR usa la duración SELECCIONADA en la tabla (modoInicioSel), no la de origen (4.2)', /btnRankJugar[\s\S]{0,120}iniciarPartida\(juegoSel, modoInicioSel\)/.test(main));
 }
 

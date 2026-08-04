@@ -24,6 +24,7 @@
     <symbol id="ic-lapiz" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.84 1.83 3.75 3.75 1.84-1.83z"/></symbol>
     <symbol id="ic-compartir" viewBox="0 0 24 24"><path d="M12 2.6l4 4-1.4 1.4L13 6.4V15h-2V6.4L9.4 8l-1.4-1.4 4-4z"/><path d="M5 10h3v2H6v8h12v-8h-2v-2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1z"/></symbol>
     <symbol id="ic-atras" viewBox="0 0 24 24"><path d="M14.6 4.6 7.2 12l7.4 7.4 1.6-1.6L10.4 12l5.8-5.8z"/></symbol>
+    <symbol id="ic-cerrar" viewBox="0 0 24 24"><path d="M6.4 4.8 12 10.4l5.6-5.6 1.6 1.6L13.6 12l5.6 5.6-1.6 1.6L12 13.6l-5.6 5.6-1.6-1.6L10.4 12 4.8 6.4z"/></symbol>
   </svg>
 
   <!-- BARRA de juego: tres zonas SIN etiquetas de texto (P1). Izquierda = récord (corona +
@@ -122,17 +123,26 @@
        juego. Se conserva el selector de DURACIÓN de ese juego. Al pie: JUGAR (arranca esa
        duración), Compartir y Cerrar (vuelve al origen). Los nombres del servidor van como TEXTO. -->
   <div id="ranking" class="oculto" role="dialog" aria-modal="true">
-    <div class="actu-panel">
-      <p class="actu-titulo">Ranking</p>
-      <p class="rank-juego-nombre" id="rankJuegoNombre">HitClaud</p>
+    <div class="actu-panel rank-panel">
+      <!-- CABECERA fija: Compartir (icono, izq) · "Ranking" + juego (centro) · Cerrar (icono X, der).
+           Los iconos son sólo icono, con área táctil 44×44. -->
+      <div class="rank-cabecera">
+        <button id="compartirRank" class="rank-icono" type="button" aria-label="Compartir">
+          <svg class="icono" aria-hidden="true"><use href="#ic-compartir"></use></svg>
+        </button>
+        <div class="rank-titulo">
+          <p class="actu-titulo">Ranking</p>
+          <p class="rank-juego-nombre" id="rankJuegoNombre">HitClaud</p>
+        </div>
+        <button id="rankCerrar" class="rank-icono" type="button" aria-label="Cerrar">
+          <svg class="icono" aria-hidden="true"><use href="#ic-cerrar"></use></svg>
+        </button>
+      </div>
       <div class="rank-modos" id="rankModos" role="group" aria-label="Duración"></div>
+      <!-- ÚNICA zona desplazable: ocupa el espacio restante; las filas se alinean arriba. -->
       <div class="rank-cuerpo" id="rankCuerpo"></div>
+      <!-- JUGAR fijo al pie, ancho completo. -->
       <button id="rankJugar" class="go-reiniciar ini-jugar rank-jugar">JUGAR</button>
-      <button id="compartirRank" class="ini-ranking rank-compartir" type="button">
-        <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-compartir"></use></svg>
-        <span>Compartir</span>
-      </button>
-      <button id="rankCerrar" class="go-reiniciar go-modo-libre">Cerrar</button>
     </div>
   </div>
 

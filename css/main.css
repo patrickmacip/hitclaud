@@ -260,10 +260,44 @@ body {
 .nivel-nombre { font: var(--texto-s); color: var(--texto-apagado, #8989B1); text-align: center; margin: 0 0 var(--esp-3); }
 .nivel-nombre:empty { display: none; }
 
+/* ── PANEL DE RANKING de ALTURA FIJA (cabe siempre en el iPhone) ─────────────────────────
+   El panel mide lo MISMO con 1 o con 20 filas y queda en la misma posición (no crece con el
+   contenido). Alto relativo a la ventana con `dvh` (respeta las barras dinámicas de Safari) y
+   un tope en px para que no se estire en pantallas grandes. Columna flex: cabecera y selector
+   fijos arriba, la TABLA ocupa el resto y es lo único que se desplaza, y JUGAR fijo al pie. */
+.rank-panel {
+  height: min(620px, calc(100dvh - 96px));
+  max-height: none;   /* anula el max-height:88vh de .actu-panel: aquí el alto es FIJO */
+  padding: var(--esp-4) 22px var(--esp-4);
+  overflow: hidden;   /* sólo .rank-cuerpo desplaza */
+}
+/* CABECERA fija: Compartir (icono) · título+juego (centro) · Cerrar (icono X). */
+.rank-cabecera {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin-bottom: var(--esp-2);
+}
+.rank-titulo { flex: 1 1 auto; text-align: center; min-width: 0; }
+/* Título más chico que en Actualizaciones (SÓLO dentro de la cabecera del ranking). */
+.rank-cabecera .actu-titulo { font: var(--texto-l); font-weight: 800; margin: 0; }
+.rank-cabecera .rank-juego-nombre { margin: 2px 0 0; }
+/* Iconos de Compartir y Cerrar: sólo icono, sin texto, área táctil 44×44 (P4). */
+.rank-icono {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  border: none; background: transparent;
+  color: var(--acento-claro, #FFC9B8);
+  display: grid; place-items: center;
+  cursor: pointer;
+}
+.rank-icono .icono { width: 22px; height: 22px; }
+.rank-icono:disabled { opacity: 0.5; } /* estado "trabajando" al compartir (sin texto) */
 /* Nombre del juego arriba de la tabla de ranking (contexto: cuál estás viendo). */
-.rank-juego-nombre { font: var(--texto-m); color: var(--acento-vivo, #FF8764); text-align: center; margin: 0 0 var(--esp-2); }
-/* Botón JUGAR del ranking: relleno sólido, al pie, antes de Compartir (CAMBIO 4). */
-.rank-jugar { margin-top: var(--esp-2); }
+.rank-juego-nombre { font: var(--texto-s); color: var(--acento-vivo, #FF8764); text-align: center; margin: 0 0 var(--esp-2); }
+/* Botón JUGAR del ranking: relleno sólido, FIJO al pie del panel (no se desplaza). */
+.rank-jugar { flex: 0 0 auto; margin-top: var(--esp-3); }
 
 /* Botón "Actualizaciones": discreto, debajo de todo. Sin contorno, texto chico y tenue,
    SIN subrayado (P3). Área táctil 44px de alto (P4). */
@@ -303,7 +337,6 @@ body {
 .ini-ranking:active { transform: scale(0.98); }
 @media (hover: hover) { .ini-ranking:hover { border-color: var(--acento-vivo, #FF8764); } }
 /* Botón "Compartir" del ranking: secundario, pegado sobre "Cerrar" sin competir con él. */
-.rank-compartir { margin-top: 6px; margin-bottom: 2px; }
 
 /* PANTALLA DE ACTUALIZACIONES (FASE 26): panel en columna con la LISTA scrolleable
    y el botón Cerrar SIEMPRE visible (fuera del área que scrollea). Reusa .go-reiniciar
@@ -369,17 +402,21 @@ body {
    Selector de modo arriba, tabla scrolleable en medio, Cerrar abajo. Tokens de acento;
    sin colores nuevos. */
 .rank-modos {
+  flex: 0 0 auto;         /* fijo: no se desplaza */
   display: flex;
   gap: 6px;
-  margin-bottom: 12px;
+  margin-bottom: var(--esp-2);
 }
-.rank-sel { margin-top: 0; flex: 1; padding: 10px 0; }
+.rank-sel { margin-top: 0; flex: 1; padding: 8px 0; }  /* más compacto en altura (2.2) */
+/* LA TABLA: única zona desplazable. Ocupa el resto del panel; las filas se alinean ARRIBA
+   (no se centran). Degradado sutil al borde inferior para avisar que hay más filas (4.1). */
 .rank-cuerpo {
   flex: 1 1 auto;
+  min-height: 0;         /* permite que el flex encoja y la tabla desplace de verdad */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  margin-bottom: 6px;
-  min-height: 120px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
 }
 /* Fila de la tabla: puesto (icono/número) · nombre · puntos. */
 .rank-fila {
