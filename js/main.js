@@ -205,15 +205,48 @@
       tiros: pTiros, aciertos: pAciertos, rachaMax: pRachaMax, carambolas: pCarambolas,
       plataforma: esDesktop ? 'escritorio' : 'movil',
     }));
-    if (Ranking.decidirEnviarPuntaje({ porTiempo: porTiempo, superaRecord: superaRecord, nombre: nombreUsuario })) {
-      Ranking.enviarPuntaje(nombreUsuario, marcador.puntos, modo);
+    // /score: sólo si por tiempo y superó el récord. Se resuelve el NOMBRE de la fuente
+    // más fiable (memoria → localStorage → reconciliar IDB) antes de mandar; al confirmar
+    // el servidor, si el puntaje entró al top, se avisa (sin bloquear el fin de partida).
+    const puntosScore = marcador.puntos;
+    if (porTiempo && superaRecord) {
+      resolverNombre(function (nombre) {
+        Ranking.enviarPuntaje({ nombre: nombre, puntos: puntosScore, modo: modo, porTiempo: true, superaRecord: true })
+          .then(function (reg) { if (reg && reg.estado === 'ok' && reg.entro) mostrarConfirmacionRanking(reg.posicion); });
+      });
+    } else {
+      // No corresponde: sólo se registra el motivo (cloudover / no-supera-record) para diagnóstico.
+      Ranking.enviarPuntaje({ nombre: '', puntos: puntosScore, modo: modo, porTiempo: porTiempo, superaRecord: superaRecord });
     }
+  }
+  // Resuelve el nombre más fiable SIN esperar a la red: memoria → localStorage (síncrono)
+  // → reconciliar IDB (local, no es red) si sigue vacío. Adopta el nombre si aparece.
+  function resolverNombre(cb) {
+    const n = ((nombreUsuario || '').trim()) || ((nombreStore.valor || '').trim());
+    if (n) { cb(n); return; }
+    try {
+      nombreStore.reconciliar().then(function (v) {
+        const nn = (((v || '') + '') || (nombreStore.valor || '')).trim();
+        if (nn && !nombreUsuario) { nombreUsuario = nn; actualizarBarraNombre(); }
+        cb(nn);
+      }, function () { cb(''); });
+    } catch (e) { cb(''); }
+  }
+  // Confirmación al jugador: SÓLO si entró al ranking Y el overlay de fin sigue visible.
+  function mostrarConfirmacionRanking(posicion) {
+    if (!elGameOver || elGameOver.classList.contains('oculto')) return; // el fin ya se cerró
+    const el = elGameOver.querySelector('.go-rank');
+    if (!el) return;
+    el.textContent = '¡Entraste al ranking! Puesto ' + posicion;
+    el.classList.remove('oculto');
   }
   // Pinta el overlay de fin con el score y el aviso de récord (diseño sin cambios).
   function pintarFin(score, esRecord) {
     elGameOver.querySelector('.go-score').classList.remove('oculto');
     elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(score);
     elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
+    const gr = elGameOver.querySelector('.go-rank');
+    if (gr) gr.classList.add('oculto'); // se muestra sólo si el envío confirma que entró
     elGameOver.classList.remove('oculto');
   }
 
@@ -264,6 +297,8 @@
     jugando = false;
     elGameOver.querySelector('.go-score').classList.add('oculto');
     elGameOver.querySelector('.go-record').classList.add('oculto');
+    const gr = elGameOver.querySelector('.go-rank');
+    if (gr) gr.classList.add('oculto');
     elGameOver.classList.remove('oculto');
   }
   // Botones de modo en el game over (FASE 21: Relax eliminado). Orden: 15 · 30 · 60.
@@ -486,6 +521,9 @@
   }
   if (btnVerRanking) btnVerRanking.addEventListener('click', abrirRanking);
   if (btnRankCerrar) btnRankCerrar.addEventListener('click', cerrarRanking);
+  // Reintenta, al arrancar y en segundo plano, los puntajes que quedaron pendientes por
+  // un fallo de envío en una partida anterior (una partida buena no se pierde).
+  try { if (typeof Ranking !== 'undefined') Ranking.reintentarPendientes(); } catch (e) { /* nunca rompe */ }
   // Reconciliación del nombre (async, IDB): si aparece un nombre guardado y aún no lo
   // teníamos (p.ej. local vacío pero IDB lo conserva), lo adopta y cierra el prompt.
   nombreStore.reconciliar().then(function (v) {

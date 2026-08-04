@@ -407,6 +407,12 @@ body {
   color: var(--dorado);
   margin-bottom: 8px;
 }
+/* Confirmación de entrada al ranking (aparece sólo si el puntaje entró al top). */
+.go-rank {
+  font: var(--texto-s);
+  color: var(--acento-vivo, #FF8764);
+  margin: 0 0 8px;
+}
 
 .go-reiniciar {
   margin-top: 12px;
