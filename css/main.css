@@ -155,9 +155,13 @@ body {
 .oculto { display: none; }
 /* Una clase utilitaria (0-0-1-0) NO puede anular #gameover{display:flex}
    (ID, 0-1-0-0). Regla ID+clase (0-1-1-0) para que ocultar gane. */
-#gameover.oculto, #inicio.oculto, #nombre.oculto, #actualizaciones.oculto, #ranking.oculto { display: none; }
+#gameover.oculto, #inicio.oculto, #duracion.oculto, #nombre.oculto, #actualizaciones.oculto, #ranking.oculto { display: none; }
+/* Elementos con display:flex propio (declarado DESPUÉS de .oculto) necesitan la regla
+   COMPUESTA para que ocultar gane: la línea de récord del fin (4.2, se oculta si no hubo
+   récord) y el selector de duración (3.2, se oculta si el juego tiene una sola). */
+.go-record.oculto, .ini-modos.oculto { display: none; }
 
-#gameover, #inicio, #nombre, #actualizaciones, #ranking {
+#gameover, #inicio, #duracion, #nombre, #actualizaciones, #ranking {
   position: fixed;
   inset: 0;
   z-index: 3;
@@ -202,6 +206,60 @@ body {
   margin-bottom: var(--esp-5); /* más aire ANTES del grupo modos+JUGAR (P5/2.8) */
 }
 .ini-record .valor { font: var(--texto-l); font-variant-numeric: tabular-nums; }
+
+/* ── PANTALLA 1: tarjetas de juego (grandes, tocables ≥88px). Una por juego. ─────────── */
+.juego-lista { display: flex; flex-direction: column; gap: var(--esp-3); width: 100%; margin: var(--esp-3) 0 var(--esp-4); }
+.juego-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-height: 88px;              /* tarjetas grandes y tocables (3.1) */
+  padding: var(--esp-4) var(--esp-5);
+  border: 2px solid var(--acento, #E8704E);
+  border-radius: var(--radio);
+  background: transparent;
+  color: var(--acento-vivo, #FF8764);
+  text-align: left;
+  cursor: pointer;
+}
+.juego-card:active { transform: scale(0.99); }
+@media (hover: hover) { .juego-card:not(.juego-pronto):hover { border-color: var(--acento-vivo, #FF8764); } }
+.juego-nombre { font: var(--texto-l); font-weight: 800; color: var(--blanco, #FFFFFF); }
+.juego-desc { font: var(--texto-s); color: var(--texto-apagado, #8989B1); }
+/* Juegos aún no jugables: atenuados, con la etiqueta "Pronto". */
+.juego-card.juego-pronto { opacity: 0.55; border-color: var(--texto-apagado, #8989B1); }
+.juego-tag {
+  position: absolute; top: var(--esp-3); right: var(--esp-4);
+  font-size: 12px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--coral, #E8704E);
+}
+.juego-nota { font-size: 12px; color: var(--texto-apagado, #8989B1); margin-top: 2px; }
+/* Aviso breve al tocar un juego que no llega aún. */
+.juego-aviso {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radio); background: rgba(232, 112, 78, 0.14);
+  font: var(--texto-m); color: var(--acento-vivo, #FF8764);
+}
+/* .juego-aviso trae display:flex → una .oculto genérica (misma especificidad, declarada
+   antes) NO alcanza a ocultarla. Regla COMPUESTA para que ocultar gane (como los overlays). */
+.juego-aviso.oculto { display: none; }
+
+/* ── PANTALLA 2 / niveles: cabecera con flecha de atrás + título del juego. ──────────── */
+.nivel-cabecera { display: flex; align-items: center; gap: var(--esp-2); width: 100%; margin-bottom: var(--esp-4); }
+.btn-atras {
+  width: 44px; height: 44px;     /* área táctil ≥44px (P4) */
+  flex: 0 0 auto;
+  border: none; background: transparent; color: var(--acento-claro, #FFC9B8);
+  display: grid; place-items: center; cursor: pointer;
+}
+.nivel-titulo { font: var(--texto-xl); color: var(--acento-vivo, #FF8764); }
+
+/* Selector de JUEGO del ranking (nivel 1): mismos cuadros que el de duración. */
+.rank-juegos { display: flex; gap: var(--esp-2); margin-bottom: var(--esp-2); }
+.rank-juego { flex: 1; min-height: 48px; padding: 0 4px; font: var(--texto-s); }
 
 /* Botón "Actualizaciones": discreto, debajo de todo. Sin contorno, texto chico y tenue,
    SIN subrayado (P3). Área táctil 44px de alto (P4). */

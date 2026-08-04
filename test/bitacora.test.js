@@ -22,15 +22,16 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 10 versiones', B.versiones.length === 10);
-  chk('la primera entrada es la 1.5 (más reciente primero)', B.versiones[0].version === '1.5');
-  chk('la 1.5 trae sus dos puntos literales', (function () {
+  chk('hay exactamente 11 versiones', B.versiones.length === 11);
+  chk('la primera entrada es la 1.6 (más reciente primero)', B.versiones[0].version === '1.6');
+  chk('la 1.6 trae sus puntos literales, con el modo 30 marcado como retirado', (function () {
     const v = B.versiones[0];
-    return v.version === '1.5' && v.fecha === '3 de agosto' && v.puntos.length === 2 &&
-      v.puntos[0].texto === 'Ahora puedes compartir tu récord con una imagen lista para presumir' &&
-      v.puntos[1].texto === 'También puedes compartir el podio del ranking';
+    return v.version === '1.6' && v.fecha === '3 de agosto' && v.puntos.length === 5 &&
+      v.puntos[0].texto === 'HitClaud ahora es una colección: llegan ShotClaud y PushClaud' &&
+      v.puntos[3].retirado === true && v.puntos[3].texto === 'El modo de 30 segundos' &&
+      v.puntos[4].texto === 'Volver a jugar está a un solo toque al terminar';
   })());
-  chk('la segunda entrada sigue siendo la 1.4', B.versiones[1].version === '1.4');
+  chk('la segunda entrada sigue siendo la 1.5', B.versiones[1].version === '1.5');
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });
@@ -49,13 +50,13 @@ console.log('=== Marcas de retirado ===');
     return s + v.puntos.filter(function (p) { return p.retirado === true; }).length;
   }, 0);
   console.log('  total de puntos retirados = ' + retirados);
-  chk('los puntos retirados son 6 en total (contenido literal del dueño)', retirados === 6);
+  chk('los puntos retirados son 7 en total (6 previos + el modo 30 de la 1.6)', retirados === 7);
   chk('el texto de un retirado NO lleva "[RETIRADO]" pegado (es dato, no texto)', B.versiones.every(function (v) {
     return v.puntos.every(function (p) { return p.texto.indexOf('[RETIRADO]') === -1 && p.texto.indexOf('RETIRADO') === -1; });
   }));
-  chk('los retirados viven en 1.0, 0.9 y 0.5', (function () {
+  chk('los retirados viven en 1.6, 1.0, 0.9 y 0.5', (function () {
     const conRet = B.versiones.filter(function (v) { return v.puntos.some(function (p) { return p.retirado; }); }).map(function (v) { return v.version; });
-    return conRet.sort().join(',') === '0.5,0.9,1.0';
+    return conRet.sort().join(',') === '0.5,0.9,1.0,1.6';
   })());
 }
 

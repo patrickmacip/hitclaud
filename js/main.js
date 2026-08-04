@@ -105,37 +105,56 @@
       };
     } catch (e) { return null; }
   })();
-  // RESET DE RÉCORDS (cambio de economía del ranking): se pasa a la llave VERSIONADA
-  // NUEVA v3 por modo. Igual que el reset previo v1→v2 (commit 27965c1): NO se borra la
-  // vieja, se ignora para siempre → todos arrancan en récord 0 sin código de migración.
-  // LLAVES HUÉRFANAS (quedan intactas en el almacén de cada jugador, nunca se leen ni se
-  // borran): 'hitclaud.record.v2.60', 'hitclaud.record.v2.30', 'hitclaud.record.v2.15'.
-  // (El 4º argumento es el throttle de escritura, no la base: crearPersistencia arranca
-  //  SIEMPRE el récord en 0.)
-  const record60 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v3.60', 500);
-  const record30 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v3.30', 500); // FASE 20: llave propia
-  const record15 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v3.15', 500); // FASE 21: llave propia
-  // MAPA modo→persistencia (fuente única; parametriza en vez de duplicar por modo).
-  // FASE 21: Relax eliminado → quedan 15/30/60. La vieja llave 'hitclaud.record.v2.libre'
-  // de quien jugó Relax queda HUÉRFANA en su almacén; simplemente se ignora (no se borra).
-  const records = { '15': record15, '30': record30, '60': record60 };
-  let record = record60;        // récord de la PARTIDA activa (se ajusta al elegir modo)
-  let modoInicioSel = '60';     // modo SELECCIONADO en la pantalla de inicio (default 60)
-  const elRecord = document.getElementById('barraRecord');
-  function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record.valor); }
-  // Récord de la PANTALLA DE INICIO (FASE 19/20): muestra el del modo SELECCIONADO
-  // (30 o 60). Blindado: si el almacenamiento falla y algo lanza, muestra 0 y NO
-  // rompe. El botón JUGAR vive aparte, así que un fallo acá jamás lo desactiva.
-  const elIniRecord = document.getElementById('iniRecord');
-  function actualizarRecordInicio() {
-    if (!elIniRecord) return;
-    try { elIniRecord.textContent = U.abreviarNumero((records[modoInicioSel] || record60).valor); }
-    catch (e) { elIniRecord.textContent = '0'; }
+  // ── LOS JUEGOS (FUENTE ÚNICA DE VERDAD) ─────────────────────────────────────────────
+  // Aquí y SÓLO aquí se declara qué juegos hay, sus duraciones, si son jugables y en qué
+  // plataforma. El menú de juegos, el selector de duración, los récords y el ranking se
+  // generan desde esto — nada de listas duplicadas por el código.
+  //   plataforma: 'ambas' | 'escritorio' | 'tactil' (dónde tiene sentido jugarlo).
+  // PARA AGREGAR UN JUEGO: añade una entrada con su id, nombre, descripción, jugable,
+  // plataforma y duraciones. Cuando su mecánica exista, pon jugable:true. Todo lo demás
+  // (pantallas, récords versionados, tablas de ranking) aparece solo.
+  const JUEGOS = [
+    { id: 'hitclaud',  nombre: 'HitClaud',  desc: 'Lanza la bola y demuele', jugable: true,  plataforma: 'ambas',      duraciones: ['15', '60'] },
+    { id: 'shotclaud', nombre: 'ShotClaud', desc: 'Apunta y dispara',        jugable: false, plataforma: 'escritorio', duraciones: ['20', '60'] },
+    { id: 'pushclaud', nombre: 'PushClaud', desc: 'Aplasta con el dedo',     jugable: false, plataforma: 'tactil',     duraciones: ['15'] },
+  ];
+  function juegoPorId(id) { for (let i = 0; i < JUEGOS.length; i++) if (JUEGOS[i].id === id) return JUEGOS[i]; return null; }
+  const duracionMs = function (dur) { return Number(dur) * 1000; }; // 15→15000, 20→20000, 60→60000
+  // Mapa duración→ms DERIVADO de JUEGOS (sin lista aparte). El bucle/temporizador lo leen.
+  const DURACIONES = (function () { const d = {}; JUEGOS.forEach(function (j) { j.duraciones.forEach(function (x) { d[x] = duracionMs(x); }); }); return d; })();
+
+  // ── RÉCORDS por JUEGO + DURACIÓN (CAMBIO 2) ─────────────────────────────────────────
+  // Llave NUEVA versionada: 'hitclaud.record.v4.<juego>.<duración>'. Mismo patrón que los
+  // resets anteriores (no se borran las viejas). MIGRACIÓN: HitClaud 15 y 60 se copian desde
+  // las v3 (el jugador no pierde esos). El modo 30 (v3.30) NO se migra: queda HUÉRFANO.
+  // LLAVES HUÉRFANAS (intactas, nunca se leen ni se borran): 'hitclaud.record.v3.30' (modo 30
+  // abandonado), y las v2.* / v2.libre de resets previos. El nombre no se toca (2.4).
+  const REC_VER = 'hitclaud.record.v4';
+  function llaveRecord(juego, dur) { return REC_VER + '.' + juego + '.' + dur; }
+  function migrarLocal(vieja, nueva) { // copia one-time el récord viejo a la llave nueva
+    try {
+      if (!almacen || almacen.getItem(nueva) != null) return; // ya hay valor nuevo → no pisar
+      const v = almacen.getItem(vieja);
+      if (v != null) almacen.setItem(nueva, v);
+    } catch (e) { /* almacén roto: se arranca en 0, no rompe */ }
   }
-  // RECONCILIACIÓN al arrancar (async): funde localStorage e IndexedDB, se queda
-  // con el record más alto y repuebla el almacén faltante. Refresca ambos displays.
-  [record60, record30, record15].forEach(function (r) {
-    r.reconciliar().then(function () { if (r === record) actualizarRecord(); actualizarRecordInicio(); });
+  migrarLocal('hitclaud.record.v3.15', llaveRecord('hitclaud', '15')); // 2.3
+  migrarLocal('hitclaud.record.v3.60', llaveRecord('hitclaud', '60')); // 2.3
+  // (hitclaud.record.v3.30 NO se migra — modo 30 abandonado, 2.2.)
+  const recordStores = {}; // 'juego:duración' → persistencia
+  JUEGOS.forEach(function (j) { j.duraciones.forEach(function (dur) {
+    recordStores[j.id + ':' + dur] = U.crearPersistencia(almacen, idbKV, llaveRecord(j.id, dur), 500);
+  }); });
+  function recordDe(juego, dur) { return recordStores[juego + ':' + dur] || null; }
+  let juegoActivo = 'hitclaud';   // juego de la PARTIDA en curso
+  let juegoSel = 'hitclaud';      // juego elegido en la pantalla 2 (elegir duración)
+  let modoInicioSel = '60';       // duración elegida en la pantalla 2
+  let record = recordDe('hitclaud', '60'); // récord de la PARTIDA activa (se fija al iniciar)
+  const elRecord = document.getElementById('barraRecord');
+  function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record ? record.valor : 0); }
+  // RECONCILIACIÓN al arrancar (async): funde localStorage e IndexedDB por cada récord.
+  Object.keys(recordStores).forEach(function (k) {
+    recordStores[k].reconciliar().then(function () { if (recordStores[k] === record) actualizarRecord(); actualizarRecordDuracion(); });
   });
 
   // ── NOMBRE DE USUARIO (FASE 21): se pide UNA vez, se guarda en doble almacén
@@ -165,10 +184,7 @@
   // una partida. Corre una cuenta regresiva y al llegar a 0 termina por tiempo.
   const elGameOver = document.getElementById('gameover');
   let finDatos = null; // datos de la última partida terminada, para "Compartir" (tarjeta de récord)
-  // DURACIONES por modo (ms). ÚNICA diferencia entre modos: el valor de acá.
-  // Parametrizado para no duplicar la maquinaria de partida: el reloj y el
-  // temporizador leen DURACIONES[modo] (mismo código para 15/30/60).
-  const DURACIONES = { '15': 15 * 1000, '30': 30 * 1000, '60': 60 * 1000 };
+  // (DURACIONES vive arriba, DERIVADO de JUEGOS — no se declara otra vez acá.)
   // Contadores de la PARTIDA para el registro ANÓNIMO en el servidor (js/ranking.js).
   // Se reinician con cada partida. tiros = bolas lanzadas; aciertos = las que golpearon
   // algo; rachaMax = racha más alta; carambolas = bonos de carambola cobrados; pPuntosFin
@@ -190,17 +206,23 @@
     actualizarMarcador();
     marcarActividad();
   }
-  function iniciarPartida(modo) {
+  // Arranca una partida de `juego` (solo jugables) en la duración `modo`. HitClaud 15/60
+  // se juega EXACTAMENTE igual que antes (misma física, reloj y récord por duración).
+  function iniciarPartida(juego, modo) {
+    const j = juegoPorId(juego);
+    if (!j || !j.jugable || j.duraciones.indexOf(String(modo)) === -1) return; // sólo combos válidos y jugables
+    juegoActivo = juego; modoInicioSel = modo; juegoSel = juego;
     modoJuego = modo;
-    record = records[modo] || record60;         // récord del modo (mapa: 15/30/60)
+    record = recordDe(juego, modo) || recordDe('hitclaud', '60'); // récord de ese juego+duración
     actualizarRecord();
     reiniciarEstado();
-    tiempoRestante = DURACIONES[modo] || 0;      // 15→15000, 30→30000, 60→60000
+    tiempoRestante = DURACIONES[modo] || 0;      // 15→15000, 60→60000
     jugando = true;
     actualizarTiempo();                          // muestra el tiempo completo desde el arranque
     elGameOver.classList.add('oculto');
     if (elInicio) elInicio.classList.add('oculto');
-    cascEvento('iniciarPartida', 'modo:' + modo);
+    if (elDuracion) elDuracion.classList.add('oculto');
+    cascEvento('iniciarPartida', 'juego:' + juego + ' modo:' + modo);
   }
   // Fin de partida. `porTiempo`=true → cierre por AGOTARSE EL TIEMPO: el récord
   // sube si el score lo supera. `porTiempo`=false → cierre por CLOUDOVER: el score
@@ -225,6 +247,14 @@
     try { enviarAlServidor(porTiempo); } catch (e) { /* un fallo de red no llega al juego */ }
     cascEvento('terminarPartida', 'porTiempo:' + !!porTiempo + ' score:' + scoreFinal);
   }
+  // MODO para el SERVIDOR (CAMBIO 6.3). El servidor de ranking HOY sólo acepta '15','30','60'
+  // y RECHAZA cualquier otra cosa. Para HitClaud mandamos la duración pelada ('15'/'60'), que
+  // YA funciona. Para juegos FUTUROS el formato es '<juego>:<duración>' (p.ej. 'shotclaud:20'):
+  // el código queda listo, pero NO funcionará hasta que el servidor lo acepte.
+  //   FALTA DEL LADO DEL SERVIDOR (lo dictará Pat en otro prompt): aceptar/validar/almacenar
+  //   modos con prefijo de juego ('shotclaud:20', 'shotclaud:60', 'pushclaud:15').
+  // Como sólo HitClaud es jugable hoy, en la práctica siempre se manda '15' o '60'.
+  function modoServidor(juego, dur) { return juego === 'hitclaud' ? String(dur) : (juego + ':' + String(dur)); }
   // Manda al servidor de ranking, todo en segundo plano (ranking.js no espera nada).
   //  · /partida SIEMPRE (anónimo, coherente): por tiempo o por CloudOver.
   //  · /score SIEMPRE que la partida terminó por TIEMPO y haya nombre (supere o no el
@@ -232,13 +262,14 @@
   function enviarAlServidor(porTiempo) {
     if (typeof Ranking === 'undefined') return;          // sin el módulo, el juego sigue igual
     const modo = modoJuego;
+    const modoSrv = modoServidor(juegoActivo, modo);     // '15'/'60' para HitClaud (compatible hoy)
     if (!DURACIONES[modo]) return;
     // duración REAL jugada = duración del modo − lo que quedó (clamp 0..duración del modo).
     const dur = Math.round(Math.max(0, Math.min(DURACIONES[modo], DURACIONES[modo] - Math.max(0, tiempoRestante))));
     // puntaje de la partida: por tiempo = score final; por CloudOver = el que tenía al morir.
     const puntosPartida = porTiempo ? marcador.puntos : pPuntosFin;
     Ranking.enviarPartida(Ranking.armarDatosPartida({
-      modo: modo, puntos: puntosPartida, duracionReal: dur,
+      modo: modoSrv, puntos: puntosPartida, duracionReal: dur,
       termino: porTiempo ? 'tiempo' : 'cloudover',
       tiros: pTiros, aciertos: pAciertos, rachaMax: pRachaMax, carambolas: pCarambolas,
       plataforma: esDesktop ? 'escritorio' : 'movil',
@@ -250,7 +281,7 @@
     if (porTiempo) {
       const puntosScore = marcador.puntos;
       resolverNombre(function (nombre) {
-        Ranking.enviarPuntaje({ nombre: nombre, puntos: puntosScore, modo: modo, porTiempo: true })
+        Ranking.enviarPuntaje({ nombre: nombre, puntos: puntosScore, modo: modoSrv, porTiempo: true })
           .then(function (reg) { if (reg && reg.estado === 'ok' && reg.entro) mostrarConfirmacionRanking(reg.posicion); });
       });
     }
@@ -260,15 +291,18 @@
   // puntaje al ranking (no se llama record.terminar ni se envía /score). SÍ registra la
   // partida en estadísticas con termino 'cloudover' — el abandono cuenta como una caída
   // (no terminó por tiempo), igual que el CloudOver a efectos del resumen anónimo.
+  // El botón de casa SUBE UN NIVEL (CAMBIO 5): abandona la partida y vuelve a la PANTALLA 2
+  // (elegir duración) DEL JUEGO que se estaba jugando — no a la pantalla 1. NO guarda récord
+  // ni manda /score; SÍ registra la partida en stats con termino 'cloudover'.
   function abandonarPartida() {
-    if (!jugando) { mostrarPantallaInicio(); return; } // sin partida en curso → sólo al inicio
+    if (!jugando) { mostrarPantallaDuracion(juegoActivo); return; } // sin partida → a la pantalla 2
     jugando = false;
     actualizarTiempo();                 // limpia el temporizador
     pPuntosFin = marcador.puntos;        // puntaje al abandonar → /partida (stats)
     secuencia = null; sacudidaCloudover = null;
     try { enviarAlServidor(false); } catch (e) { /* la red nunca rompe el abandono */ }
     cascEvento('abandonarPartida', 'score:' + pPuntosFin);
-    mostrarPantallaInicio();             // vuelve a la pantalla de inicio (siempre hay salida)
+    mostrarPantallaDuracion(juegoActivo); // sube UN nivel (pantalla 2 del juego)
   }
   // Resuelve el nombre más fiable SIN esperar a la red: memoria → localStorage (síncrono)
   // → reconciliar IDB (local, no es red) si sigue vacío. Adopta el nombre si aparece.
@@ -291,28 +325,21 @@
     el.textContent = '¡Entraste al ranking! Puesto ' + posicion;
     el.classList.remove('oculto');
   }
-  // Pinta el fin de partida: puntaje dominante, aviso de récord (con corona), y marca el
-  // modo recién jugado en el selector de "volver a jugar" (mismo patrón del inicio: uno
-  // relleno, dos en contorno). La confirmación de ranking y el récord se muestran aparte.
+  // Pinta el fin de partida (CAMBIO 4). Orden: puntaje, récord (corona), puesto de ranking.
+  // "Cambiar duración" sólo aparece si el juego tiene más de una duración (4.5).
   function pintarFin(score, esRecord) {
     elGameOver.querySelector('.go-score').classList.remove('oculto');
     elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(score);
     elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
     const gr = elGameOver.querySelector('.go-rank');
     if (gr) gr.classList.add('oculto'); // se muestra sólo si el envío confirma que entró
-    marcarModoFin(); // resalta en el selector el modo que se acaba de jugar
-    // Datos para "Compartir" (tarjeta de récord): el puntaje REAL de esta partida, su modo
+    const j = juegoPorId(juegoActivo);
+    const unaSola = !j || j.duraciones.length <= 1;
+    if (btnFinCambiar) btnFinCambiar.classList.toggle('oculto', unaSola); // 4.5: oculto si una sola
+    // Datos para "Compartir" (tarjeta de récord): el puntaje REAL de esta partida, su duración
     // y si fue récord. El nombre se resuelve al momento de compartir (puede llegar por IDB).
     finDatos = { puntos: score, modo: modoJuego, esRecord: !!esRecord };
     elGameOver.classList.remove('oculto');
-  }
-  // Resalta el modo activo (modoJuego) entre los tres botones del selector del fin.
-  function marcarModoFin() {
-    const modos = ['15', '30', '60'];
-    for (let i = 0; i < modos.length; i++) {
-      const b = document.getElementById('jugar' + modos[i]);
-      if (b) b.classList.toggle('sel-activo', modos[i] === modoJuego);
-    }
   }
 
   // ── SECUENCIA de CloudOver (FASE 12 commit 2) ──────────────────────────────
@@ -357,47 +384,112 @@
     }
     secuencia = null;
   }
-  // Selector de "volver a jugar" del fin (4.5): cada botón arranca ESA duración directamente.
-  // Orden: 15 · 30 · 60. (El menú de pausa se eliminó: ya no hay reinicio-desde-pausa.)
-  const btn60 = document.getElementById('jugar60');
-  if (btn60) btn60.addEventListener('click', function () { iniciarPartida('60'); });
-  const btn30 = document.getElementById('jugar30');
-  if (btn30) btn30.addEventListener('click', function () { iniciarPartida('30'); });
-  const btn15 = document.getElementById('jugar15');
-  if (btn15) btn15.addEventListener('click', function () { iniciarPartida('15'); });
-  // Botón INICIO del fin (4.6): vuelve a la pantalla de inicio (discreto, siempre hay salida).
-  const btnVolverInicio = document.getElementById('volverInicio');
-  if (btnVolverInicio) btnVolverInicio.addEventListener('click', function () {
-    if (elGameOver) elGameOver.classList.add('oculto');
-    mostrarPantallaInicio();
-  });
-
-  // ── PANTALLA DE BIENVENIDA (FASE 19): lo PRIMERO que se ve al abrir. Mismo
-  // mecanismo de overlays DOM que #gameover/#pausa (no un sistema paralelo). El
-  // mundo queda QUIETO detrás (jugando=false → sin física/spawn/reloj); el fondo de
-  // datos sigue dibujándose. Al tocar JUGAR arranca la partida de 60s desde cero.
+  // ── NAVEGACIÓN EN DOS NIVELES (CAMBIO 3) ────────────────────────────────────────────
+  // Pantalla 1 = #inicio (elegir juego). Pantalla 2 = #duracion (elegir duración). La flecha
+  // de atrás sube UN nivel; volver a jugar está a un toque. Ambas pantallas tienen salida.
   const elInicio = document.getElementById('inicio');
+  const elDuracion = document.getElementById('duracion');
+  const elJuegoLista = document.getElementById('juegoLista');
+  const elDurJuego = document.getElementById('durJuego');
+  const elDurModos = document.getElementById('durModos');
+  const elDurRecord = document.getElementById('durRecord');
+
+  // Oculta TODOS los overlays de navegación (para mostrar uno solo). No toca el juego.
+  function ocultarNav() {
+    [elInicio, elDuracion, elGameOver, elRanking].forEach(function (el) { if (el) el.classList.add('oculto'); });
+  }
+
+  // PANTALLA 1 — tarjetas de juego, generadas desde JUEGOS (fuente única). Las no jugables
+  // van atenuadas con "Pronto" y no navegan; al tocarlas avisan brevemente. ShotClaud en
+  // pantalla táctil indica que es para computadora.
+  function construirJuegos() {
+    if (!elJuegoLista) return;
+    elJuegoLista.textContent = '';
+    JUEGOS.forEach(function (j) {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'juego-card' + (j.jugable ? '' : ' juego-pronto');
+      card.setAttribute('data-juego', j.id);
+      const nom = document.createElement('span'); nom.className = 'juego-nombre'; nom.textContent = j.nombre;
+      const desc = document.createElement('span'); desc.className = 'juego-desc'; desc.textContent = j.desc;
+      card.appendChild(nom); card.appendChild(desc);
+      if (!j.jugable) {
+        const tag = document.createElement('span'); tag.className = 'juego-tag'; tag.textContent = 'Pronto';
+        card.appendChild(tag);
+      }
+      if (j.plataforma === 'escritorio' && !esDesktop) { // ShotClaud en táctil: es para computadora
+        const nota = document.createElement('span'); nota.className = 'juego-nota'; nota.textContent = 'En computadora';
+        card.appendChild(nota);
+      }
+      const aviso = document.createElement('span'); aviso.className = 'juego-aviso oculto'; aviso.textContent = 'Llega pronto';
+      card.appendChild(aviso);
+      card.addEventListener('click', function () {
+        if (j.jugable) { mostrarPantallaDuracion(j.id); return; }
+        // No jugable: avisa breve y NO navega (no empieza partida).
+        aviso.classList.remove('oculto');
+        setTimeout(function () { try { aviso.classList.add('oculto'); } catch (e) {} }, 1400);
+      });
+      elJuegoLista.appendChild(card);
+    });
+  }
   function mostrarPantallaInicio() {
     jugando = false;
-    actualizarRecordInicio();
+    ocultarNav();
     if (elInicio) elInicio.classList.remove('oculto');
   }
-  // SELECTOR de modo en inicio (FASE 20): 30 seg / 60 seg junto a JUGAR. Al elegir,
-  // cambia modoInicioSel, marca el botón activo y refresca el récord mostrado (el del
-  // modo seleccionado). JUGAR arranca el modo elegido. Reusa .go-reiniciar (sin componentes nuevos).
-  // MAPA modo→botón del selector (parametrizado: agregar un modo = una entrada).
-  const botonesSel = { '15': document.getElementById('sel15'), '30': document.getElementById('sel30'), '60': document.getElementById('sel60') };
-  function elegirModoInicio(modo) {
-    modoInicioSel = modo;
-    Object.keys(botonesSel).forEach(function (m) { if (botonesSel[m]) botonesSel[m].classList.toggle('sel-activo', m === modo); });
-    actualizarRecordInicio(); // el récord mostrado cambia con la selección
+
+  // PANTALLA 2 — récord del juego en la duración elegida (cambia al cambiar de duración) y
+  // selector con SÓLO las duraciones de ese juego. Si tiene una sola, el selector no se muestra.
+  function actualizarRecordDuracion() {
+    if (!elDurRecord) return;
+    try { const r = recordDe(juegoSel, modoInicioSel); elDurRecord.textContent = U.abreviarNumero(r ? r.valor : 0); }
+    catch (e) { elDurRecord.textContent = '0'; }
   }
-  Object.keys(botonesSel).forEach(function (m) { if (botonesSel[m]) botonesSel[m].addEventListener('click', function () { elegirModoInicio(m); }); });
-  const btnJugar = document.getElementById('jugar');
-  if (btnJugar) btnJugar.addEventListener('click', function () {
-    if (elInicio) elInicio.classList.add('oculto');
-    iniciarPartida(modoInicioSel); // arranca el modo SELECCIONADO desde cero
-  });
+  function construirDuraciones() {
+    if (!elDurModos) return;
+    const j = juegoPorId(juegoSel); if (!j) return;
+    elDurModos.textContent = '';
+    elDurModos.classList.toggle('oculto', j.duraciones.length <= 1); // 3.2: una sola → sin selector
+    j.duraciones.forEach(function (dur) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'go-reiniciar ini-sel' + (dur === modoInicioSel ? ' sel-activo' : '');
+      b.setAttribute('data-dur', dur);
+      b.textContent = dur + 's';
+      b.addEventListener('click', function () {
+        modoInicioSel = dur;
+        const bs = elDurModos.querySelectorAll('button');
+        for (let i = 0; i < bs.length; i++) bs[i].classList.toggle('sel-activo', bs[i].getAttribute('data-dur') === dur);
+        actualizarRecordDuracion();
+      });
+      elDurModos.appendChild(b);
+    });
+  }
+  function mostrarPantallaDuracion(juego) {
+    const j = juegoPorId(juego); if (!j) return;
+    juegoSel = juego;
+    // duración por defecto: la ÚLTIMA jugada de este juego si aplica, si no la primera del juego.
+    if (j.duraciones.indexOf(modoInicioSel) === -1) modoInicioSel = j.duraciones[j.duraciones.length - 1];
+    if (elDurJuego) elDurJuego.textContent = j.nombre;
+    construirDuraciones();
+    actualizarRecordDuracion();
+    jugando = false;
+    ocultarNav();
+    if (elDuracion) elDuracion.classList.remove('oculto');
+  }
+  const btnDurAtras = document.getElementById('durAtras');
+  if (btnDurAtras) btnDurAtras.addEventListener('click', mostrarPantallaInicio); // 3.3: sube a pantalla 1
+  const btnDurJugar = document.getElementById('durJugar');
+  if (btnDurJugar) btnDurJugar.addEventListener('click', function () { iniciarPartida(juegoSel, modoInicioSel); });
+
+  // ── BOTONES DEL FIN DE PARTIDA (CAMBIO 4) ───────────────────────────────────────────
+  const btnFinJugar = document.getElementById('finJugarDeNuevo');   // mismo juego, misma duración (4.4)
+  if (btnFinJugar) btnFinJugar.addEventListener('click', function () { iniciarPartida(juegoActivo, modoJuego); });
+  const btnFinCambiar = document.getElementById('finCambiarDuracion'); // vuelve a la pantalla 2 (4.5)
+  if (btnFinCambiar) btnFinCambiar.addEventListener('click', function () { mostrarPantallaDuracion(juegoActivo); });
+  const btnFinMenu = document.getElementById('finMenu');            // vuelve a la pantalla 1 (4.7)
+  if (btnFinMenu) btnFinMenu.addEventListener('click', mostrarPantallaInicio);
+  // (construirJuegos() se llama en el arranque, DESPUÉS de definir esDesktop, que usa.)
 
   // ── ENTRADA DE NOMBRE (FASE 21): overlay que se pide UNA sola vez (primera carga).
   // Bloquea el juego hasta tener nombre. Sin autofocus: el teclado se abre al tocar el
@@ -507,16 +599,53 @@
   // nombres del servidor se insertan como TEXTO (textContent), nunca como HTML.
   const elRanking = document.getElementById('ranking');
   const elRankCuerpo = document.getElementById('rankCuerpo');
+  const elRankJuegos = document.getElementById('rankJuegos');
+  const elRankModos = document.getElementById('rankModos');
   const btnVerRanking = document.getElementById('verRanking');
   const btnRankCerrar = document.getElementById('rankCerrar');
-  const botonesRankSel = elRanking ? elRanking.querySelectorAll('.rank-sel') : [];
-  let rankModo = '60';   // modo mostrado en el ranking
+  let rankJuego = 'hitclaud'; // JUEGO mostrado en el ranking (nivel 1)
+  let rankModo = '60';        // DURACIÓN mostrada (nivel 2)
   let rankPeticion = 0;  // token de relevo: descarta respuestas viejas
-  let rankTopActual = []; // último top cargado del modo visible (para compartir la tarjeta)
+  let rankTopActual = []; // último top cargado (para compartir la tarjeta)
+  // Selector de JUEGO (nivel 1) y de DURACIÓN (nivel 2), generados desde JUEGOS: sólo
+  // aparecen las combinaciones que existen (6.2). Los juegos aún no jugables sí aparecen,
+  // pero su tabla se muestra vacía (6.4).
+  function construirRankJuegos() {
+    if (!elRankJuegos) return;
+    elRankJuegos.textContent = '';
+    JUEGOS.forEach(function (j) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'go-reiniciar ini-sel rank-juego' + (j.id === rankJuego ? ' sel-activo' : '');
+      b.setAttribute('data-juego', j.id);
+      b.textContent = j.nombre;
+      b.addEventListener('click', function () { elegirRankJuego(j.id); });
+      elRankJuegos.appendChild(b);
+    });
+  }
+  function construirRankModos() {
+    if (!elRankModos) return;
+    const j = juegoPorId(rankJuego); if (!j) return;
+    elRankModos.textContent = '';
+    j.duraciones.forEach(function (dur) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'go-reiniciar ini-sel rank-sel' + (dur === rankModo ? ' sel-activo' : '');
+      b.setAttribute('data-modo', dur);
+      b.textContent = dur + 's';
+      b.addEventListener('click', function () { elegirModoRank(dur); });
+      elRankModos.appendChild(b);
+    });
+  }
+  function marcarRankJuego() {
+    if (!elRankJuegos) return;
+    const bs = elRankJuegos.querySelectorAll('button');
+    for (let i = 0; i < bs.length; i++) bs[i].classList.toggle('sel-activo', bs[i].getAttribute('data-juego') === rankJuego);
+  }
   function marcarModoRank() {
-    for (let i = 0; i < botonesRankSel.length; i++) {
-      botonesRankSel[i].classList.toggle('sel-activo', botonesRankSel[i].getAttribute('data-modo') === rankModo);
-    }
+    if (!elRankModos) return;
+    const bs = elRankModos.querySelectorAll('button');
+    for (let i = 0; i < bs.length; i++) bs[i].classList.toggle('sel-activo', bs[i].getAttribute('data-modo') === rankModo);
   }
   function rankEstado(texto, conReintento) {
     if (!elRankCuerpo) return;
@@ -566,27 +695,40 @@
     elRankCuerpo.appendChild(frag);
   }
   function cargarRanking() {
-    if (typeof Ranking === 'undefined') { rankEstado('No se pudo cargar la tabla.', true); return; }
     const token = ++rankPeticion;
+    // Sólo HitClaud tiene datos hoy: su modo servidor es la duración pelada ('15'/'60'). Los
+    // demás juegos aún no envían (el servidor rechaza los modos con prefijo, 6.3) → tabla
+    // vacía con el mensaje de "aún no hay puntajes" (6.4), sin pegarle al servidor.
+    if (rankJuego !== 'hitclaud' || typeof Ranking === 'undefined') {
+      rankTopActual = [];
+      rankEstado('Aún no hay puntajes en este juego. ¡Pronto!', false);
+      return;
+    }
     rankEstado('Cargando…', false);
-    Ranking.pedirTop(rankModo).then(function (res) {
-      if (token !== rankPeticion) return; // respuesta vieja (se cambió de modo / recargó) → ignorar
+    Ranking.pedirTop(modoServidor(rankJuego, rankModo)).then(function (res) {
+      if (token !== rankPeticion) return; // respuesta vieja (se cambió de juego/modo) → ignorar
       if (res && res.ok) { rankTopActual = res.top || []; pintarTabla(res.top); }
       else { rankTopActual = []; rankEstado('No se pudo cargar la tabla. Revisá tu conexión.', true); }
     });
   }
   function elegirModoRank(modo) { rankModo = modo; marcarModoRank(); cargarRanking(); }
-  for (let i = 0; i < botonesRankSel.length; i++) {
-    botonesRankSel[i].addEventListener('click', (function (btn) {
-      return function () { elegirModoRank(btn.getAttribute('data-modo')); };
-    })(botonesRankSel[i]));
+  function elegirRankJuego(juego) {
+    const j = juegoPorId(juego); if (!j) return;
+    rankJuego = juego;
+    if (j.duraciones.indexOf(rankModo) === -1) rankModo = j.duraciones[j.duraciones.length - 1]; // duración válida del juego
+    marcarRankJuego();
+    construirRankModos(); // el nivel 2 depende del juego elegido
+    cargarRanking();
   }
   function abrirRanking() {
-    rankModo = modoInicioSel; // arranca en el modo que el jugador usó la última vez
-    marcarModoRank();
+    // Arranca en el juego/duración que el jugador usó la última vez (si son válidos).
+    rankJuego = juegoSel;
+    const j = juegoPorId(rankJuego) || juegoPorId('hitclaud');
+    if (j) { rankJuego = j.id; rankModo = j.duraciones.indexOf(modoInicioSel) !== -1 ? modoInicioSel : j.duraciones[j.duraciones.length - 1]; }
+    construirRankJuegos();
+    construirRankModos();
     if (elRankCuerpo) elRankCuerpo.scrollTop = 0;
-    if (elInicio) elInicio.classList.add('oculto');
-    if (elGameOver) elGameOver.classList.add('oculto'); // también se entra desde el fin (4.4)
+    ocultarNav();
     if (elRanking) elRanking.classList.remove('oculto');
     cargarRanking();
   }
@@ -1929,6 +2071,7 @@
   actualizarSaludo();   // pinta el saludo del inicio con el nombre guardado (si existe)
   marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
   escalada = P.crearEscalada(performance.now(), Math.random); // estado inicial válido
+  construirJuegos();     // arma las tarjetas de la pantalla 1 (ya está definido esDesktop)
   // Primera pantalla (FASE 21+26): si ya hay nombre → inicio; si no y el almacén sirve
   // → pedir nombre (confirmar/omitir llevan al inicio); si el almacén está roto → jugar
   // sin nombre (directo al inicio). El bucle corre congelado detrás. Sin aviso emergente:

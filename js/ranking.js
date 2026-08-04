@@ -14,8 +14,11 @@
   // Tiempo límite por llamada. Si se pasa, se ABANDONA sin error visible. 5 s es holgado
   // para una respuesta normal y corto para no dejar nada colgado si la red está caída.
   const TIMEOUT_MS = 5000;
-  const MODOS = ['15', '30', '60'];
-  const DUR_MS = { '15': 15000, '30': 30000, '60': 60000 };
+  // Modos que el SERVIDOR acepta HOY para HitClaud (el modo 30 se abandonó). Cuando el
+  // servidor acepte modos con prefijo de juego ('shotclaud:20', 'pushclaud:15', …) habrá que
+  // ampliar esta lista y DUR_MS; hasta entonces sólo se envía/consulta HitClaud 15 y 60.
+  const MODOS = ['15', '60'];
+  const DUR_MS = { '15': 15000, '60': 60000 };
   const ICONOS = { 1: 'assets/podio-1.svg', 2: 'assets/podio-2.svg', 3: 'assets/podio-3.svg' };
   const PEND_PREFIX = 'hitclaud.pendiente.v1.'; // llave del pendiente por modo (best-effort)
 

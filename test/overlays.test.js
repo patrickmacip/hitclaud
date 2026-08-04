@@ -24,7 +24,7 @@ const idsPos = mPos ? [...mPos[1].matchAll(/#(\w+)/g)].map(function (m) { return
 const mOcu = css.match(/([^\n{]*#gameover\.oculto[^\n{]*)\{\s*display: none;/);
 const idsOcu = mOcu ? [...mOcu[1].matchAll(/#(\w+)\.oculto/g)].map(function (m) { return m[1]; }) : [];
 
-const ESPERADOS = ['inicio', 'nombre', 'actualizaciones', 'ranking', 'gameover'];
+const ESPERADOS = ['inicio', 'duracion', 'nombre', 'actualizaciones', 'ranking', 'gameover'];
 
 console.log('=== #pausa ELIMINADO: sin rastro en HTML, CSS ni main.js ===');
 {
@@ -39,7 +39,7 @@ console.log('=== PARIDAD HTML ↔ CSS: cada overlay del HTML está en AMBAS regl
   console.log(`  HTML(role=dialog): [${idsHtml.join(', ')}]`);
   console.log(`  CSS posición z3  : [${idsPos.join(', ')}]`);
   console.log(`  CSS oculto comp. : [${idsOcu.join(', ')}]`);
-  chk('los 5 overlays vigentes en el HTML (inicio, nombre, actualizaciones, ranking, gameover)', set(idsHtml) === set(ESPERADOS));
+  chk('los 6 overlays vigentes en el HTML (inicio, duracion, nombre, actualizaciones, ranking, gameover)', set(idsHtml) === set(ESPERADOS));
   chk('#novedades ya NO existe en el HTML (aviso emergente retirado)', !/id="novedades"/.test(html) && idsHtml.indexOf('novedades') === -1);
   chk('#novedades NO deja reglas huérfanas en el CSS', !/#novedades/.test(css));
   chk('PARIDAD: HTML == regla de posición (nadie olvidado)', set(idsHtml) === set(idsPos));
@@ -51,7 +51,7 @@ console.log('=== Especificidad: el ocultado de CADA overlay es COMPUESTO (0-1-1-
 {
   const compuestoParaTodos = idsHtml.every(function (id) { return idsOcu.indexOf(id) !== -1; });
   chk('cada overlay tiene su #X.oculto (ninguno depende de la .oculto genérica)', compuestoParaTodos);
-  chk('existe la .oculto genérica pero los overlays usan el compuesto', /^\.oculto \{ display: none; \}$/m.test(css) && idsOcu.length === 5);
+  chk('existe la .oculto genérica pero los overlays usan el compuesto', /^\.oculto \{ display: none; \}$/m.test(css) && idsOcu.length === 6);
 }
 
 console.log('=== TOQUES: el overlay (y su input/botones) queda POR ENCIMA del canvas ===');
@@ -88,14 +88,15 @@ console.log('=== TECLADO / anti-zoom iOS: campo alto 48, texto 16px, sin autofoc
   chk('maxlength 8', /id="nombreInput"[\s\S]{0,140}maxlength="8"/.test(html));
 }
 
-console.log('=== LEY: los CINCO overlays vigentes tienen botón de salida ===');
+console.log('=== LEY: los SEIS overlays vigentes tienen salida (nunca un callejón sin salida) ===');
 {
   const salidas = {
     nombre: /id="nombreOmitir"|id="nombreOk"/,
-    inicio: /id="jugar"/,
+    inicio: /id="verRanking"|id="verActualizaciones"/, // pantalla 1: lleva a otras pantallas y a los juegos (tarjetas generadas)
+    duracion: /id="durAtras"|id="durJugar"/,           // pantalla 2: flecha de atrás + JUGAR
     actualizaciones: /id="actuCerrar"/,
     ranking: /id="rankCerrar"/,
-    gameover: /id="jugar60"|id="jugar30"|id="jugar15"|id="volverInicio"/,
+    gameover: /id="finJugarDeNuevo"|id="finMenu"/,
   };
   Object.keys(salidas).forEach(function (id) {
     chk('#' + id + ' tiene botón de salida', salidas[id].test(html));

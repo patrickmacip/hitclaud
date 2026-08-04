@@ -27,7 +27,7 @@ console.log('=== CAMBIO 1.3: SALIR abandona la partida sin guardar récord ni ma
   chk('abandonarPartida NO manda /score (enviarAlServidor(false): sólo /partida)', /function abandonarPartida\(\)[\s\S]{0,400}enviarAlServidor\(false\)/.test(main));
   chk('el /score sólo sale por tiempo (enviarAlServidor: if (porTiempo))', /function enviarAlServidor\(porTiempo\)[\s\S]*?if \(porTiempo\) \{[\s\S]{0,200}enviarPuntaje/.test(main));
   chk('abandono → stats con termino cloudover (el abandono cuenta como caída)', /termino: porTiempo \? 'tiempo' : 'cloudover'/.test(main));
-  chk('abandonar vuelve al inicio (siempre hay salida)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarPantallaInicio\(\)/.test(main));
+  chk('abandonar sube a la pantalla 2 del juego (siempre hay salida, 5.1)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarPantallaDuracion\(juegoActivo\)/.test(main));
   chk('salir no interrumpe la secuencia de CloudOver', /botonSalir\.addEventListener\([\s\S]{0,120}if \(secuencia\) return;/.test(main));
 }
 
@@ -40,18 +40,18 @@ console.log('=== CAMBIO 2/3: saludo abre editar-nombre con el valor actual; guar
   chk('no cambia la persistencia del nombre (sigue nombreStore.guardar)', /function confirmarNombre\(\)[\s\S]{0,400}nombreStore\.guardar\(v\)/.test(main));
 }
 
-console.log('=== CAMBIO 2.4/4.5: tres selectores de modo de ANCHO IDÉNTICO, un renglón, ≥56px ===');
+console.log('=== 2.4/4: selector de duración de ANCHO IDÉNTICO, un renglón, ≥56px (generado) ===');
 {
   chk('.ini-sel reparte el ancho por igual (flex: 1)', /\.ini-sel \{[\s\S]{0,140}flex: 1;/.test(css));
   chk('.ini-sel en un solo renglón (nowrap) y altura ≥56px', /\.ini-sel \{[\s\S]{0,160}white-space: nowrap;/.test(css) && /\.ini-sel \{[\s\S]{0,160}min-height: 56px/.test(css));
-  chk('inicio: 15s/30s/60s en un renglón', /id="sel15"[^>]*>15s</.test(html) && /id="sel30"[^>]*>30s</.test(html) && /id="sel60"[^>]*>60s</.test(html));
-  chk('fin: 15s/30s/60s con el mismo componente .ini-sel', /id="jugar15" class="go-reiniciar ini-sel"/.test(html) && /id="jugar30" class="go-reiniciar ini-sel"/.test(html) && /id="jugar60" class="go-reiniciar ini-sel"/.test(html));
-  chk('el fin marca el modo jugado (marcarModoFin en pintarFin)', /function pintarFin[\s\S]{0,500}marcarModoFin\(\)/.test(main) && /function marcarModoFin\(\)/.test(main));
+  chk('pantalla 2: los botones de duración se generan como .ini-sel con texto "Ns"', /b\.className = 'go-reiniciar ini-sel'[\s\S]{0,120}b\.textContent = dur \+ 's'/.test(main));
+  chk('fin: botón principal "Jugar de nuevo" (.go-reiniciar .ini-jugar)', /<button id="finJugarDeNuevo" class="go-reiniciar ini-jugar">Jugar de nuevo<\/button>/.test(html));
+  chk('fin: "Cambiar duración" se oculta si el juego tiene una sola duración', /btnFinCambiar\.classList\.toggle\('oculto', unaSola\)/.test(main));
 }
 
 console.log('=== P2/2.5/2.6: un solo acento sólido (JUGAR); Ranking es botón con contorno, no enlace ===');
 {
-  chk('JUGAR es el botón relleno principal (.go-reiniciar .ini-jugar)', /<button id="jugar" class="go-reiniciar ini-jugar">JUGAR<\/button>/.test(html));
+  chk('JUGAR (pantalla 2) es el botón relleno principal (.go-reiniciar .ini-jugar)', /<button id="durJugar" class="go-reiniciar ini-jugar">JUGAR<\/button>/.test(html));
   chk('Ranking: botón de verdad, contorno, con el podio (NO enlace, sin subrayado)', /\.ini-ranking \{[\s\S]{0,220}border: 2px solid var\(--acento/.test(css) && !/\.ini-ranking \{[\s\S]{0,220}text-decoration/.test(css));
   chk('Actualizaciones: discreto, sin contorno ni subrayado (P3)', /\.ini-actu \{[\s\S]{0,220}border: none;/.test(css) && !/\.ini-actu \{[\s\S]{0,220}text-decoration/.test(css));
   chk('Ranking también en el fin de partida (#verRankingFin con podio)', /id="verRankingFin"[\s\S]{0,120}assets\/podio-1\.svg/.test(html));
@@ -76,7 +76,7 @@ console.log('=== CAMBIO 4: fin de partida sin la palabra "Score" ni la línea de
   chk('récord nuevo con la corona (4.2)', /<p class="go-record oculto"><svg class="icono icono-mini"[\s\S]{0,80}#ic-corona/.test(html));
   chk('sin la línea de diagnóstico del envío (go-envio) en el HTML/CSS/JS', !/go-envio/.test(html) && !/go-envio/.test(css) && !/go-envio/.test(main));
   chk('sin las funciones del diagnóstico (estadoEnvioTexto/pintarEstadoEnvio)', !/estadoEnvioTexto/.test(main) && !/pintarEstadoEnvio/.test(main));
-  chk('botón Inicio discreto en el fin (4.6)', /id="volverInicio" class="ini-actu"/.test(html));
+  chk('botón "Menú de juegos" discreto en el fin (4.7)', /id="finMenu" class="ini-actu" type="button">Menú de juegos<\/button>/.test(html));
 }
 
 console.log(`\n== RESUMEN interfaz: ${ok} OK, ${ko} NO ==`);

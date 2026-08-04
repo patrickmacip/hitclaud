@@ -23,6 +23,7 @@
     <symbol id="ic-casa" viewBox="0 0 24 24"><path d="M12 3.2 21.5 11h-2.9v9.8h-4.7v-5.7h-2.8v5.7H5.4V11H2.5z"/></symbol>
     <symbol id="ic-lapiz" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.84 1.83 3.75 3.75 1.84-1.83z"/></symbol>
     <symbol id="ic-compartir" viewBox="0 0 24 24"><path d="M12 2.6l4 4-1.4 1.4L13 6.4V15h-2V6.4L9.4 8l-1.4-1.4 4-4z"/><path d="M5 10h3v2H6v8h12v-8h-2v-2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1z"/></symbol>
+    <symbol id="ic-atras" viewBox="0 0 24 24"><path d="M14.6 4.6 7.2 12l7.4 7.4 1.6-1.6L10.4 12l5.8-5.8z"/></symbol>
   </svg>
 
   <!-- BARRA de juego: tres zonas SIN etiquetas de texto (P1). Izquierda = récord (corona +
@@ -59,6 +60,9 @@
     </div>
   </div>
 
+  <!-- PANTALLA 1 — ELEGIR JUEGO (arranque). Título del proyecto, saludo editable, y una
+       tarjeta por juego (se generan desde la estructura JUEGOS de main.js, fuente única).
+       Abajo: Ranking y Actualizaciones. -->
   <div id="inicio" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
       <p class="ini-titulo">HitClaud</p>
@@ -67,22 +71,33 @@
         <span id="iniSaludoTexto">Ponte un nombre</span>
         <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-lapiz"></use></svg>
       </button>
-      <!-- Récord del modo seleccionado: corona + número, sin la palabra "Record". -->
-      <div class="ini-record" aria-label="Récord del modo">
-        <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg>
-        <span class="valor" id="iniRecord">0</span>
-      </div>
-      <div class="ini-modos" role="group" aria-label="Duración">
-        <button id="sel15" class="go-reiniciar ini-sel">15s</button>
-        <button id="sel30" class="go-reiniciar ini-sel">30s</button>
-        <button id="sel60" class="go-reiniciar ini-sel sel-activo">60s</button>
-      </div>
-      <button id="jugar" class="go-reiniciar ini-jugar">JUGAR</button>
+      <!-- Tarjetas de juego (una por entrada de JUEGOS). Se llenan desde main.js. -->
+      <div class="juego-lista" id="juegoLista"></div>
       <button id="verRanking" class="ini-ranking" type="button">
         <img src="assets/podio-1.svg" alt="" aria-hidden="true">
         <span>Ranking</span>
       </button>
       <button id="verActualizaciones" class="ini-actu" type="button">Actualizaciones</button>
+    </div>
+  </div>
+
+  <!-- PANTALLA 2 — ELEGIR DURACIÓN. Flecha de atrás (sube a la pantalla 1) + nombre del
+       juego; récord del jugador en ese juego (cambia con la duración); selector de las
+       duraciones de ESE juego (oculto si sólo tiene una); y JUGAR. -->
+  <div id="duracion" class="oculto" role="dialog" aria-modal="true">
+    <div class="go-panel">
+      <div class="nivel-cabecera">
+        <button id="durAtras" class="btn-atras" type="button" aria-label="Atrás">
+          <svg class="icono" aria-hidden="true"><use href="#ic-atras"></use></svg>
+        </button>
+        <span class="nivel-titulo" id="durJuego">HitClaud</span>
+      </div>
+      <div class="ini-record" aria-label="Récord del juego">
+        <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg>
+        <span class="valor" id="durRecord">0</span>
+      </div>
+      <div class="ini-modos" id="durModos" role="group" aria-label="Duración"></div>
+      <button id="durJugar" class="go-reiniciar ini-jugar">JUGAR</button>
     </div>
   </div>
 
@@ -102,14 +117,14 @@
        Selector de modo, tabla scrolleable con Cerrar SIEMPRE visible (ley: toda pantalla
        tiene salida). Los tres estados (cargando / con datos / error) se pintan desde JS;
        los nombres se insertan como TEXTO, nunca como HTML. -->
+  <!-- PANTALLA DE RANKING: DOS niveles de selección — primero el juego, luego la duración
+       de ese juego. Ambos selectores se generan desde JUEGOS (main.js): sólo aparecen las
+       combinaciones que existen. Los nombres del servidor se insertan como TEXTO. -->
   <div id="ranking" class="oculto" role="dialog" aria-modal="true">
     <div class="actu-panel">
       <p class="actu-titulo">Ranking</p>
-      <div class="rank-modos" role="group" aria-label="Duración">
-        <button class="go-reiniciar ini-sel rank-sel" data-modo="15">15s</button>
-        <button class="go-reiniciar ini-sel rank-sel" data-modo="30">30s</button>
-        <button class="go-reiniciar ini-sel rank-sel" data-modo="60">60s</button>
-      </div>
+      <div class="rank-juegos" id="rankJuegos" role="group" aria-label="Juego"></div>
+      <div class="rank-modos" id="rankModos" role="group" aria-label="Duración"></div>
       <div class="rank-cuerpo" id="rankCuerpo"></div>
       <button id="compartirRank" class="ini-ranking rank-compartir" type="button">
         <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-compartir"></use></svg>
@@ -119,14 +134,16 @@
     </div>
   </div>
 
-  <!-- FIN DE PARTIDA: puntaje dominante (sin la palabra "Score"), línea de récord con
-       corona si corresponde, confirmación de ranking, botón Ranking (podio), selector de
-       modos para volver a jugar, y un botón discreto de Inicio. -->
+  <!-- FIN DE PARTIDA (orden importa): puntaje, récord (corona), puesto de ranking, y luego:
+       "Jugar de nuevo" (principal, mismo juego y duración), "Cambiar duración" (oculto si el
+       juego tiene una sola), Ranking y Compartir, y "Menú de juegos" discreto abajo. -->
   <div id="gameover" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
       <p class="go-score oculto"><span class="valor">0</span></p>
       <p class="go-record oculto"><svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg> ¡Nuevo récord!</p>
       <p class="go-rank oculto"></p>
+      <button id="finJugarDeNuevo" class="go-reiniciar ini-jugar">Jugar de nuevo</button>
+      <button id="finCambiarDuracion" class="ini-ranking" type="button"><span>Cambiar duración</span></button>
       <button id="verRankingFin" class="ini-ranking" type="button">
         <img src="assets/podio-1.svg" alt="" aria-hidden="true">
         <span>Ranking</span>
@@ -135,12 +152,7 @@
         <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-compartir"></use></svg>
         <span>Compartir</span>
       </button>
-      <div class="ini-modos go-modos" role="group" aria-label="Jugar de nuevo">
-        <button id="jugar15" class="go-reiniciar ini-sel">15s</button>
-        <button id="jugar30" class="go-reiniciar ini-sel">30s</button>
-        <button id="jugar60" class="go-reiniciar ini-sel">60s</button>
-      </div>
-      <button id="volverInicio" class="ini-actu" type="button">Inicio</button>
+      <button id="finMenu" class="ini-actu" type="button">Menú de juegos</button>
     </div>
   </div>
 

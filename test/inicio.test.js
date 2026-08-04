@@ -1,6 +1,6 @@
-// hitclaud — FASE 19: pantalla de bienvenida (título + récord + JUGAR). node test/inicio.test.js
+// hitclaud — navegación en dos niveles: pantalla 1 (elegir juego) y pantalla 2 (elegir
+// duración). El arranque muestra la pantalla 1 con el mundo quieto. node test/inicio.test.js
 
-const U = require('../js/util.js');
 const fs = require('fs');
 const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
 const main = fs.readFileSync(__dirname + '/../js/main.js', 'utf8');
@@ -9,70 +9,55 @@ const css = fs.readFileSync(__dirname + '/../css/main.css', 'utf8');
 let ok = 0, ko = 0;
 function chk(n, c) { console.log(`  ${n}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) ok++; else ko++; }
 
-console.log('=== CONTENIDO: título "HitClaud", récord (estilo marcador Record), botón JUGAR ===');
+console.log('=== PANTALLA 1 (elegir juego): título, saludo, lista de juegos, Ranking, Actualizaciones ===');
 {
   chk('overlay #inicio existe (role=dialog)', /<div id="inicio"[^>]*role="dialog"/.test(html));
-  chk('título grande "HitClaud"', /class="ini-titulo">HitClaud</.test(html));
-  chk('récord: corona + número en .ini-record (sin la palabra "Record")', /class="ini-record"[\s\S]*id="iniRecord"/.test(html) && /ini-record[\s\S]{0,140}#ic-corona[\s\S]{0,90}id="iniRecord"/.test(html));
-  chk('el récord del inicio ya NO lleva etiqueta de texto "Record"', !/ini-record[\s\S]{0,120}>Record</.test(html));
-  chk('botón JUGAR reusa la familia .go-reiniciar (no un botón nuevo)', /<button id="jugar" class="go-reiniciar ini-jugar">JUGAR<\/button>/.test(html));
+  chk('título del proyecto "HitClaud"', /class="ini-titulo">HitClaud</.test(html));
+  chk('saludo pulsable con lápiz', /id="iniSaludo"[\s\S]{0,140}id="iniSaludoTexto"[\s\S]{0,140}#ic-lapiz/.test(html));
+  chk('contenedor de tarjetas de juego (se generan desde JUEGOS)', /<div class="juego-lista" id="juegoLista"><\/div>/.test(html));
+  chk('las tarjetas se construyen desde JUEGOS (una por juego)', /function construirJuegos\(\)[\s\S]{0,400}JUEGOS\.forEach/.test(main));
+  chk('abajo: Ranking (podio) y Actualizaciones', /id="verRanking"[\s\S]{0,120}podio-1\.svg[\s\S]{0,220}id="verActualizaciones"/.test(html));
+  chk('ya NO hay selector de modo ni JUGAR sueltos en la pantalla 1', !/id="sel15"/.test(html) && !/id="jugar" /.test(html));
 }
 
-console.log('=== MECANISMO: mismo sistema de overlays DOM que #gameover ===');
+console.log('=== PANTALLA 2 (elegir duración): flecha de atrás, nombre, récord, selector, JUGAR ===');
 {
-  chk('#inicio en la regla .oculto compuesta de overlays', /#inicio\.oculto[,{]/.test(css) && /\.oculto[^{]*\{ display: none; \}/.test(css));
-  chk('#inicio en la regla de posición fixed/z-index de overlays', /#gameover, #inicio[,{ ]/.test(css));
-  chk('main.js muestra/oculta #inicio con .classList (mismo mecanismo)', /elInicio\.classList\.remove\('oculto'\)/.test(main) && /elInicio\.classList\.add\('oculto'\)/.test(main));
-  chk('NO hay dibujo en canvas de la pantalla (es DOM, no un mecanismo paralelo)', !/dibujarInicio|pantallaInicioCanvas/.test(main));
+  chk('overlay #duracion existe (role=dialog)', /<div id="duracion"[^>]*role="dialog"/.test(html));
+  chk('cabecera: flecha de atrás + nombre del juego', /id="durAtras"[\s\S]{0,140}#ic-atras[\s\S]{0,120}id="durJuego"/.test(html));
+  chk('récord del juego: corona + número', /class="ini-record"[\s\S]{0,120}#ic-corona[\s\S]{0,80}id="durRecord"/.test(html));
+  chk('selector de duración (se llena desde el juego)', /<div class="ini-modos" id="durModos"[^>]*><\/div>/.test(html));
+  chk('botón JUGAR relleno (.ini-jugar)', /<button id="durJugar" class="go-reiniciar ini-jugar">JUGAR<\/button>/.test(html));
+  chk('la flecha de atrás sube a la pantalla 1', /btnDurAtras\.addEventListener\('click', mostrarPantallaInicio\)/.test(main));
 }
 
-console.log('=== COMPORTAMIENTO: inicio primero, JUGAR → 60s, mundo quieto ===');
+console.log('=== MECANISMO: mismo sistema de overlays DOM; ambas pantallas registradas ===');
 {
-  chk('al cargar entra por la decisión de pantalla (nombre → mostrarPantallaInicio)', /if \(nombreUsuario\) mostrarPantallaInicio\(\);/.test(main));
+  chk('#inicio y #duracion en la regla de posición fixed/z-index', /#gameover, #inicio, #duracion, #nombre, #actualizaciones, #ranking \{/.test(css));
+  chk('#inicio y #duracion en la regla de ocultado compuesto', /#inicio\.oculto, #duracion\.oculto/.test(css));
   chk('mostrarPantallaInicio deja jugando=false (mundo quieto)', /function mostrarPantallaInicio\(\) \{\s*jugando = false;/.test(main));
-  chk('al cargar NO se llama iniciarPartida (sin partida corriendo)', main.indexOf('iniciarPartida') < main.indexOf('if (nombreUsuario) mostrarPantallaInicio();'));
-  chk('JUGAR arranca el modo seleccionado (default 60)', /btnJugar\.addEventListener\('click'[\s\S]{0,180}iniciarPartida\(modoInicioSel\)/.test(main) && /let modoInicioSel = '60';/.test(main));
-  chk('modo 60 = 60·1000 (reloj de 60s desde cero, en DURACIONES)', /'60': 60 \* 1000/.test(main));
-  chk('iniciarPartida fija tiempoRestante = DURACIONES[modo]', /modoJuego = modo;[\s\S]{0,200}tiempoRestante = DURACIONES\[modo\] \|\| 0;/.test(main));
+  chk('mostrarPantallaDuracion deja jugando=false y muestra #duracion', /function mostrarPantallaDuracion\(juego\)[\s\S]{0,400}jugando = false;[\s\S]{0,120}elDuracion\.classList\.remove\('oculto'\)/.test(main));
+}
+
+console.log('=== ARRANQUE: pantalla 1 primero, sin partida corriendo ===');
+{
+  chk('al cargar con nombre → mostrarPantallaInicio', /if \(nombreUsuario\) mostrarPantallaInicio\(\);/.test(main));
+  chk('al cargar NO se llama iniciarPartida', main.indexOf('iniciarPartida') < main.indexOf('if (nombreUsuario) mostrarPantallaInicio();'));
   chk('estado inicial jugando = false', /let jugando = false;/.test(main));
 }
 
-console.log('=== RÉCORD mostrado = el GUARDADO; robusto si el almacén falla ===');
+console.log('=== FIN DE PARTIDA: "Jugar de nuevo" arranca el mismo juego+duración, no la pantalla 1 ===');
 {
-  // El display usa el récord del modo seleccionado (guardado, reconciliado).
-  chk('actualizarRecordInicio usa records[modoInicioSel].valor', /function actualizarRecordInicio\(\)[\s\S]{0,200}U\.abreviarNumero\(\(records\[modoInicioSel\] \|\| record60\)\.valor\)/.test(main));
-  chk('reconciliación refresca el récord de inicio', /r === record[\s\S]{0,80}actualizarRecordInicio\(\)/.test(main));
-  // Persistencia: el valor mostrado sale del almacenamiento.
-  const local = (function () { const d = {}; return { getItem: (k) => (k in d ? d[k] : null), setItem: (k, v) => { d[k] = String(v); }, _d: d }; })();
-  local._d['hitclaud.record.v2.60'] = JSON.stringify({ record: 4242, ultimoScore: 100 });
-  const p = U.crearPersistencia(local, null, 'hitclaud.record.v2.60', 500);
-  chk('récord = el guardado (4242 leído del almacén)', p.valor === 4242 && U.abreviarNumero(p.valor) === '4242');
-  // Almacenamiento caído → 0, sin romper.
-  const pFail = U.crearPersistencia(null, null, 'hitclaud.record.v2.60', 500);
-  chk('almacén nulo → record 0 (muestra 0, no rompe)', pFail.valor === 0);
-  chk('actualizarRecordInicio con try/catch → 0 si algo lanza', /try \{ elIniRecord\.textContent = U\.abreviarNumero\(\(records\[modoInicioSel\] \|\| record60\)\.valor\); \}\s*catch \(e\) \{ elIniRecord\.textContent = '0'; \}/.test(main));
-  // El botón vive aparte del récord: su listener no depende del almacén.
-  chk('el listener de JUGAR no depende del récord (siempre vivo)', /const btnJugar = document\.getElementById\('jugar'\);\s*if \(btnJugar\) btnJugar\.addEventListener/.test(main));
+  chk('#gameover con "Jugar de nuevo"', /<button id="finJugarDeNuevo" class="go-reiniciar ini-jugar">Jugar de nuevo<\/button>/.test(html));
+  chk('"Jugar de nuevo" → iniciarPartida(juegoActivo, modoJuego)', /finJugarDeNuevo[\s\S]{0,120}iniciarPartida\(juegoActivo, modoJuego\)/.test(main));
+  chk('pintarFin NO muestra la pantalla de inicio (queda en el fin)', !/function pintarFin[\s\S]{0,400}elInicio\.classList\.remove/.test(main));
 }
 
-console.log('=== REGRESIÓN: el overlay de game over conserva sus botones/comportamiento ===');
+console.log('=== ESTILO: acento naranja + ley de tacto + costo intactos ===');
 {
-  chk('#gameover sigue con #jugar60 (60s)', /<button id="jugar60" class="go-reiniciar ini-sel">60s<\/button>/.test(html));
-  chk('#gameover ya NO tiene Relax (jugarLibre eliminado)', !/jugarLibre/.test(html));
-  chk('los botones del game over llaman iniciarPartida (no la pantalla de inicio)', /btn60\.addEventListener\('click', function \(\) \{ iniciarPartida\('60'\); \}\)/.test(main));
-  chk('pintarFin (game over) NO muestra la pantalla de inicio', !/pintarFin[\s\S]{0,200}elInicio/.test(main));
-}
-
-console.log('=== ESTILO: acento naranja (sin hardcodear) + ley de tacto + costo ===');
-{
-  chk('título usa var(--acento-vivo) (naranja, no hardcode)', /\.ini-titulo \{[\s\S]{0,120}color: var\(--acento-vivo/.test(css));
-  chk('botón usa var(--acento…) vía .go-reiniciar (sin hex crudo propio)', /\.go-reiniciar \{[\s\S]{0,160}background: var\(--acento/.test(css));
-  chk(':active definido para JUGAR (feedback táctil)', /\.ini-jugar:active \{/.test(css));
-  chk('hover SÓLO bajo @media (hover: hover)', /@media \(hover: hover\) \{\s*\.ini-jugar:hover/.test(css));
-  chk('zona táctil ≥44px (min-height 56px)', /\.ini-jugar \{[\s\S]{0,120}min-height: 56px/.test(css));
-  chk('sin shadowBlur/gradiente en el CSS de inicio', !/\.ini-[\s\S]{0,400}box-shadow|\.ini-[\s\S]{0,400}gradient/.test(css));
-  // Bucle de dibujo intacto: sigue habiendo un solo shadowBlur (el de desktop) y ningún gradiente creado en dibujar().
-  chk('el bucle de dibujo no ganó shadowBlur (sigue 1: el de desktop)', (main.match(/ctx\.shadowBlur/g) || []).length === 1);
+  chk('título usa var(--acento-vivo)', /\.ini-titulo \{[\s\S]{0,120}color: var\(--acento-vivo/.test(css));
+  chk(':active + hover@media para JUGAR (.ini-jugar)', /\.ini-jugar:active \{/.test(css) && /@media \(hover: hover\) \{\s*\.ini-jugar:hover/.test(css));
+  chk('zona táctil de JUGAR ≥44px (min-height 56px)', /\.ini-jugar \{[\s\S]{0,120}min-height: 56px/.test(css));
+  chk('el bucle de dibujo sigue con 1 solo shadowBlur (el de desktop)', (main.match(/ctx\.shadowBlur/g) || []).length === 1);
 }
 
 console.log(`\n== RESUMEN inicio: ${ok} OK, ${ko} NO ==`);

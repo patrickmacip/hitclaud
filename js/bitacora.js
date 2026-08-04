@@ -14,6 +14,16 @@
 
   const versiones = [
     {
+      version: '1.6', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'HitClaud ahora es una colección: llegan ShotClaud y PushClaud' },
+        { texto: 'Menú nuevo para elegir juego y duración' },
+        { texto: 'HitClaud se juega en 15 o 60 segundos' },
+        { texto: 'El modo de 30 segundos', retirado: true },
+        { texto: 'Volver a jugar está a un solo toque al terminar' },
+      ],
+    },
+    {
       version: '1.5', fecha: '3 de agosto',
       puntos: [
         { texto: 'Ahora puedes compartir tu récord con una imagen lista para presumir' },
