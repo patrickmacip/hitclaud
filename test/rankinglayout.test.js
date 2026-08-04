@@ -15,26 +15,26 @@ const rank = html.slice(html.indexOf('<div id="ranking"'), html.indexOf('<div id
 console.log('=== CAMBIO 1: el panel tiene ALTURA FIJA, no dependiente del contenido ===');
 {
   chk('el panel del ranking usa la clase .rank-panel', /<div class="actu-panel rank-panel">/.test(html));
-  chk('altura FIJA relativa a la ventana (min(px, dvh)), no crece con las filas', /\.rank-panel \{[\s\S]{0,120}height: min\(620px, calc\(100dvh - 96px\)\);/.test(css));
-  chk('usa dvh (respeta las barras de Safari), no vh/%', /\.rank-panel \{[\s\S]{0,140}100dvh/.test(css) && !/\.rank-panel \{[\s\S]{0,140}height: 88vh/.test(css));
+  chk('altura FIJA relativa a la ventana (min(px, --ventana-max)), no crece con las filas', /\.rank-panel \{[\s\S]{0,120}height: min\(620px, var\(--ventana-max\)\);/.test(css));
+  chk('usa dvh (respeta las barras de Safari): --ventana-max se define con 100dvh', /--ventana-max:\s*calc\(100dvh/.test(css) && !/\.rank-panel \{[\s\S]{0,140}height: 88vh/.test(css));
   chk('anula el max-height:88vh de .actu-panel (aquí el alto manda)', /\.rank-panel \{[\s\S]{0,160}max-height: none;/.test(css));
   chk('el panel NO desplaza (overflow hidden); sólo la tabla lo hace', /\.rank-panel \{[\s\S]{0,200}overflow: hidden;/.test(css));
 }
 
 console.log('=== CAMBIO 2: cabecera fija con iconos; SOLO la tabla se desplaza ===');
 {
-  chk('cabecera fija (flex 0 0 auto)', /\.rank-cabecera \{[\s\S]{0,80}flex: 0 0 auto;/.test(css));
-  chk('orden en la cabecera: Compartir (izq) · título+juego (centro) · Cerrar (der)', /rank-cabecera[\s\S]*?id="compartirRank"[\s\S]*?rank-titulo[\s\S]*?actu-titulo[\s\S]*?rankJuegoNombre[\s\S]*?id="rankCerrar"/.test(rank));
+  chk('cabecera fija (flex 0 0 auto)', /\.ov-cabecera \{[\s\S]{0,80}flex: 0 0 auto;/.test(css));
+  chk('orden en la cabecera: Compartir (izq) · título+juego (centro) · Cerrar (der)', /ov-cabecera[\s\S]*?id="compartirRank"[\s\S]*?rank-titulo[\s\S]*?actu-titulo[\s\S]*?rankJuegoNombre[\s\S]*?id="rankCerrar"/.test(rank));
   chk('el selector de duración es fijo (no se desplaza)', /\.rank-modos \{[\s\S]{0,60}flex: 0 0 auto;/.test(css));
   chk('SOLO .rank-cuerpo desplaza (overflow-y auto) y puede encoger (min-height 0)', /\.rank-cuerpo \{[\s\S]{0,120}min-height: 0;[\s\S]{0,80}overflow-y: auto;/.test(css));
-  chk('el título del ranking es más chico que en Actualizaciones (scoped, no toca otros)', /\.rank-cabecera \.actu-titulo \{[\s\S]{0,80}font: var\(--texto-l\)/.test(css));
+  chk('el título del ranking es más chico que en Actualizaciones (scoped, no toca otros)', /\.ov-cabecera \.actu-titulo \{[\s\S]{0,80}font: var\(--texto-l\)/.test(css));
 }
 
 console.log('=== CAMBIO 2.1: iconos sin texto, área táctil 44×44; Cerrar es una X ===');
 {
-  chk('.rank-icono con 44×44 de área táctil', /\.rank-icono \{[\s\S]{0,120}width: 44px; height: 44px;/.test(css));
-  chk('Compartir es icono (rank-icono, sin texto)', /<button id="compartirRank" class="rank-icono"[\s\S]{0,140}#ic-compartir/.test(rank));
-  chk('Cerrar es icono X (rank-icono, sin texto)', /<button id="rankCerrar" class="rank-icono"[\s\S]{0,140}#ic-cerrar/.test(rank));
+  chk('.hdr-icono con 44×44 de área táctil', /\.hdr-icono \{[\s\S]{0,120}width: 44px; height: 44px;/.test(css));
+  chk('Compartir es icono (hdr-icono, sin texto)', /<button id="compartirRank" class="hdr-icono"[\s\S]{0,140}#ic-compartir/.test(rank));
+  chk('Cerrar es icono X (hdr-icono, sin texto)', /<button id="rankCerrar" class="hdr-icono"[\s\S]{0,140}#ic-cerrar/.test(rank));
   chk('el icono de Cerrar (X) existe como SVG ligero', /<symbol id="ic-cerrar"/.test(html));
   chk('NO queda el texto "Cerrar" ni "Compartir" en el overlay de ranking', rank.indexOf('>Cerrar<') === -1 && rank.indexOf('>Compartir<') === -1 && !/<span>Compartir<\/span>/.test(rank));
 }

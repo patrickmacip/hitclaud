@@ -1,5 +1,5 @@
 // hitclaud — service worker: cache-first del shell
-const CACHE = 'hitclaud-shell-v76';
+const CACHE = 'hitclaud-shell-v77';
 const SHELL = [
   '.',
   'index.html',
@@ -19,6 +19,15 @@ const SHELL = [
   'assets/podio-1.svg',
   'assets/podio-2.svg',
   'assets/podio-3.svg',
+  'assets/podio-4.svg',
+  'assets/podio-5.svg',
+  'assets/podio-6.svg',
+  'assets/podio-7.svg',
+  'assets/podio-8.svg',
+  'assets/podio-9.svg',
+  'assets/podio-10.svg',
+  'assets/podio-11.svg',
+  'assets/podio-12.svg',
 ];
 
 self.addEventListener('install', (e) => {

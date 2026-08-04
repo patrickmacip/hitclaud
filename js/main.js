@@ -394,8 +394,53 @@
   const elDurNombre = document.getElementById('durNombre');
   const elDurModos = document.getElementById('durModos');
   const elDurRecord = document.getElementById('durRecord');
+  const elDurRecordIcono = document.getElementById('durRecordIcono');
   // Duración MÁS CORTA de un juego (min numérico; robusto ante el orden de la lista).
   function duracionMasCorta(j) { return j.duraciones.slice().sort(function (a, b) { return Number(a) - Number(b); })[0]; }
+  // Icono de un puesto: medalla (assets/podio-N.svg) para el 1 al 12; null del 13 en adelante.
+  function iconoPuesto(p) { return (typeof p === 'number' && p >= 1 && p <= 12) ? ('assets/podio-' + p + '.svg') : null; }
+  // MEJOR puesto (1-based) del jugador en un top ordenado mayor→menor. Por NOMBRE; el PRIMER
+  // match ya es el mejor (6.3). null si no está. PURO.
+  function mejorPuestoDe(top, nombre) {
+    if (!Array.isArray(top) || !nombre) return null;
+    for (let i = 0; i < top.length; i++) { if (top[i] && top[i].nombre === nombre) return i + 1; }
+    return null;
+  }
+  // Pinta el icono del récord de la pantalla 2: medalla si `puesto` es 1-12; corona si no.
+  let recordIconoToken = 0;
+  function ponerIconoRecord(puesto) {
+    if (!elDurRecordIcono) return;
+    elDurRecordIcono.textContent = '';
+    const src = iconoPuesto(puesto);
+    if (src) {
+      const img = document.createElement('img');
+      img.className = 'rec-medalla'; img.src = src; img.alt = 'Puesto ' + puesto; img.setAttribute('aria-hidden', 'true');
+      elDurRecordIcono.appendChild(img);
+    } else {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'icono icono-mini'); svg.setAttribute('aria-hidden', 'true');
+      const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      use.setAttribute('href', '#ic-corona');
+      svg.appendChild(use); elDurRecordIcono.appendChild(svg);
+    }
+  }
+  // CAMBIO 6: corona de INMEDIATO (6.4, no espera a la red) y, si el jugador está entre los 12
+  // primeros del ranking de ESE juego+duración, cambia a su medalla al llegar la respuesta.
+  // Reutiliza la tabla que el ranking ya trajo si es del mismo contexto (no pide dos veces, 6.5).
+  // Un fallo de red deja la corona y no lanza (6.4).
+  function actualizarMedallaRecord() {
+    ponerIconoRecord(null); // corona ya
+    if (typeof Ranking === 'undefined' || juegoSel !== 'hitclaud' || !nombreUsuario) return;
+    const juego = juegoSel, dur = modoInicioSel, clave = juego + ':' + dur;
+    if (rankTopClave === clave) { const p = mejorPuestoDe(rankTopActual, nombreUsuario); if (p) ponerIconoRecord(p); return; }
+    const token = ++recordIconoToken;
+    try {
+      Ranking.pedirTop(modoServidor(juego, dur)).then(function (res) {
+        if (token !== recordIconoToken || juego !== juegoSel || dur !== modoInicioSel) return; // cambió el contexto
+        if (res && res.ok) { rankTopActual = res.top || []; rankTopClave = clave; const p = mejorPuestoDe(rankTopActual, nombreUsuario); if (p) ponerIconoRecord(p); }
+      }, function () { /* falla → se queda la corona (6.4) */ });
+    } catch (e) { /* nunca rompe */ }
+  }
 
   // Oculta TODOS los overlays de navegación (para mostrar uno solo). No toca el juego.
   function ocultarNav() {
@@ -464,6 +509,7 @@
         const bs = elDurModos.querySelectorAll('button');
         for (let i = 0; i < bs.length; i++) bs[i].classList.toggle('sel-activo', bs[i].getAttribute('data-dur') === dur);
         actualizarRecordDuracion();
+        actualizarMedallaRecord(); // el icono del récord cambia con la duración (6.2)
       });
       elDurModos.appendChild(b);
     });
@@ -476,9 +522,10 @@
     juegoSel = juego;
     if (reiniciar || j.duraciones.indexOf(modoInicioSel) === -1) modoInicioSel = duracionMasCorta(j);
     if (elDurJuego) elDurJuego.textContent = j.nombre;
-    if (elDurNombre) elDurNombre.textContent = nombreUsuario ? ('Juegas como ' + nombreUsuario) : '';
+    if (elDurNombre) elDurNombre.textContent = nombreUsuario ? ('Hola, ' + nombreUsuario) : ''; // CAMBIO 3
     construirDuraciones();
     actualizarRecordDuracion();
+    actualizarMedallaRecord(); // corona ya; medalla si el jugador está en el top 12 (6.x)
     jugando = false;
     ocultarNav();
     if (elDuracion) elDuracion.classList.remove('oculto');
@@ -615,7 +662,8 @@
   // ('duracion' | 'fin') para que Cerrar vuelva exactamente ahí (3.5). NO hay selector de juego.
   let rankOrigen = 'duracion';
   let rankPeticion = 0;  // token de relevo: descarta respuestas viejas
-  let rankTopActual = []; // último top cargado (para compartir la tarjeta)
+  let rankTopActual = []; // último top cargado (para compartir la tarjeta y la medalla del récord)
+  let rankTopClave = ''; // 'juego:duración' del top cargado (para reusarlo sin pedir dos veces, 6.5)
   // Selector de DURACIÓN del juego del contexto (sólo sus duraciones, 3.4). Marca modoInicioSel.
   function construirRankModos() {
     if (!elRankModos) return;
@@ -661,15 +709,18 @@
       const puesto = i + 1;
       const fila = document.createElement('div');
       fila.className = 'rank-fila';
-      const cel = document.createElement('div');
-      cel.className = 'rank-puesto';
-      const icono = Ranking.iconoDePuesto(puesto); // 1/2/3 → icono; resto → número
+      // NÚMERO de puesto: SIEMPRE, de la 1 a la 20 (CAMBIO 5.2), ancho fijo y tenue (5.4).
+      const num = document.createElement('div');
+      num.className = 'rank-num';
+      num.textContent = String(puesto);
+      // MEDALLA: puestos 1-12 su icono; 13-20 sin icono pero el ESPACIO se reserva (5.3).
+      const med = document.createElement('div');
+      med.className = 'rank-medalla';
+      const icono = iconoPuesto(puesto); // podio-N para 1-12; null del 13 en adelante
       if (icono) {
         const img = document.createElement('img');
         img.src = icono; img.alt = 'Puesto ' + puesto; img.setAttribute('aria-hidden', 'true');
-        cel.appendChild(img);
-      } else {
-        cel.textContent = String(puesto);
+        med.appendChild(img);
       }
       const nom = document.createElement('div');
       nom.className = 'rank-nombre';
@@ -677,8 +728,8 @@
       const pts = document.createElement('div');
       pts.className = 'rank-puntos';
       pts.textContent = U.abreviarNumero(typeof e.puntos === 'number' ? e.puntos : 0);
-      if (nombreUsuario && e.nombre === nombreUsuario) fila.classList.add('rank-yo'); // destaca al jugador
-      fila.appendChild(cel); fila.appendChild(nom); fila.appendChild(pts);
+      if (nombreUsuario && e.nombre === nombreUsuario) fila.classList.add('rank-yo'); // destaca al jugador (con su número, 5.5)
+      fila.appendChild(num); fila.appendChild(med); fila.appendChild(nom); fila.appendChild(pts);
       frag.appendChild(fila);
     }
     elRankCuerpo.appendChild(frag);
@@ -694,10 +745,11 @@
       return;
     }
     rankEstado('Cargando…', false);
+    const clave = juegoSel + ':' + modoInicioSel;
     Ranking.pedirTop(modoServidor(juegoSel, modoInicioSel)).then(function (res) {
       if (token !== rankPeticion) return; // respuesta vieja (se cambió de duración) → ignorar
-      if (res && res.ok) { rankTopActual = res.top || []; pintarTabla(res.top); }
-      else { rankTopActual = []; rankEstado('No se pudo cargar la tabla. Revisá tu conexión.', true); }
+      if (res && res.ok) { rankTopActual = res.top || []; rankTopClave = clave; pintarTabla(res.top); }
+      else { rankTopActual = []; rankTopClave = ''; rankEstado('No se pudo cargar la tabla. Revisá tu conexión.', true); }
     });
   }
   // Cambiar la duración en el ranking mueve la duración COMPARTIDA (modoInicioSel): la

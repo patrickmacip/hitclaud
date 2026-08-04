@@ -14,6 +14,15 @@
 
   const versiones = [
     {
+      version: '1.8', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Los doce primeros puestos del ranking tienen su propia medalla' },
+        { texto: 'Ahora el número de puesto se ve en todas las filas' },
+        { texto: 'Tu medalla te acompaña junto a tu récord' },
+        { texto: 'Todas las ventanas caben en pantalla, ya no se cortan' },
+      ],
+    },
+    {
       version: '1.7', fecha: '3 de agosto',
       puntos: [
         { texto: 'Cada juego tiene su propio ranking, ya no se mezclan' },

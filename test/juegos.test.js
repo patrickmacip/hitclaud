@@ -60,7 +60,7 @@ console.log('=== CAMBIO 4: fin de partida — jugar de nuevo / cambiar duración
 console.log('=== P4: todo elemento pulsable declara ≥44px de área táctil ===');
 {
   const reglas = {
-    '.btn-atras (44×44)': /\.btn-atras \{[\s\S]{0,80}width: 44px; height: 44px;/,
+    '.btn-atras (44×44)': /\.hdr-icono \{[\s\S]{0,80}width: 44px; height: 44px;/,
     '.juego-card (≥88)': /\.juego-card \{[\s\S]{0,260}min-height: 88px/,
     '.ini-sel (≥56)': /\.ini-sel \{[\s\S]{0,160}min-height: 56px/,
     '.ini-jugar (≥56)': /\.ini-jugar \{[\s\S]{0,120}min-height: 56px/,

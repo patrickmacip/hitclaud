@@ -161,6 +161,13 @@ body {
    récord) y el selector de duración (3.2, se oculta si el juego tiene una sola). */
 .go-record.oculto, .ini-modos.oculto { display: none; }
 
+/* REGLA GENERAL DE VENTANAS (CAMBIO 1): un ÚNICO margen para todas (arriba, abajo, lados) y
+   una altura máxima acotada al alto VISIBLE con `dvh` (respeta las barras dinámicas de Safari)
+   y las safe-area del iPhone. Ningún overlay puede ser más alto que la pantalla. */
+:root {
+  --ventana-margen: 16px;
+  --ventana-max: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2 * var(--ventana-margen));
+}
 #gameover, #inicio, #duracion, #nombre, #actualizaciones, #ranking {
   position: fixed;
   inset: 0;
@@ -169,7 +176,7 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(8, 8, 14, 0.82); /* --amenaza translúcido */
-  padding: env(safe-area-inset-top) 24px 24px;
+  padding: calc(env(safe-area-inset-top) + var(--ventana-margen)) var(--ventana-margen) calc(env(safe-area-inset-bottom) + var(--ventana-margen));
 }
 
 /* ── Pantalla de INICIO: título, saludo, récord, modos, JUGAR, Ranking, Actualizaciones.
@@ -206,6 +213,8 @@ body {
   margin-bottom: var(--esp-5); /* más aire ANTES del grupo modos+JUGAR (P5/2.8) */
 }
 .ini-record .valor { font: var(--texto-l); font-variant-numeric: tabular-nums; }
+/* Icono del récord: corona por defecto; medalla si el jugador está entre los 12 primeros. */
+.ini-record .rec-medalla { width: 20px; height: 20px; display: block; }
 
 /* ── PANTALLA 1: tarjetas de juego (grandes, tocables ≥88px). Una por juego. ─────────── */
 .juego-lista { display: flex; flex-direction: column; gap: var(--esp-3); width: 100%; margin: var(--esp-3) 0 var(--esp-4); }
@@ -247,15 +256,22 @@ body {
    antes) NO alcanza a ocultarla. Regla COMPUESTA para que ocultar gane (como los overlays). */
 .juego-aviso.oculto { display: none; }
 
-/* ── PANTALLA 2 / niveles: cabecera con flecha de atrás + título del juego. ──────────── */
-.nivel-cabecera { display: flex; align-items: center; gap: var(--esp-2); width: 100%; margin-bottom: var(--esp-4); }
-.btn-atras {
-  width: 44px; height: 44px;     /* área táctil ≥44px (P4) */
+/* ── CABECERA UNIFICADA (CAMBIO 2): misma estructura en duración, ranking y actualizaciones —
+   iconos esquinados a izquierda/derecha y título centrado entre ellos. Los iconos son sólo
+   icono, sin texto, 44×44 de área táctil, monocromos (heredan el color). Un hueco (hdr-spacer)
+   balancea el lado sin icono para que el título quede centrado. La cabecera es FIJA (1.4). */
+.ov-cabecera { flex: 0 0 auto; display: flex; align-items: center; gap: var(--esp-2); width: 100%; margin-bottom: var(--esp-3); }
+.hdr-icono {
   flex: 0 0 auto;
-  border: none; background: transparent; color: var(--acento-claro, #FFC9B8);
+  width: 44px; height: 44px;     /* área táctil ≥44px (2.4/P4) */
+  border: none; background: transparent;
+  color: var(--acento-claro, #FFC9B8);
   display: grid; place-items: center; cursor: pointer;
 }
-.nivel-titulo { font: var(--texto-xl); color: var(--acento-vivo, #FF8764); }
+.hdr-icono .icono { width: 22px; height: 22px; }
+.hdr-icono:disabled { opacity: 0.5; } /* estado "trabajando" al compartir (sin texto) */
+.hdr-spacer { flex: 0 0 auto; width: 44px; height: 44px; } /* balancea el lado sin icono */
+.nivel-titulo { flex: 1 1 auto; text-align: center; min-width: 0; font: var(--texto-xl); color: var(--acento-vivo, #FF8764); }
 /* Nombre del jugador en la pantalla 2 (sólo lectura, discreto — se edita en la pantalla 1). */
 .nivel-nombre { font: var(--texto-s); color: var(--texto-apagado, #8989B1); text-align: center; margin: 0 0 var(--esp-3); }
 .nivel-nombre:empty { display: none; }
@@ -266,34 +282,17 @@ body {
    un tope en px para que no se estire en pantallas grandes. Columna flex: cabecera y selector
    fijos arriba, la TABLA ocupa el resto y es lo único que se desplaza, y JUGAR fijo al pie. */
 .rank-panel {
-  height: min(620px, calc(100dvh - 96px));
-  max-height: none;   /* anula el max-height:88vh de .actu-panel: aquí el alto es FIJO */
+  height: min(620px, var(--ventana-max));
+  max-height: none;   /* anula el max-height de .actu-panel: aquí el alto es FIJO */
   padding: var(--esp-4) 22px var(--esp-4);
   overflow: hidden;   /* sólo .rank-cuerpo desplaza */
 }
-/* CABECERA fija: Compartir (icono) · título+juego (centro) · Cerrar (icono X). */
-.rank-cabecera {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: var(--esp-2);
-  margin-bottom: var(--esp-2);
-}
 .rank-titulo { flex: 1 1 auto; text-align: center; min-width: 0; }
-/* Título más chico que en Actualizaciones (SÓLO dentro de la cabecera del ranking). */
-.rank-cabecera .actu-titulo { font: var(--texto-l); font-weight: 800; margin: 0; }
-.rank-cabecera .rank-juego-nombre { margin: 2px 0 0; }
-/* Iconos de Compartir y Cerrar: sólo icono, sin texto, área táctil 44×44 (P4). */
-.rank-icono {
-  flex: 0 0 auto;
-  width: 44px; height: 44px;
-  border: none; background: transparent;
-  color: var(--acento-claro, #FFC9B8);
-  display: grid; place-items: center;
-  cursor: pointer;
-}
-.rank-icono .icono { width: 22px; height: 22px; }
-.rank-icono:disabled { opacity: 0.5; } /* estado "trabajando" al compartir (sin texto) */
+/* Título dentro de la cabecera unificada: más chico y sin margen. */
+.ov-cabecera .actu-titulo { font: var(--texto-l); font-weight: 800; margin: 0; }
+/* En Actualizaciones el título es hijo DIRECTO de la cabecera → centra y crece él mismo. */
+.ov-cabecera > .actu-titulo { flex: 1 1 auto; text-align: center; min-width: 0; }
+.rank-titulo .rank-juego-nombre { margin: 2px 0 0; }
 /* Nombre del juego arriba de la tabla de ranking (contexto: cuál estás viendo). */
 .rank-juego-nombre { font: var(--texto-s); color: var(--acento-vivo, #FF8764); text-align: center; margin: 0 0 var(--esp-2); }
 /* Botón JUGAR del ranking: relleno sólido, FIJO al pie del panel (no se desplaza). */
@@ -344,10 +343,10 @@ body {
 .actu-panel {
   background: var(--superficie);
   border-radius: 16px;
-  padding: 24px 22px 20px;
+  padding: var(--esp-4) 22px var(--esp-4);
   max-width: 360px;
   width: 100%;
-  max-height: 88vh;
+  max-height: var(--ventana-max); /* nunca más alto que la pantalla (CAMBIO 1) */
   display: flex;
   flex-direction: column;
   text-align: left;
@@ -427,13 +426,24 @@ body {
   border-radius: 8px;
   border-bottom: 1px solid rgba(137, 137, 177, 0.14); /* --texto-apagado translúcido */
 }
-.rank-puesto {
-  flex: 0 0 34px;
-  text-align: center;
-  font: 800 16px/1 var(--fuente);
-  color: var(--acento-claro, #FFC9B8);
+/* Estructura de cada fila (5.1): NÚMERO · ICONO · NOMBRE · PUNTOS. El número va SIEMPRE, de
+   ancho fijo (cifras tabulares → 1 y 2 dígitos no desalinean), menor y tenue (5.4). */
+.rank-num {
+  flex: 0 0 26px;
+  text-align: right;
+  font: 700 13px/1 var(--fuente);
+  color: var(--texto-apagado, #8989B1);
+  font-variant-numeric: tabular-nums;
 }
-.rank-puesto img { width: 30px; height: 30px; display: block; margin: 0 auto; }
+/* Ranura de la medalla: puestos 1-12 llevan icono; 13-20 no, pero el ESPACIO se reserva
+   para que la columna no se corra (5.3). */
+.rank-medalla {
+  flex: 0 0 32px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+}
+.rank-medalla img { width: 30px; height: 30px; display: block; }
 .rank-nombre {
   flex: 1 1 auto;
   font: var(--texto-s);
@@ -518,12 +528,12 @@ body {
 .go-panel {
   background: var(--superficie);
   border-radius: 16px;
-  padding: 32px 28px;
+  padding: var(--esp-6) 28px;
   text-align: center;
   max-width: 320px;
   width: 100%;
-  max-height: 90vh;      /* si el panel crece, scrollea dentro */
-  overflow-y: auto;
+  max-height: var(--ventana-max); /* nunca más alto que la pantalla (CAMBIO 1) */
+  overflow-y: auto;               /* si el contenido no cabe, se desplaza dentro (1.4) */
 }
 
 /* TU PUNTAJE (4.1): el elemento dominante del fin de partida. Sin la palabra "Score". */

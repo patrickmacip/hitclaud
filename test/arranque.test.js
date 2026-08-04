@@ -40,13 +40,13 @@ console.log('=== Botón "Actualizaciones" en el inicio, secundario y cableado ==
 
 console.log('=== Botón "Cerrar" de #actualizaciones existe y devuelve al inicio ===');
 {
-  chk('botón #actuCerrar con texto "Cerrar"', /<button id="actuCerrar" class="go-reiniciar">Cerrar<\/button>/.test(html));
+  chk('cerrar de Actualizaciones es un icono X en la cabecera (sin texto)', /<button id="actuCerrar" class="hdr-icono"[\s\S]{0,120}#ic-cerrar/.test(html) && !/>Cerrar<\/button>/.test(html.match(/<div id="actualizaciones"[\s\S]*?<\/div>\s*<\/div>/) ? html.match(/<div id="actualizaciones"[\s\S]*?<\/div>\s*<\/div>/)[0] : ''));
   chk('Cerrar cableado: oculta actualizaciones y muestra inicio', /function cerrarActualizaciones\(\) \{[\s\S]{0,160}elActualizaciones\.classList\.add\('oculto'\);\s*mostrarPantallaInicio\(\);/.test(main));
   chk('addEventListener del botón Cerrar', /btnActuCerrar\.addEventListener\('click', cerrarActualizaciones\)/.test(main));
   // El panel scrollea la lista y el botón Cerrar queda FUERA del área scrolleable.
-  chk('.actu-panel es columna con max-height (scroll interno controlado)', /\.actu-panel \{[\s\S]{0,220}flex-direction: column;/.test(css) && /\.actu-panel \{[\s\S]{0,220}max-height:/.test(css));
+  chk('.actu-panel es columna con max-height acotada a la ventana', /\.actu-panel \{[\s\S]{0,320}flex-direction: column;/.test(css) && /\.actu-panel \{[\s\S]{0,220}max-height: var\(--ventana-max\)/.test(css));
   chk('.actu-lista es la parte scrolleable (flex + overflow-y auto)', /\.actu-lista \{[\s\S]{0,120}overflow-y: auto;/.test(css));
-  chk('Cerrar (.go-reiniciar) está FUERA de .actu-lista → siempre visible', /<div class="actu-lista" id="actuLista"><\/div>\s*<button id="actuCerrar"/.test(html));
+  chk('el cerrar (cabecera) está ANTES de la lista → fijo, siempre visible', /id="actuCerrar"[\s\S]*?<div class="actu-lista" id="actuLista">/.test(html));
 }
 
 console.log(`\n== RESUMEN arranque: ${ok} OK, ${ko} NO ==`);

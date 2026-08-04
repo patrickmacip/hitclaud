@@ -25,7 +25,7 @@ console.log('=== PANTALLA 2 (elegir duración): flecha de atrás, nombre, récor
 {
   chk('overlay #duracion existe (role=dialog)', /<div id="duracion"[^>]*role="dialog"/.test(html));
   chk('cabecera: flecha de atrás + nombre del juego', /id="durAtras"[\s\S]{0,140}#ic-atras[\s\S]{0,120}id="durJuego"/.test(html));
-  chk('récord del juego: corona + número', /class="ini-record"[\s\S]{0,120}#ic-corona[\s\S]{0,80}id="durRecord"/.test(html));
+  chk('récord del juego: icono (corona por defecto) + número', /class="ini-record"[\s\S]{0,120}id="durRecordIcono"[\s\S]{0,80}#ic-corona[\s\S]{0,80}id="durRecord"/.test(html));
   chk('selector de duración (se llena desde el juego)', /<div class="ini-modos" id="durModos"[^>]*><\/div>/.test(html));
   chk('botón JUGAR relleno (.ini-jugar)', /<button id="durJugar" class="go-reiniciar ini-jugar">JUGAR<\/button>/.test(html));
   chk('la flecha de atrás sube a la pantalla 1', /btnDurAtras\.addEventListener\('click', mostrarPantallaInicio\)/.test(main));

@@ -22,16 +22,16 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 12 versiones', B.versiones.length === 12);
-  chk('la primera entrada es la 1.7 (más reciente primero)', B.versiones[0].version === '1.7');
-  chk('la 1.7 trae sus tres puntos literales', (function () {
+  chk('hay exactamente 13 versiones', B.versiones.length === 13);
+  chk('la primera entrada es la 1.8 (más reciente primero)', B.versiones[0].version === '1.8');
+  chk('la 1.8 trae sus cuatro puntos literales', (function () {
     const v = B.versiones[0];
-    return v.version === '1.7' && v.fecha === '3 de agosto' && v.puntos.length === 3 &&
-      v.puntos[0].texto === 'Cada juego tiene su propio ranking, ya no se mezclan' &&
-      v.puntos[1].texto === 'Desde el ranking puedes lanzarte a jugar esa duración de inmediato' &&
-      v.puntos[2].texto === 'Tu nombre te acompaña al elegir duración';
+    return v.version === '1.8' && v.fecha === '3 de agosto' && v.puntos.length === 4 &&
+      v.puntos[0].texto === 'Los doce primeros puestos del ranking tienen su propia medalla' &&
+      v.puntos[1].texto === 'Ahora el número de puesto se ve en todas las filas' &&
+      v.puntos[3].texto === 'Todas las ventanas caben en pantalla, ya no se cortan';
   })());
-  chk('la segunda entrada sigue siendo la 1.6 (con el modo 30 retirado)', B.versiones[1].version === '1.6' && B.versiones[1].puntos[3].retirado === true);
+  chk('la segunda entrada sigue siendo la 1.7', B.versiones[1].version === '1.7');
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });

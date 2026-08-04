@@ -248,8 +248,9 @@
     ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
   }
-  // Una fila del ranking: icono (podio o número) · nombre · puntos. `destacado` = fila
-  // del jugador (coral). `img` = imagen de podio precargada (o null → número).
+  // Una fila del ranking (CAMBIO 5.6): NÚMERO · ICONO · NOMBRE · PUNTOS. El número va SIEMPRE
+  // (menor y tenue); la medalla (img de podio precargada) sólo si es puesto 1-12, y su columna
+  // se reserva igual del 13 al 20 para que no se corra. `destacado` = fila del jugador (coral).
   function dibujarFilaRank(ctx, t, x, y, w, puesto, entry, img, destacado) {
     entry = entry || {};
     var h = 118, midY = y + h / 2;
@@ -257,24 +258,21 @@
       ctx.save(); ctx.globalAlpha = 0.16; ctx.fillStyle = t.coral;
       _roundRect(ctx, x - 12, y, w + 24, h, 18); ctx.fill(); ctx.restore();
     }
-    if (img) {
-      try { ctx.drawImage(img, x + 6, midY - 44, 88, 88); }
-      catch (e) { _numeroPuesto(ctx, t, x + 50, midY, puesto, destacado); }
-    } else {
-      _numeroPuesto(ctx, t, x + 50, midY, puesto, destacado);
-    }
+    // NÚMERO de puesto (siempre): menor y tenue, alineado a la derecha de su columna.
+    ctx.fillStyle = destacado ? t.coralVivo : t.tenue;
+    ctx.font = '700 40px ' + FUENTE; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(puesto), x + 56, midY);
+    // MEDALLA (1-12): icono en su columna reservada; 13-20 queda el hueco (alineación).
+    if (img) { try { ctx.drawImage(img, x + 78, midY - 44, 88, 88); } catch (e) { /* sin medalla, hueco reservado */ } }
+    // NOMBRE.
     ctx.fillStyle = destacado ? t.coralVivo : t.blanco;
     ctx.font = '600 50px ' + FUENTE; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(typeof entry.nombre === 'string' ? entry.nombre : '', x + 130, midY);
+    ctx.fillText(typeof entry.nombre === 'string' ? entry.nombre : '', x + 190, midY);
+    // PUNTOS.
     ctx.fillStyle = t.coralVivo;
     ctx.font = '800 50px ' + FUENTE; ctx.textAlign = 'right';
     ctx.fillText((U && U.abreviarNumero) ? U.abreviarNumero(_entero(entry.puntos)) : String(_entero(entry.puntos)), x + w - 10, midY);
     ctx.textBaseline = 'alphabetic';
-  }
-  function _numeroPuesto(ctx, t, x, midY, puesto, destacado) {
-    ctx.fillStyle = destacado ? t.coralVivo : t.coral;
-    ctx.font = '800 54px ' + FUENTE; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(puesto), x, midY);
   }
 
   // 3.x: TARJETA DE RANKING. `o.imgs` = { 1:Image, 2:Image, 3:Image } precargadas (o vacío).
@@ -308,7 +306,7 @@
       ctx.strokeStyle = t.tenue; ctx.globalAlpha = 0.45; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(x, yTrasPodio + sep / 2); ctx.lineTo(x + w, yTrasPodio + sep / 2); ctx.stroke();
       ctx.restore();
-      dibujarFilaRank(ctx, t, x, yTrasPodio + sep, w, puesto, top[puesto - 1], null, true);
+      dibujarFilaRank(ctx, t, x, yTrasPodio + sep, w, puesto, top[puesto - 1], imgs[puesto] || null, true); // su medalla si es 1-12
     }
     // 4.1/4.2: firma visual (bolita coral con estela) también en el ranking. Va ARRIBA-derecha,
     // por encima de la franja de filas (RANK_REG_TOP): así no pisa filas, ni la caja del jugador,
@@ -330,15 +328,16 @@
       catch (e) { resolve(null); }
     });
   }
+  // Precarga las medallas 1-12 (assets/podio-N.svg). Si alguna falla, queda null (hueco).
   function cargarPodios() {
-    var srcs = { 1: 'assets/podio-1.svg', 2: 'assets/podio-2.svg', 3: 'assets/podio-3.svg' };
-    var proms = [1, 2, 3].map(function (k) {
+    var puestos = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    var proms = puestos.map(function (k) {
       return new Promise(function (res) {
         try {
           var im = new Image();
           im.onload = function () { res([k, im]); };
           im.onerror = function () { res([k, null]); };
-          im.src = srcs[k];
+          im.src = 'assets/podio-' + k + '.svg';
         } catch (e) { res([k, null]); }
       });
     });

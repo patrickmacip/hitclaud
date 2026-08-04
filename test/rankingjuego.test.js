@@ -19,8 +19,8 @@ console.log('=== CAMBIO 1: la pantalla 1 NO tiene botón de ranking ===');
 console.log('=== CAMBIO 2: la pantalla 2 muestra nombre, récord, selector, ranking y JUGAR ===');
 {
   const dur = (html.match(/<div id="duracion"[\s\S]*?<\/div>\s*<\/div>/) || [''])[0];
-  chk('orden: cabecera → nombre → récord → selector → Ranking → JUGAR', /nivel-cabecera[\s\S]*?id="durNombre"[\s\S]*?id="durRecord"[\s\S]*?id="durModos"[\s\S]*?id="durRanking"[\s\S]*?id="durJugar"/.test(dur));
-  chk('el nombre del jugador se pinta en la pantalla 2 (sólo lectura)', /elDurNombre\.textContent = nombreUsuario \? \('Juegas como ' \+ nombreUsuario\)/.test(main));
+  chk('orden: cabecera → nombre → récord → selector → Ranking → JUGAR', /ov-cabecera[\s\S]*?id="durNombre"[\s\S]*?id="durRecord"[\s\S]*?id="durModos"[\s\S]*?id="durRanking"[\s\S]*?id="durJugar"/.test(dur));
+  chk('el nombre del jugador se pinta en la pantalla 2 (sólo lectura)', /elDurNombre\.textContent = nombreUsuario \? \('Hola, ' \+ nombreUsuario\)/.test(main));
   chk('el nombre NO se edita en la pantalla 2 (no abre editar-nombre desde durNombre)', !/durNombre[\s\S]{0,80}abrirEditarNombre/.test(main));
   chk('botón Ranking en la pantalla 2, con el podio', /id="durRanking"[\s\S]{0,120}podio-1\.svg/.test(html));
   chk('el Ranking de la pantalla 2 abre el ranking de ESE juego (contexto duracion)', /btnDurRanking[\s\S]{0,120}abrirRanking\(juegoSel, 'duracion'\)/.test(main));
@@ -47,7 +47,7 @@ console.log('=== CAMBIO 3: el ranking es por juego (sin selector de juego) ===')
 
 console.log('=== CAMBIO 4: botón JUGAR en el ranking, antes de Compartir; usa la duración de la tabla ===');
 {
-  chk('Compartir y Cerrar son iconos en la cabecera; JUGAR va fijo al pie', /rank-cabecera[\s\S]*?id="compartirRank"[\s\S]*?id="rankCerrar"[\s\S]*?id="rankModos"[\s\S]*?id="rankCuerpo"[\s\S]*?id="rankJugar"/.test(html));
+  chk('Compartir y Cerrar son iconos en la cabecera; JUGAR va fijo al pie', /ov-cabecera[\s\S]*?id="compartirRank"[\s\S]*?id="rankCerrar"[\s\S]*?id="rankModos"[\s\S]*?id="rankCuerpo"[\s\S]*?id="rankJugar"/.test(html));
   chk('JUGAR relleno sólido, ancho completo, al pie (.go-reiniciar .ini-jugar .rank-jugar)', /<button id="rankJugar" class="go-reiniciar ini-jugar rank-jugar">JUGAR<\/button>/.test(html));
   chk('JUGAR usa la duración SELECCIONADA en la tabla (modoInicioSel), no la de origen (4.2)', /btnRankJugar[\s\S]{0,120}iniciarPartida\(juegoSel, modoInicioSel\)/.test(main));
 }

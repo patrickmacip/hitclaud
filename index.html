@@ -86,15 +86,16 @@
        en la duración seleccionada) · JUGAR. -->
   <div id="duracion" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
-      <div class="nivel-cabecera">
-        <button id="durAtras" class="btn-atras" type="button" aria-label="Atrás">
+      <div class="ov-cabecera">
+        <button id="durAtras" class="hdr-icono" type="button" aria-label="Atrás">
           <svg class="icono" aria-hidden="true"><use href="#ic-atras"></use></svg>
         </button>
         <span class="nivel-titulo" id="durJuego">HitClaud</span>
+        <span class="hdr-spacer" aria-hidden="true"></span>
       </div>
       <p class="nivel-nombre" id="durNombre"></p>
       <div class="ini-record" aria-label="Récord del juego">
-        <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg>
+        <span id="durRecordIcono"><svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg></span>
         <span class="valor" id="durRecord">0</span>
       </div>
       <div class="ini-modos" id="durModos" role="group" aria-label="Duración"></div>
@@ -112,9 +113,15 @@
        queda SIEMPRE visible (ley: toda pantalla tiene salida). -->
   <div id="actualizaciones" class="oculto" role="dialog" aria-modal="true">
     <div class="actu-panel">
-      <p class="actu-titulo">Actualizaciones</p>
+      <!-- CABECERA fija: título centrado, cerrar (X) en la esquina superior derecha (2.3). -->
+      <div class="ov-cabecera">
+        <span class="hdr-spacer" aria-hidden="true"></span>
+        <p class="actu-titulo">Actualizaciones</p>
+        <button id="actuCerrar" class="hdr-icono" type="button" aria-label="Cerrar">
+          <svg class="icono" aria-hidden="true"><use href="#ic-cerrar"></use></svg>
+        </button>
+      </div>
       <div class="actu-lista" id="actuLista"></div>
-      <button id="actuCerrar" class="go-reiniciar">Cerrar</button>
     </div>
   </div>
 
@@ -126,15 +133,15 @@
     <div class="actu-panel rank-panel">
       <!-- CABECERA fija: Compartir (icono, izq) · "Ranking" + juego (centro) · Cerrar (icono X, der).
            Los iconos son sólo icono, con área táctil 44×44. -->
-      <div class="rank-cabecera">
-        <button id="compartirRank" class="rank-icono" type="button" aria-label="Compartir">
+      <div class="ov-cabecera">
+        <button id="compartirRank" class="hdr-icono" type="button" aria-label="Compartir">
           <svg class="icono" aria-hidden="true"><use href="#ic-compartir"></use></svg>
         </button>
         <div class="rank-titulo">
           <p class="actu-titulo">Ranking</p>
           <p class="rank-juego-nombre" id="rankJuegoNombre">HitClaud</p>
         </div>
-        <button id="rankCerrar" class="rank-icono" type="button" aria-label="Cerrar">
+        <button id="rankCerrar" class="hdr-icono" type="button" aria-label="Cerrar">
           <svg class="icono" aria-hidden="true"><use href="#ic-cerrar"></use></svg>
         </button>
       </div>
