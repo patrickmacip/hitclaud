@@ -22,7 +22,7 @@ console.log('=== \'15\' = 15000ms y comparte TODO lo demás con \'30\' y \'60\' 
   // reloj, temporizador) es parametrizada por mapa → mismo código para 15/30/60.
   chk('iniciarPartida usa DURACIONES[modo] (no rama por modo)', /tiempoRestante = DURACIONES\[modo\] \|\| 0;/.test(main));
   chk('iniciarPartida usa records[modo] (no rama por modo)', /record = records\[modo\] \|\| record60;/.test(main));
-  chk('reloj y temporizador gatean por DURACIONES[modoJuego] (idéntico a 30/60)', /if \(DURACIONES\[modoJuego\] && !secuencia\)/.test(main) && /if \(jugando && DURACIONES\[modoJuego\]\)/.test(main));
+  chk('reloj (bucle) y temporizador (DOM) gatean por DURACIONES[modoJuego] (idéntico a 30/60)', /if \(DURACIONES\[modoJuego\] && !secuencia\)/.test(main) && /function actualizarTiempo\(\)[\s\S]{0,220}!DURACIONES\[modoJuego\]/.test(main));
   chk('SIN rama especial "modoJuego === \'15\'" (prohibido; si hiciera falta, se reporta)', !/modoJuego === '15'/.test(main));
   chk('SIN iniciarPartida duplicado para 15', !/function iniciarPartida15|iniciarPartida_15/.test(main));
 }
@@ -48,11 +48,11 @@ console.log('=== SELECCIÓN: "15 seg" en inicio y game over; orden 15 · 30 · 6
 {
   // Inicio: selector con 15/30/60, reusa .go-reiniciar; orden 15,30,60.
   chk('inicio: sel15 reusa .go-reiniciar (sin componentes nuevos)', /id="sel15" class="go-reiniciar ini-sel"/.test(html));
-  chk('orden inicio: 15 · 30 · 60', /id="sel15"[\s\S]{0,80}15 seg<\/button>\s*<button id="sel30"[\s\S]{0,80}30 seg<\/button>\s*<button id="sel60"/.test(html));
+  chk('orden inicio: 15 · 30 · 60', /id="sel15"[\s\S]{0,80}15s<\/button>\s*<button id="sel30"[\s\S]{0,80}30s<\/button>\s*<button id="sel60"/.test(html));
   chk('selector parametrizado incluye 15 (mapa botonesSel)', /const botonesSel = \{ '15': document\.getElementById\('sel15'\)/.test(main));
   // Game over: botón 15 seg, orden 15 · 30 · 60 (Relax eliminado en commit 4).
-  chk('game over: "15 seg" (.go-reiniciar)', /<button id="jugar15" class="go-reiniciar">15 seg<\/button>/.test(html));
-  chk('orden game over: 15 · 30 · 60', /id="jugar15"[\s\S]{0,60}15 seg<\/button>\s*<button id="jugar30"[\s\S]{0,60}30 seg<\/button>\s*<button id="jugar60"[\s\S]{0,60}60 seg<\/button>/.test(html));
+  chk('game over: "15s" (.go-reiniciar .ini-sel)', /<button id="jugar15" class="go-reiniciar ini-sel">15s<\/button>/.test(html));
+  chk('orden game over: 15 · 30 · 60', /id="jugar15"[\s\S]{0,60}15s<\/button>\s*<button id="jugar30"[\s\S]{0,60}30s<\/button>\s*<button id="jugar60"[\s\S]{0,60}60s<\/button>/.test(html));
   chk('jugar15 → iniciarPartida(\'15\')', /btn15\.addEventListener\('click', function \(\) \{ iniciarPartida\('15'\); \}\)/.test(main));
 }
 

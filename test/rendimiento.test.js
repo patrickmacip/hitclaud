@@ -58,7 +58,7 @@ console.log('\n=== Nada más cambió: colores, tamaños y posiciones idénticos 
 {
   chk('FRANJA_PX = 28 (ancho de borde intacto)', /const FRANJA_PX = 28;/.test(main));
   chk('colores de borde/contador intactos', /ROJO_BORDE = '#FF0055', ROJO_CONTADOR = '#FF4583'/.test(main));
-  chk('timer: 800 32px y posición (W/2, 88) intactas', /ctx\.font = '800 32px '/.test(main) && /ctx\.translate\(W \/ 2, 88\)/.test(main));
+  chk('timer movido al DOM (barra): actualizarTiempo, sin dibujo del contador en canvas', /function actualizarTiempo\(\)/.test(main) && !/ctx\.font = '800 32px '/.test(main) && !/ctx\.translate\(W \/ 2, 88\)/.test(main));
   // FASE 29: badge de tamaño FIJO 42 (MULT_ASIENTO), sin crecer con la racha; posición
   // por mx/my (W/2, max(158,H*0.16)) sin translate (dibuja en coords absolutas).
   chk('badge: tamaño fijo 42 (MULT_ASIENTO) y posición (W/2, max(158,H*0.16)) intactas', /const MULT_ASIENTO = 42;/.test(main) && /mx = W \/ 2, my = Math\.max\(158, H \* 0\.16\)/.test(main) && !/26 \+ Math\.min\(20, marcador\.racha\)/.test(main));

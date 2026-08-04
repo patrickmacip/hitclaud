@@ -37,12 +37,36 @@
   // en HTML no necesita que el JS los reescriba. El FONDO #121216 y la SUPERFICIE
   // #15151C nunca se tocan.
   const ACENTO = { base: '#E8704E', vivo: '#FF8764', claro: '#FFC9B8', profundo: '#A84A2E' };
+  // Color del PUNTAJE de la barra (rediseño): blanco puro, el dato dominante (P1/1.1).
+  // Lee el token --blanco con respaldo literal (blindaje si el CSS llega stale).
+  const PUNTAJE_BLANCO = tk('--blanco', '#FFFFFF');
 
   // Marcador (puntuación por demolición) + su celda en la barra superior.
   const marcador = P.crearMarcador();
   const ritmo = P.crearRitmo();
-  const elActual = document.querySelector('.marcador--actual .valor');
+  const elActual = document.getElementById('barraActual');
   function actualizarMarcador() { elActual.textContent = U.abreviarNumero(marcador.puntos); }
+  // TEMPORIZADOR en la barra (centro, bajo el puntaje). Antes se dibujaba en el canvas y
+  // los targets lo tapaban (D3); ahora vive en el DOM, junto al puntaje. "M:SS", cifras de
+  // ancho fijo (P6). Últimos 5 s: clase .urgente → rojo + latido por CSS (1.5, sin shadowBlur).
+  const elTiempo = document.getElementById('barraTiempo');
+  let tiempoUrgente = false;
+  function fmtTiempo(ms) {
+    const seg = Math.ceil(Math.max(0, ms) / 1000);
+    return Math.floor(seg / 60) + ':' + (seg % 60 < 10 ? '0' + (seg % 60) : seg % 60);
+  }
+  function actualizarTiempo() {
+    if (!elTiempo) return;
+    if (!jugando || !DURACIONES[modoJuego]) { // fuera de partida: sin cuenta ni latido
+      if (elTiempo.textContent !== '') elTiempo.textContent = '';
+      if (tiempoUrgente) { elTiempo.classList.remove('urgente'); tiempoUrgente = false; }
+      return;
+    }
+    const txt = fmtTiempo(tiempoRestante);
+    if (elTiempo.textContent !== txt) elTiempo.textContent = txt;
+    const urg = tiempoRestante <= 5000; // 1.5: últimos 5 segundos
+    if (urg !== tiempoUrgente) { elTiempo.classList.toggle('urgente', urg); tiempoUrgente = urg; }
+  }
 
   // PERSISTENCIA POR MODO (FASE 10): dos datos {record, ultimoScore} por modo,
   // en DOS almacenes (localStorage + IndexedDB) bajo la misma llave versionada.
@@ -97,7 +121,7 @@
   const records = { '15': record15, '30': record30, '60': record60 };
   let record = record60;        // récord de la PARTIDA activa (se ajusta al elegir modo)
   let modoInicioSel = '60';     // modo SELECCIONADO en la pantalla de inicio (default 60)
-  const elRecord = document.querySelector('.marcador--record .valor');
+  const elRecord = document.getElementById('barraRecord');
   function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record.valor); }
   // Récord de la PANTALLA DE INICIO (FASE 19/20): muestra el del modo SELECCIONADO
   // (30 o 60). Blindado: si el almacenamiento falla y algo lanza, muestra 0 y NO
@@ -129,9 +153,11 @@
   // (bitacora.js). La llave 'hitclaud.novedades.v1' queda HUÉRFANA en el almacén (como
   // 'hitclaud.record.v2.libre'): NO se lee ni se escribe, y NO se borra (persistencia
   // sellada). La función pura de decisión sigue viva en util.js como código muerto.
-  const elBarraNombre = document.getElementById('barraNombre');
-  function actualizarBarraNombre() {
-    try { if (elBarraNombre) elBarraNombre.textContent = nombreUsuario || ''; } catch (e) { /* nunca rompe */ }
+  // SALUDO del inicio (reemplaza al nombre que flotaba en la barra, D2/1.6). Muestra
+  // "Hola, <nombre>" o "Ponte un nombre" si no hay. Blindado: nunca rompe el arranque.
+  const elSaludo = document.getElementById('iniSaludoTexto');
+  function actualizarSaludo() {
+    try { if (elSaludo) elSaludo.textContent = nombreUsuario ? ('Hola, ' + nombreUsuario) : 'Ponte un nombre'; } catch (e) { /* nunca rompe */ }
   }
 
   // ── Modo de juego + ciclo de partida ───────────────────────────────
@@ -170,7 +196,9 @@
     reiniciarEstado();
     tiempoRestante = DURACIONES[modo] || 0;      // 15→15000, 30→30000, 60→60000
     jugando = true;
+    actualizarTiempo();                          // muestra el tiempo completo desde el arranque
     elGameOver.classList.add('oculto');
+    if (elInicio) elInicio.classList.add('oculto');
     cascEvento('iniciarPartida', 'modo:' + modo);
   }
   // Fin de partida. `porTiempo`=true → cierre por AGOTARSE EL TIEMPO: el récord
@@ -181,6 +209,7 @@
   function terminarPartida(porTiempo) {
     if (!jugando) return;
     jugando = false;
+    actualizarTiempo(); // fuera de partida → limpia el temporizador de la barra
     const ahora = performance.now();
     // superaRecord ANTES de escribir (record.valor es el récord viejo). esRecord añade
     // el requisito de que sea por tiempo (regla: el récord sólo cuenta si se cumplió).
@@ -216,18 +245,29 @@
     // /score: SIEMPRE que sea por tiempo (ya no depende del récord). Se resuelve el NOMBRE
     // de la fuente más fiable (memoria → localStorage → reconciliar IDB) antes de mandar; al
     // confirmar el servidor, si el puntaje entró al top, se avisa (sin bloquear el fin).
-    const puntosScore = marcador.puntos;
+    // Por CloudOver / abandono NO se manda /score (sólo /partida, arriba, para las stats).
     if (porTiempo) {
-      pintarEstadoEnvio({ estado: 'enviando' }); // DIAGNÓSTICO: se actualiza al resolver
+      const puntosScore = marcador.puntos;
       resolverNombre(function (nombre) {
         Ranking.enviarPuntaje({ nombre: nombre, puntos: puntosScore, modo: modo, porTiempo: true })
-          .then(function (reg) { pintarEstadoEnvio(reg); if (reg && reg.estado === 'ok' && reg.entro) mostrarConfirmacionRanking(reg.posicion); });
+          .then(function (reg) { if (reg && reg.estado === 'ok' && reg.entro) mostrarConfirmacionRanking(reg.posicion); });
       });
-    } else {
-      // CloudOver: no se manda; sólo se registra el motivo (cloudover) para diagnóstico.
-      Ranking.enviarPuntaje({ nombre: '', puntos: puntosScore, modo: modo, porTiempo: false })
-        .then(pintarEstadoEnvio); // DIAGNÓSTICO: muestra el motivo de no-envío
     }
+  }
+  // SALIR / ABANDONAR (1.3): termina la partida AL INSTANTE y vuelve al inicio. Es el
+  // comportamiento original "presionas inicio y pierdes": NO guarda récord y NO manda el
+  // puntaje al ranking (no se llama record.terminar ni se envía /score). SÍ registra la
+  // partida en estadísticas con termino 'cloudover' — el abandono cuenta como una caída
+  // (no terminó por tiempo), igual que el CloudOver a efectos del resumen anónimo.
+  function abandonarPartida() {
+    if (!jugando) { mostrarPantallaInicio(); return; } // sin partida en curso → sólo al inicio
+    jugando = false;
+    actualizarTiempo();                 // limpia el temporizador
+    pPuntosFin = marcador.puntos;        // puntaje al abandonar → /partida (stats)
+    secuencia = null; sacudidaCloudover = null;
+    try { enviarAlServidor(false); } catch (e) { /* la red nunca rompe el abandono */ }
+    cascEvento('abandonarPartida', 'score:' + pPuntosFin);
+    mostrarPantallaInicio();             // vuelve a la pantalla de inicio (siempre hay salida)
   }
   // Resuelve el nombre más fiable SIN esperar a la red: memoria → localStorage (síncrono)
   // → reconciliar IDB (local, no es red) si sigue vacío. Adopta el nombre si aparece.
@@ -237,7 +277,7 @@
     try {
       nombreStore.reconciliar().then(function (v) {
         const nn = (((v || '') + '') || (nombreStore.valor || '')).trim();
-        if (nn && !nombreUsuario) { nombreUsuario = nn; actualizarBarraNombre(); }
+        if (nn && !nombreUsuario) { nombreUsuario = nn; actualizarSaludo(); }
         cb(nn);
       }, function () { cb(''); });
     } catch (e) { cb(''); }
@@ -250,52 +290,25 @@
     el.textContent = '¡Entraste al ranking! Puesto ' + posicion;
     el.classList.remove('oculto');
   }
-  // Pinta el overlay de fin con el score y el aviso de récord (diseño sin cambios).
+  // Pinta el fin de partida: puntaje dominante, aviso de récord (con corona), y marca el
+  // modo recién jugado en el selector de "volver a jugar" (mismo patrón del inicio: uno
+  // relleno, dos en contorno). La confirmación de ranking y el récord se muestran aparte.
   function pintarFin(score, esRecord) {
     elGameOver.querySelector('.go-score').classList.remove('oculto');
     elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(score);
     elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
     const gr = elGameOver.querySelector('.go-rank');
     if (gr) gr.classList.add('oculto'); // se muestra sólo si el envío confirma que entró
-    // DIAGNÓSTICO TEMPORAL: limpia el estado del envío en cada fin; lo repinta enviarAlServidor.
-    const ge = elGameOver.querySelector('.go-envio');
-    if (ge) { ge.textContent = ''; ge.classList.add('oculto'); }
+    marcarModoFin(); // resalta en el selector el modo que se acaba de jugar
     elGameOver.classList.remove('oculto');
   }
-
-  // DIAGNÓSTICO TEMPORAL: traduce el registro del último envío (Ranking.ultimoEnvio) a texto
-  // llano. PURA (sin DOM) para poder probarla. Se quita cuando el envío quede resuelto.
-  function estadoEnvioTexto(reg) {
-    if (!reg || reg.estado === 'ninguno') return '';
-    if (reg.estado === 'enviando') return 'enviando…';
-    if (reg.estado === 'no-intentado') {
-      if (reg.motivo === 'cloudover') return 'no se intentó: no terminó por tiempo';
-      if (reg.motivo === 'no-supera-record') return 'no se intentó: no superó tu récord';
-      if (reg.motivo === 'sin-nombre') return 'no se intentó: sin nombre';
-      if (reg.motivo === 'cero') return 'no se intentó: sin puntos';
-      return 'no se intentó';
+  // Resalta el modo activo (modoJuego) entre los tres botones del selector del fin.
+  function marcarModoFin() {
+    const modos = ['15', '30', '60'];
+    for (let i = 0; i < modos.length; i++) {
+      const b = document.getElementById('jugar' + modos[i]);
+      if (b) b.classList.toggle('sel-activo', modos[i] === modoJuego);
     }
-    if (reg.estado === 'fallo-red') return 'falló: sin conexión';
-    if (reg.estado === 'error-servidor') {
-      let msg = '';
-      if (reg.data) msg = typeof reg.data === 'string' ? reg.data : (reg.data.error || reg.data.mensaje || '');
-      const cod = reg.status ? String(reg.status) : '?';
-      return 'falló: el servidor rechazó (' + cod + (msg ? (' — ' + msg) : '') + ')';
-    }
-    if (reg.estado === 'ok') {
-      if (reg.entro) return 'enviado: entró en el puesto ' + (reg.posicion || '?');
-      return 'enviado: no entró al top 20';
-    }
-    return '';
-  }
-  // Pinta el estado del envío en la línea discreta del overlay de fin (o la oculta si no hay texto).
-  function pintarEstadoEnvio(reg) {
-    if (!elGameOver) return;
-    const el = elGameOver.querySelector('.go-envio');
-    if (!el) return;
-    const txt = estadoEnvioTexto(reg);
-    el.textContent = txt;
-    el.classList.toggle('oculto', !txt);
   }
 
   // ── SECUENCIA de CloudOver (FASE 12 commit 2) ──────────────────────────────
@@ -340,22 +353,20 @@
     }
     secuencia = null;
   }
-  // Overlay de fin/selección al reiniciar desde la pausa (sin score todavía).
-  function mostrarInicio() {
-    jugando = false;
-    elGameOver.querySelector('.go-score').classList.add('oculto');
-    elGameOver.querySelector('.go-record').classList.add('oculto');
-    const gr = elGameOver.querySelector('.go-rank');
-    if (gr) gr.classList.add('oculto');
-    elGameOver.classList.remove('oculto');
-  }
-  // Botones de modo en el game over (FASE 21: Relax eliminado). Orden: 15 · 30 · 60.
+  // Selector de "volver a jugar" del fin (4.5): cada botón arranca ESA duración directamente.
+  // Orden: 15 · 30 · 60. (El menú de pausa se eliminó: ya no hay reinicio-desde-pausa.)
   const btn60 = document.getElementById('jugar60');
   if (btn60) btn60.addEventListener('click', function () { iniciarPartida('60'); });
   const btn30 = document.getElementById('jugar30');
   if (btn30) btn30.addEventListener('click', function () { iniciarPartida('30'); });
   const btn15 = document.getElementById('jugar15');
   if (btn15) btn15.addEventListener('click', function () { iniciarPartida('15'); });
+  // Botón INICIO del fin (4.6): vuelve a la pantalla de inicio (discreto, siempre hay salida).
+  const btnVolverInicio = document.getElementById('volverInicio');
+  if (btnVolverInicio) btnVolverInicio.addEventListener('click', function () {
+    if (elGameOver) elGameOver.classList.add('oculto');
+    mostrarPantallaInicio();
+  });
 
   // ── PANTALLA DE BIENVENIDA (FASE 19): lo PRIMERO que se ve al abrir. Mismo
   // mecanismo de overlays DOM que #gameover/#pausa (no un sistema paralelo). El
@@ -396,12 +407,22 @@
     if (nombreInput) nombreInput.value = '';
     if (elNombre) elNombre.classList.remove('oculto'); // NO .focus(): teclado bajo demanda
   }
+  // EDITAR nombre desde el saludo del inicio (CAMBIO 3): mismo overlay, pero con el nombre
+  // ACTUAL ya escrito y seleccionado (listo para reemplazar). Guardar persiste; Cancelar
+  // vuelve al inicio sin cambiar nada (omitirNombre). La persistencia no cambia (3.5).
+  const elIniSaludo = document.getElementById('iniSaludo');
+  function abrirEditarNombre() {
+    if (nombreInput) { nombreInput.value = nombreUsuario || ''; try { nombreInput.select(); } catch (e) {} }
+    if (elInicio) elInicio.classList.add('oculto');
+    if (elNombre) elNombre.classList.remove('oculto'); // NO .focus(): teclado bajo demanda
+  }
+  if (elIniSaludo) elIniSaludo.addEventListener('click', abrirEditarNombre);
   function confirmarNombre() {
     const v = (nombreInput ? nombreInput.value : '').trim().slice(0, 8);
     if (v.length < 1) return;              // vacío → no avanza (sigue pidiendo)
     nombreUsuario = v;
     try { nombreStore.guardar(v); } catch (e) { /* almacén roto: queda en memoria, se re-pide luego */ }
-    actualizarBarraNombre();
+    actualizarSaludo();
     if (elNombre) elNombre.classList.add('oculto');
     mostrarPantallaInicio();
   }
@@ -560,6 +581,7 @@
     marcarModoRank();
     if (elRankCuerpo) elRankCuerpo.scrollTop = 0;
     if (elInicio) elInicio.classList.add('oculto');
+    if (elGameOver) elGameOver.classList.add('oculto'); // también se entra desde el fin (4.4)
     if (elRanking) elRanking.classList.remove('oculto');
     cargarRanking();
   }
@@ -568,6 +590,8 @@
     mostrarPantallaInicio(); // siempre hay salida
   }
   if (btnVerRanking) btnVerRanking.addEventListener('click', abrirRanking);
+  const btnVerRankingFin = document.getElementById('verRankingFin'); // Ranking desde el fin (4.4)
+  if (btnVerRankingFin) btnVerRankingFin.addEventListener('click', abrirRanking);
   if (btnRankCerrar) btnRankCerrar.addEventListener('click', cerrarRanking);
   // Reintenta, al arrancar y en segundo plano, los puntajes que quedaron pendientes por
   // un fallo de envío en una partida anterior (una partida buena no se pierde).
@@ -576,7 +600,7 @@
   // teníamos (p.ej. local vacío pero IDB lo conserva), lo adopta y cierra el prompt.
   nombreStore.reconciliar().then(function (v) {
     if (v && !nombreUsuario) {
-      nombreUsuario = v; actualizarBarraNombre();
+      nombreUsuario = v; actualizarSaludo();
       if (elNombre && !elNombre.classList.contains('oculto')) { elNombre.classList.add('oculto'); mostrarPantallaInicio(); }
     }
   });
@@ -1215,27 +1239,15 @@
     gesto.activo = false;
   });
 
-  // Botón de pausa: congela el juego y abre el MENÚ DE PAUSA (Continuar / Reiniciar).
-  const elPausa = document.getElementById('pausa');
-  const botonPausa = document.querySelector('.boton-pausa');
-  if (botonPausa) botonPausa.addEventListener('click', function () {
-    if (!jugando || pausado || secuencia) return;   // no se pausa durante la secuencia de CloudOver
-    pausado = true;
-    if (elPausa) elPausa.classList.remove('oculto');
-  });
-  // Continuar: reanuda la partida (gracia fresca, no cobra la pausa).
-  const btnContinuar = document.getElementById('continuar');
-  if (btnContinuar) btnContinuar.addEventListener('click', function () {
-    pausado = false;
-    if (elPausa) elPausa.classList.add('oculto');
-    marcarActividad();
-  });
-  // Reiniciar: cierra la pausa y vuelve al MENÚ DE SELECCIÓN de modo.
-  const btnReiniciar = document.getElementById('reiniciar');
-  if (btnReiniciar) btnReiniciar.addEventListener('click', function () {
-    pausado = false;
-    if (elPausa) elPausa.classList.add('oculto');
-    mostrarInicio(); // jugando = false → overlay de selección (15/30/60 seg)
+  // Botón SALIR (casa) de la barra: ABANDONA la partida al instante y vuelve al inicio
+  // (1.3). Reemplaza al viejo botón de pausa y a su menú (eliminados). Durante la secuencia
+  // de CloudOver no interrumpe (esa animación tiene su propio cierre). El flag interno
+  // `pausado` ya no lo activa nadie: queda como guarda inerte que el freeze de CloudOver
+  // comparte (no se toca esa lógica).
+  const botonSalir = document.getElementById('botonSalir');
+  if (botonSalir) botonSalir.addEventListener('click', function () {
+    if (secuencia) return; // la caída del CloudOver está corriendo → no se interrumpe
+    abandonarPartida();
   });
 
   // FUNDACIONAL: "puedes bloquear sin temor a perder tu progreso". Al ocultarse
@@ -1297,6 +1309,7 @@
     if (DURACIONES[modoJuego] && !secuencia) {
       tiempoRestante -= dt;
       if (tiempoRestante <= 0) { tiempoRestante = 0; terminarPartida(true); dibujar(); return; }
+      actualizarTiempo(); // refresca el temporizador de la barra (texto y estado <5s)
     }
 
     // Costo de INACTIVIDAD: tras la gracia, cada segundo quieto cuesta el 25%
@@ -1530,10 +1543,10 @@
     }
     ctx.globalAlpha = 1;
     const ahoraB = performance.now();
-    // Marcador Actual: rojo #FF4583 durante el VACIADO del CloudOver (vaciado/cero) y
-    // durante los 400ms al restar; si no, el naranja vivo.
+    // Marcador Actual: rojo durante el VACIADO del CloudOver (vaciado/cero) y durante los
+    // 400ms al restar; si no, BLANCO (el puntaje es el dato dominante de la barra, P1/1.1).
     const enVaciado = !!secuencia && (secuencia.fase === 'vaciado' || secuencia.fase === 'cero');
-    if (elActual) elActual.style.color = (enVaciado || ahoraB < contadorRojoHasta) ? ROJO_CONTADOR : ACENTO.vivo;
+    if (elActual) elActual.style.color = (enVaciado || ahoraB < contadorRojoHasta) ? ROJO_CONTADOR : PUNTAJE_BLANCO;
 
     if (esDesktop) {
       // Destello del disparo HITSCAN: una hitball chica que aparece y se apaga.
@@ -1735,27 +1748,8 @@
       ctx.restore();
     }
 
-    // TEMPORIZADOR (modos cronometrados 30/60): cuenta regresiva "M:SS" GRANDE
-    // top-center, en su propia banda. Se pone rojo y pulsa en los últimos 10s. En
-    // un modo sin DURACIONES no dibujaría temporizador. Parametrizado (no por modo).
-    if (jugando && DURACIONES[modoJuego]) {
-      const restante = Math.max(0, tiempoRestante);
-      const seg = Math.ceil(restante / 1000);
-      const txt = Math.floor(seg / 60) + ':' + (seg % 60 < 10 ? '0' + (seg % 60) : seg % 60);
-      const urgente = restante <= 10000;
-      ctx.save();
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const esc = urgente ? 1 + 0.08 * Math.sin(nowP / 180) : 1;
-      ctx.translate(W / 2, 88);
-      ctx.scale(esc, esc);
-      ctx.font = '800 32px ' + COLOR.fuente;
-      const colTimer = urgente ? ROJO_BORDE : ACENTO.claro;
-      // FASE 23: SIN contorno. El número del contador queda limpio (se quitó el trazo
-      // haloTexto). Legible por su relleno claro (#FFC9B8, o #FF0055 urgente) sobre #121216.
-      ctx.fillStyle = colTimer;
-      ctx.fillText(txt, 0, 0);
-      ctx.restore();
-    }
+    // TEMPORIZADOR: ya NO se dibuja en el canvas. Vive en la barra (DOM), junto al puntaje
+    // (D3: antes estaba lejos del puntaje y los targets lo tapaban). Lo maneja actualizarTiempo().
 
     // (FASE 16) El recuadro del medidor v41-fps se ELIMINÓ: sus cifras (F, D, peor,
     // conteos) ahora caen como líneas de la CASCADA, como cualquier otro dato real.
@@ -1888,7 +1882,7 @@
   redimensionar();
   actualizarMarcador();  // arranca en 0 (no el placeholder del HTML)
   actualizarRecord();    // récord del modo por defecto (60 seg) hasta elegir
-  actualizarBarraNombre(); // muestra el nombre guardado en la barra (si existe)
+  actualizarSaludo();   // pinta el saludo del inicio con el nombre guardado (si existe)
   marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
   escalada = P.crearEscalada(performance.now(), Math.random); // estado inicial válido
   // Primera pantalla (FASE 21+26): si ya hay nombre → inicio; si no y el almacén sirve

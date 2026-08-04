@@ -1,7 +1,9 @@
-// hitclaud — FASE 22: #nombre es un overlay REAL + salida de emergencia + PARIDAD.
+// hitclaud — PARIDAD de overlays + salida de emergencia del nombre.
 // node test/overlays.test.js
 // Ley del dueño: el test verifica el REGISTRO estructural (que el overlay esté en las
 // reglas CSS correctas y quede TOCABLE), no sólo que el texto exista en el archivo.
+// Rediseño de interfaz: el overlay #pausa se ELIMINÓ (el botón de salir abandona la
+// partida). Quedan CINCO overlays vigentes: inicio, nombre, actualizaciones, ranking, gameover.
 
 const fs = require('fs');
 const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
@@ -22,26 +24,34 @@ const idsPos = mPos ? [...mPos[1].matchAll(/#(\w+)/g)].map(function (m) { return
 const mOcu = css.match(/([^\n{]*#gameover\.oculto[^\n{]*)\{\s*display: none;/);
 const idsOcu = mOcu ? [...mOcu[1].matchAll(/#(\w+)\.oculto/g)].map(function (m) { return m[1]; }) : [];
 
+const ESPERADOS = ['inicio', 'nombre', 'actualizaciones', 'ranking', 'gameover'];
+
+console.log('=== #pausa ELIMINADO: sin rastro en HTML, CSS ni main.js ===');
+{
+  chk('#pausa NO existe en el HTML', !/id="pausa"/.test(html) && idsHtml.indexOf('pausa') === -1);
+  chk('#pausa NO deja reglas en el CSS', !/#pausa/.test(css));
+  chk('sin #continuar ni #reiniciar (botones del menú de pausa) en el HTML', !/id="continuar"/.test(html) && !/id="reiniciar"/.test(html));
+  chk('main.js no referencia el overlay de pausa', !/getElementById\('pausa'\)/.test(main) && !/\.boton-pausa/.test(main));
+}
+
 console.log('=== PARIDAD HTML ↔ CSS: cada overlay del HTML está en AMBAS reglas ===');
 {
   console.log(`  HTML(role=dialog): [${idsHtml.join(', ')}]`);
   console.log(`  CSS posición z3  : [${idsPos.join(', ')}]`);
   console.log(`  CSS oculto comp. : [${idsOcu.join(', ')}]`);
-  chk('los 6 overlays esperados en el HTML (inicio, nombre, actualizaciones, ranking, gameover, pausa)', set(idsHtml) === set(['inicio', 'nombre', 'actualizaciones', 'ranking', 'gameover', 'pausa']));
+  chk('los 5 overlays vigentes en el HTML (inicio, nombre, actualizaciones, ranking, gameover)', set(idsHtml) === set(ESPERADOS));
   chk('#novedades ya NO existe en el HTML (aviso emergente retirado)', !/id="novedades"/.test(html) && idsHtml.indexOf('novedades') === -1);
   chk('#novedades NO deja reglas huérfanas en el CSS', !/#novedades/.test(css));
   chk('PARIDAD: HTML == regla de posición (nadie olvidado)', set(idsHtml) === set(idsPos));
   chk('PARIDAD: HTML == regla de ocultado compuesto', set(idsHtml) === set(idsOcu));
-  chk('#nombre presente en AMBAS reglas (el bug de la fase 21, ahora registrado)', idsPos.indexOf('nombre') !== -1 && idsOcu.indexOf('nombre') !== -1);
+  chk('#nombre presente en AMBAS reglas', idsPos.indexOf('nombre') !== -1 && idsOcu.indexOf('nombre') !== -1);
 }
 
 console.log('=== Especificidad: el ocultado de CADA overlay es COMPUESTO (0-1-1-0), no genérico ===');
 {
-  // Para cada overlay hay #X { display:flex } (ID) → necesita #X.oculto (ID+clase) para ganar.
   const compuestoParaTodos = idsHtml.every(function (id) { return idsOcu.indexOf(id) !== -1; });
   chk('cada overlay tiene su #X.oculto (ninguno depende de la .oculto genérica)', compuestoParaTodos);
-  // La genérica .oculto existe pero NO alcanza para estos (por eso el compuesto).
-  chk('existe la .oculto genérica pero los overlays usan el compuesto', /^\.oculto \{ display: none; \}$/m.test(css) && idsOcu.length === 6);
+  chk('existe la .oculto genérica pero los overlays usan el compuesto', /^\.oculto \{ display: none; \}$/m.test(css) && idsOcu.length === 5);
 }
 
 console.log('=== TOQUES: el overlay (y su input/botones) queda POR ENCIMA del canvas ===');
@@ -54,22 +64,21 @@ console.log('=== TOQUES: el overlay (y su input/botones) queda POR ENCIMA del ca
   chk('el input NO desactiva pointer-events (recibe el toque)', !/nombre-input[\s\S]{0,200}pointer-events:\s*none/.test(css));
 }
 
-console.log('=== SALIDA DE EMERGENCIA: botón "Omitir" existe, es tocable y lleva a jugar ===');
+console.log('=== SALIDA DE EMERGENCIA del nombre: "Cancelar" existe, es tocable y vuelve al inicio ===');
 {
-  chk('botón Omitir en el overlay #nombre (reusa .go-reiniciar .go-modo-libre, sin componente nuevo)', /<button id="nombreOmitir" class="go-reiniciar go-modo-libre">Omitir<\/button>/.test(html));
-  chk('Omitir tocable: vive dentro de #nombre (overlay z3, por encima del canvas)', /<div id="nombre"[\s\S]*?id="nombreOmitir"[\s\S]*?<\/div>\s*<\/div>/.test(html));
-  // FASE 26: retirado el aviso emergente; la salida del nombre va directo al inicio.
-  chk('Omitir → jugar SIN nombre (oculta #nombre y muestra inicio)', /function omitirNombre\(\) \{[\s\S]{0,120}elNombre\.classList\.add\('oculto'\);[\s\S]{0,60}mostrarPantallaInicio\(\);/.test(main));
-  chk('Omitir cableado (addEventListener)', /if \(btnNombreOmitir\) btnNombreOmitir\.addEventListener\('click', omitirNombre\)/.test(main));
-  chk('Omitir NO guarda nombre (no llama nombreStore.guardar)', !/function omitirNombre\(\)[\s\S]{0,200}nombreStore\.guardar/.test(main));
+  chk('botón Cancelar en el overlay #nombre (reusa .go-reiniciar .go-modo-libre)', /<button id="nombreOmitir" class="go-reiniciar go-modo-libre">Cancelar<\/button>/.test(html));
+  chk('Cancelar tocable: vive dentro de #nombre (overlay z3, por encima del canvas)', /<div id="nombre"[\s\S]*?id="nombreOmitir"[\s\S]*?<\/div>\s*<\/div>/.test(html));
+  chk('Cancelar → inicio SIN cambiar nada (oculta #nombre y muestra inicio)', /function omitirNombre\(\) \{[\s\S]{0,120}elNombre\.classList\.add\('oculto'\);[\s\S]{0,60}mostrarPantallaInicio\(\);/.test(main));
+  chk('Cancelar cableado (addEventListener)', /if \(btnNombreOmitir\) btnNombreOmitir\.addEventListener\('click', omitirNombre\)/.test(main));
+  chk('Cancelar NO guarda nombre (no llama nombreStore.guardar)', !/function omitirNombre\(\)[\s\S]{0,200}nombreStore\.guardar/.test(main));
 }
 
 console.log('=== Dos caminos de salida y con-nombre no pide ===');
 {
   chk('con nombre guardado → NO se muestra la pantalla de nombre (va al inicio)', /if \(nombreUsuario\) mostrarPantallaInicio\(\);/.test(main));
   chk('sin nombre y con almacén → se muestra la pantalla de nombre', /else if \(puedeGuardarNombre\) mostrarPantallaNombre\(\);/.test(main));
-  chk('salida por CONFIRMAR (nombre válido → inicio)', /function confirmarNombre\(\)[\s\S]{0,500}mostrarPantallaInicio\(\);/.test(main));
-  chk('salida por OMITIR (sin nombre → inicio)', /function omitirNombre\(\)[\s\S]{0,120}mostrarPantallaInicio\(\);/.test(main));
+  chk('salida por GUARDAR (nombre válido → inicio)', /function confirmarNombre\(\)[\s\S]{0,500}mostrarPantallaInicio\(\);/.test(main));
+  chk('salida por CANCELAR (sin cambios → inicio)', /function omitirNombre\(\)[\s\S]{0,120}mostrarPantallaInicio\(\);/.test(main));
 }
 
 console.log('=== TECLADO / anti-zoom iOS: campo alto 48, texto 16px, sin autofocus (intacto) ===');
@@ -79,15 +88,14 @@ console.log('=== TECLADO / anti-zoom iOS: campo alto 48, texto 16px, sin autofoc
   chk('maxlength 8', /id="nombreInput"[\s\S]{0,140}maxlength="8"/.test(html));
 }
 
-console.log('=== LEY: los SEIS overlays vigentes tienen botón de salida ===');
+console.log('=== LEY: los CINCO overlays vigentes tienen botón de salida ===');
 {
   const salidas = {
     nombre: /id="nombreOmitir"|id="nombreOk"/,
     inicio: /id="jugar"/,
     actualizaciones: /id="actuCerrar"/,
     ranking: /id="rankCerrar"/,
-    gameover: /id="jugar60"|id="jugar30"|id="jugar15"/,
-    pausa: /id="continuar"|id="reiniciar"/,
+    gameover: /id="jugar60"|id="jugar30"|id="jugar15"|id="volverInicio"/,
   };
   Object.keys(salidas).forEach(function (id) {
     chk('#' + id + ' tiene botón de salida', salidas[id].test(html));

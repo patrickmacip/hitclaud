@@ -14,16 +14,17 @@ console.log('=== Overlay de fin con los botones de modo (15/30/60, sin Relax) ==
   const bLibre = (html.match(/id="jugarLibre"/g) || []).length;
   console.log(`  #gameover:${n} #jugar15:${b15} #jugar30:${b30} #jugar60:${b60} #jugarLibre:${bLibre} (Relax=0)  ${n === 1 && b15 === 1 && b30 === 1 && b60 === 1 && bLibre === 0 ? 'OK ✓' : 'NO ✗'}`);
   const et60 = /id="jugar60"[^>]*>([^<]+)</.exec(html);
-  console.log(`  etiqueta 60: "${et60 && et60[1]}"  ${et60 && et60[1] === '60 seg' ? 'OK ✓' : 'NO ✗'}`);
+  console.log(`  etiqueta 60: "${et60 && et60[1]}"  ${et60 && et60[1] === '60s' ? 'OK ✓' : 'NO ✗'}`);
 }
 
-console.log('\n=== Menú de PAUSA (Continuar / Reiniciar) ===');
+console.log('\n=== #pausa ELIMINADO: el botón de salir abandona la partida ===');
 {
   const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
   const p = (html.match(/id="pausa"/g) || []).length;
   const cont = (html.match(/id="continuar"/g) || []).length;
   const rei = (html.match(/id="reiniciar"/g) || []).length;
-  console.log(`  #pausa: ${p}   #continuar: ${cont}   #reiniciar: ${rei}  ${p === 1 && cont === 1 && rei === 1 ? 'OK ✓' : 'NO ✗'}`);
+  const salir = (html.match(/id="botonSalir"/g) || []).length;
+  console.log(`  #pausa: ${p}   #continuar: ${cont}   #reiniciar: ${rei}   #botonSalir: ${salir}  ${p === 0 && cont === 0 && rei === 0 && salir === 1 ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== FASE 10: SIN historial en el DOM (login/tableros/página de records fuera) ===');

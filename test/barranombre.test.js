@@ -1,5 +1,6 @@
-// hitclaud — FASE 23 commit 1: nombre al CENTRO de la barra, entre Record y Actual.
-// node test/barranombre.test.js
+// hitclaud — rediseño de interfaz: el nombre SALIÓ de la barra (D2/1.6) y ahora saluda
+// en la pantalla de inicio. La barra queda con tres zonas SIN etiquetas de texto (D1/P1):
+// récord (izq), puntaje+tiempo (centro), salir (der). node test/barranombre.test.js
 
 const fs = require('fs');
 const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
@@ -8,30 +9,39 @@ const css = fs.readFileSync(__dirname + '/../css/main.css', 'utf8');
 let ok = 0, ko = 0;
 function chk(n, c) { console.log(`  ${n}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) ok++; else ko++; }
 
-console.log('=== El nombre vive en un contenedor CENTRAL, entre Record y Actual ===');
+// Aísla la barra (header) del resto del documento.
+const barra = (html.match(/<header class="barra">[\s\S]*?<\/header>/) || [''])[0];
+
+console.log('=== El nombre YA NO vive en la barra ===');
 {
-  // Ya NO está dentro de marcador--record.
-  chk('el nombre salió del marcador Record', !/marcador--record">[\s\S]{0,120}id="barraNombre"/.test(html));
-  // Tiene su propio contenedor .marcador--nombre, en DOM entre record y actual.
-  chk('contenedor propio .marcador--nombre con #barraNombre', /<div class="marcador marcador--nombre">\s*<span class="etiqueta barra-nombre" id="barraNombre"><\/span>\s*<\/div>/.test(html));
-  chk('orden DOM: record → nombre → actual', /marcador--record"[\s\S]*?marcador--nombre"[\s\S]*?marcador--actual"/.test(html));
-  // Posicionado al centro-izquierda (25%), entre Record (izq) y Actual (centro 50%).
-  chk('.marcador--nombre posicionado en 25% (entre Record y Actual)', /\.marcador--nombre \{[\s\S]{0,120}position: absolute;[\s\S]{0,60}left: 25%;/.test(css));
-  chk('tipografía de etiqueta reusada (.etiqueta) con tono claro', /\.marcador--nombre \.etiqueta \{ color: var\(--acento-claro/.test(css) && /\.marcador \.etiqueta \{\s*font: var\(--texto-s\)/.test(css));
+  chk('sin #barraNombre en el HTML', !/id="barraNombre"/.test(html));
+  chk('sin .marcador--nombre en el HTML ni en el CSS', !/marcador--nombre/.test(html) && !/marcador--nombre/.test(css));
+  chk('la barra no contiene el nombre del jugador (ningún resto de barra-nombre)', !/barra-nombre/.test(barra) && !/barra-nombre/.test(css));
 }
 
-console.log('=== Con 8 caracteres cabe completo, NO se recorta ===');
+console.log('=== La barra NO tiene etiquetas de texto (D1/P1): ni "Record" ni "Actual" ===');
 {
-  chk('no-wrap (una línea, no rompe)', /\.barra-nombre \{ white-space: nowrap; \}/.test(css));
-  chk('sin overflow:hidden ni text-overflow que corte el nombre', !/barra-nombre[\s\S]{0,160}overflow:\s*hidden|barra-nombre[\s\S]{0,160}text-overflow/.test(css) && !/marcador--nombre[\s\S]{0,160}overflow:\s*hidden/.test(css));
-  chk('sin max-width que recorte', !/marcador--nombre[\s\S]{0,160}max-width|barra-nombre[\s\S]{0,160}max-width/.test(css));
+  // Sin rótulos VISIBLES (nodos de texto >…<). Los ids barraRecord/barraActual no cuentan.
+  chk('la barra no muestra la palabra "Record" como texto', !/>\s*Record\s*</.test(barra));
+  chk('la barra no muestra la palabra "Actual" como texto', !/>\s*Actual\s*</.test(barra));
+  chk('la barra no usa .etiqueta (sin rótulos)', !/class="[^"]*etiqueta/.test(barra));
 }
 
-console.log('=== Sin nombre: la barra NO se descuadra ===');
+console.log('=== Tres zonas: récord (corona+número), centro (puntaje+tiempo), salir (casa) ===');
 {
-  // Absoluto → no ocupa flujo (con o sin nombre el layout de Record/Actual/Pausa no cambia).
-  chk('.marcador--nombre es absoluto → no afecta el flujo de la barra', /\.marcador--nombre \{[\s\S]{0,60}position: absolute;/.test(css));
-  chk('vacío = texto oculto (.barra-nombre:empty display none)', /\.barra-nombre:empty \{ display: none; \}/.test(css));
+  chk('récord: corona + #barraRecord', /barra-record[\s\S]{0,120}#ic-corona[\s\S]{0,90}id="barraRecord"/.test(barra));
+  chk('centro: puntaje #barraActual + tiempo #barraTiempo apilados', /barra-centro[\s\S]{0,120}id="barraActual"[\s\S]{0,120}id="barraTiempo"/.test(barra));
+  chk('salir: botón con icono de casa y área táctil 44×44', /id="botonSalir"[\s\S]{0,120}#ic-casa/.test(barra) && /\.barra-salir \{[\s\S]{0,120}width: 44px;[\s\S]{0,60}height: 44px;/.test(css));
+  chk('el récord y el salir son tenues (bajo contraste, referencia)', /\.barra-record \{[\s\S]{0,120}color: var\(--texto-apagado/.test(css) && /\.barra-salir \{[\s\S]{0,300}color: var\(--texto-apagado/.test(css));
+  chk('el puntaje del centro es blanco y dominante (texto-xl)', /\.barra-centro \.valor \{[\s\S]{0,140}color: var\(--blanco/.test(css) && /\.barra-centro \.valor \{[\s\S]{0,60}font: var\(--texto-xl\)/.test(css));
+  chk('cifras de ancho fijo en puntaje y tiempo (P6)', /\.barra-centro \.valor \{[\s\S]{0,200}tabular-nums/.test(css) && /\.barra-tiempo \{[\s\S]{0,120}tabular-nums/.test(css));
+}
+
+console.log('=== El nombre saluda en el INICIO, editable ===');
+{
+  chk('saludo pulsable #iniSaludo con #iniSaludoTexto', /id="iniSaludo"[\s\S]{0,140}id="iniSaludoTexto"/.test(html));
+  chk('el saludo lleva el icono de lápiz (editar)', /iniSaludo[\s\S]{0,160}#ic-lapiz/.test(html));
+  chk('el saludo tiene área táctil ≥44px (P4)', /\.ini-saludo \{[\s\S]{0,200}min-height: 44px/.test(css));
 }
 
 console.log(`\n== RESUMEN barra-nombre: ${ok} OK, ${ko} NO ==`);

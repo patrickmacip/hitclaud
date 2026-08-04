@@ -30,7 +30,7 @@ console.log('=== PRIMERA carga pide nombre y BLOQUEA; SEGUNDA no ===');
   chk('arranque: si hay nombre → bienvenida (directo al inicio)', /if \(nombreUsuario\) mostrarPantallaInicio\(\);/.test(main));
   chk('arranque: sin nombre y con almacén → pedir nombre (bloquea)', /else if \(puedeGuardarNombre\) mostrarPantallaNombre\(\);/.test(main));
   // FASE 22: #nombre debe estar REGISTRADO en AMBAS reglas de overlay (no solo existir en HTML).
-  chk('overlay #nombre registrado como overlay real (posición z-index:3 + ocultado compuesto)', /<div id="nombre" class="oculto" role="dialog"/.test(html) && /#gameover, #pausa, #inicio, #nombre, #actualizaciones, #ranking \{/.test(css) && /#nombre\.oculto/.test(css));
+  chk('overlay #nombre registrado como overlay real (posición z-index:3 + ocultado compuesto)', /<div id="nombre" class="oculto" role="dialog"/.test(html) && /#gameover, #inicio, #nombre, #actualizaciones, #ranking \{/.test(css) && /#nombre\.oculto/.test(css));
   // Simulación de las dos cargas con el mismo almacén.
   const local = mockLocal(), idb = mockIdb();
   const carga1 = U.crearTextoPersistente(local, idb, KEY);
@@ -41,12 +41,13 @@ console.log('=== PRIMERA carga pide nombre y BLOQUEA; SEGUNDA no ===');
   chk('el nombre NO reaparece entre partidas (sólo se pide al arrancar sin nombre)', !/iniciarPartida[\s\S]{0,120}mostrarPantallaNombre/.test(main));
 }
 
-console.log('=== VISIBLE en la barra con la tipografía de etiqueta del marcador ===');
+console.log('=== VISIBLE en el SALUDO del inicio (ya no en la barra: D2/1.6) ===');
 {
-  chk('span del nombre en la barra (reusa .etiqueta) — FASE 23: en su propio contenedor', /<span class="etiqueta barra-nombre" id="barraNombre"><\/span>/.test(html));
-  chk('actualizarBarraNombre pinta el nombre (blindado try/catch)', /function actualizarBarraNombre\(\)[\s\S]{0,140}elBarraNombre\.textContent = nombreUsuario \|\| ''/.test(main) && /catch \(e\) \{ \/\* nunca rompe/.test(main));
-  chk('se muestra al arrancar (actualizarBarraNombre en la secuencia de carga)', /actualizarBarraNombre\(\); \/\/ muestra el nombre guardado/.test(main));
-  chk('vacío = invisible (.barra-nombre:empty display none, sin componente nuevo)', /\.barra-nombre:empty \{ display: none; \}/.test(css));
+  chk('el nombre ya NO vive en la barra (sin #barraNombre)', !/id="barraNombre"/.test(html));
+  chk('saludo del inicio con id iniSaludoTexto', /id="iniSaludoTexto"/.test(html));
+  chk('actualizarSaludo pinta el saludo (blindado try/catch)', /function actualizarSaludo\(\)[\s\S]{0,180}elSaludo\.textContent = nombreUsuario \? \('Hola, ' \+ nombreUsuario\)/.test(main) && /catch \(e\) \{ \/\* nunca rompe/.test(main));
+  chk('se muestra al arrancar (actualizarSaludo en la secuencia de carga)', /actualizarSaludo\(\);\s*\/\/ pinta el saludo del inicio/.test(main));
+  chk('sin nombre → "Ponte un nombre"', /nombreUsuario \? \('Hola, ' \+ nombreUsuario\) : 'Ponte un nombre'/.test(main));
 }
 
 console.log('=== VALIDACIÓN 1–8, trim, no vacío; teclado bajo demanda; alto 48 / 16px ===');
@@ -55,7 +56,7 @@ console.log('=== VALIDACIÓN 1–8, trim, no vacío; teclado bajo demanda; alto 
   chk('confirmar: trim + recorte a 8 + rechaza vacío', /const v = \(nombreInput \? nombreInput\.value : ''\)\.trim\(\)\.slice\(0, 8\);/.test(main) && /if \(v\.length < 1\) return;/.test(main));
   chk('SIN autofocus agresivo (no .focus\\(\\) en el prompt)', !/nombreInput\.focus\(\)/.test(main) && /NO \.focus\(\): teclado bajo demanda/.test(main));
   chk('campo alto 48 y texto 16px (evita zoom iOS)', /\.nombre-input \{[\s\S]{0,220}height: 48px;[\s\S]{0,220}font: 600 16px/.test(css));
-  chk('botón Confirmar en la familia existente (.go-reiniciar)', /<button id="nombreOk" class="go-reiniciar">Confirmar<\/button>/.test(html));
+  chk('botón Guardar en la familia existente (.go-reiniciar)', /<button id="nombreOk" class="go-reiniciar">Guardar<\/button>/.test(html));
   // La lógica de validación (espejo): trim, recorte a 8, vacío rechazado.
   function validar(s) { const v = String(s).trim().slice(0, 8); return v.length < 1 ? null : v; }
   chk('"  Ana  " → "Ana"', validar('  Ana  ') === 'Ana');

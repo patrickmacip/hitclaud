@@ -28,9 +28,9 @@ console.log('=== NINGÚN botón referencia el Relax ===');
 
 console.log('=== Código COMPARTIDO usado por otros modos: NO se tocó (declarado) ===');
 {
-  // .go-modo-libre NO es del Relax: lo usa el botón "Reiniciar" del menú de PAUSA → se mantiene.
-  chk('.go-modo-libre sigue (lo usa Reiniciar de la pausa, compartido)', /\.go-modo-libre \{/.test(css));
-  chk('el botón Reiniciar de la pausa sigue usando .go-modo-libre', /id="reiniciar" class="go-reiniciar go-modo-libre">Reiniciar<\/button>/.test(html));
+  // .go-modo-libre NO es del Relax: ahora lo usa el botón "Cancelar" del overlay de nombre → se mantiene.
+  chk('.go-modo-libre sigue (lo usa Cancelar del overlay de nombre, compartido)', /\.go-modo-libre \{/.test(css));
+  chk('el botón Cancelar del overlay de nombre usa .go-modo-libre', /id="nombreOmitir" class="go-reiniciar go-modo-libre">Cancelar<\/button>/.test(html));
   // Los fallbacks defensivos (|| record60, || 0) son genéricos, no ramas del Relax.
   chk('iniciarPartida conserva sus fallbacks genéricos (records[modo] || record60)', /record = records\[modo\] \|\| record60;/.test(main));
 }
@@ -39,10 +39,10 @@ console.log('=== 15/30/60 quedan intactos (regresión) ===');
 {
   chk('DURACIONES 15/30/60 = 15000/30000/60000', /'15': 15 \* 1000, '30': 30 \* 1000, '60': 60 \* 1000/.test(main));
   chk('records 15/30/60 presentes', /'15': record15, '30': record30, '60': record60/.test(main));
-  chk('game over: jugar15 · jugar30 · jugar60 en orden', /id="jugar15"[\s\S]{0,60}15 seg<\/button>\s*<button id="jugar30"[\s\S]{0,60}30 seg<\/button>\s*<button id="jugar60"[\s\S]{0,60}60 seg<\/button>/.test(html));
+  chk('game over: jugar15 · jugar30 · jugar60 en orden', /id="jugar15"[\s\S]{0,60}15s<\/button>\s*<button id="jugar30"[\s\S]{0,60}30s<\/button>\s*<button id="jugar60"[\s\S]{0,60}60s<\/button>/.test(html));
   chk('wiring: jugar15→\'15\', jugar30→\'30\', jugar60→\'60\'', /btn15\.addEventListener\('click', function \(\) \{ iniciarPartida\('15'\); \}\)/.test(main) && /btn30\.addEventListener\('click', function \(\) \{ iniciarPartida\('30'\); \}\)/.test(main) && /btn60\.addEventListener\('click', function \(\) \{ iniciarPartida\('60'\); \}\)/.test(main));
   chk('inicio: selector 15/30/60 intacto (sin Relax, que nunca estuvo ahí)', /id="sel15"/.test(html) && /id="sel30"/.test(html) && /id="sel60"/.test(html) && !/id="selLibre"/.test(html));
-  chk('reloj/temporizador siguen parametrizados por DURACIONES[modoJuego]', /if \(DURACIONES\[modoJuego\] && !secuencia\)/.test(main) && /if \(jugando && DURACIONES\[modoJuego\]\)/.test(main));
+  chk('reloj (bucle) y temporizador (DOM) siguen parametrizados por DURACIONES[modoJuego]', /if \(DURACIONES\[modoJuego\] && !secuencia\)/.test(main) && /function actualizarTiempo\(\)[\s\S]{0,220}!DURACIONES\[modoJuego\]/.test(main));
 }
 
 console.log('=== Datos HUÉRFANOS declarados (no se borran con script) ===');

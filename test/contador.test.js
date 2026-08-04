@@ -1,49 +1,45 @@
-// hitclaud — FASE 23 commit 2: el contador (temporizador) sin contorno. node test/contador.test.js
-// "el contador" = el número del temporizador (cuenta regresiva): es el único número que
-// CUENTA y tenía un contorno (haloTexto, trazo agregado en fase 13), dibujado SOBRE el
-// fondo. El marcador Actual (DOM) nunca tuvo contorno. Se quita el trazo del temporizador.
+// hitclaud — rediseño de interfaz: el temporizador (contador) se movió del canvas al DOM,
+// a la barra, junto al puntaje (D3: antes estaba lejos y los targets lo tapaban). Formato
+// "M:SS", cifras de ancho fijo (P6). En los últimos 5 s: rojo + latido por CSS (1.5, sin
+// shadowBlur). node test/contador.test.js
 
 const fs = require('fs');
 const main = fs.readFileSync(__dirname + '/../js/main.js', 'utf8');
 const css = fs.readFileSync(__dirname + '/../css/main.css', 'utf8');
+const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
 
 let ok = 0, ko = 0;
 function chk(n, c) { console.log(`  ${n}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) ok++; else ko++; }
 
-// Bloque del temporizador.
-const iT = main.indexOf('TEMPORIZADOR (modos cronometrados');
-const bloqueTimer = main.slice(iT, main.indexOf('    }', main.indexOf('ctx.fillText(txt, 0, 0);', iT)) + 5);
-
-console.log('=== El contador (temporizador) queda SIN contorno/trazo ===');
+console.log('=== El temporizador vive en el DOM (barra), ya NO en el canvas ===');
 {
-  chk('el temporizador YA NO llama haloTexto() (sin trazo/borde)', !/haloTexto\(/.test(bloqueTimer));
-  chk('el número sigue dibujándose (fillText, limpio)', /ctx\.fillStyle = colTimer;\s*ctx\.fillText\(txt, 0, 0\);/.test(bloqueTimer));
-  chk('sin strokeText en el temporizador', !/strokeText/.test(bloqueTimer));
-  chk('comentario declara el cambio (sin contorno, número limpio)', /SIN contorno[\s\S]{0,120}número del contador queda limpio/.test(bloqueTimer));
+  chk('elemento #barraTiempo en la barra, apilado bajo el puntaje', /barra-centro[\s\S]{0,120}id="barraTiempo"/.test(html));
+  chk('función actualizarTiempo() maneja texto y estado', /function actualizarTiempo\(\)/.test(main));
+  chk('el temporizador YA NO se dibuja en el canvas (sin fillText del contador)', !/const colTimer = urgente/.test(main) && !/ctx\.font = '800 32px '/.test(main));
+  chk('el contador ya no usa haloTexto ni strokeText (nunca fue del canvas otra vez)', !/haloTexto\(txt, 0, 0, colTimer/.test(main));
 }
 
-console.log('=== Legibilidad sobre el fondo #121216 (declarada) ===');
+console.log('=== Formato "M:SS" y cifras de ancho fijo (P6: los números no bailan) ===');
 {
-  // El relleno sigue en el tono claro (#FFC9B8) o rojo urgente (#FF0055): alto contraste.
-  chk('color del contador = ACENTO.claro / ROJO_BORDE (relleno legible)', /const colTimer = urgente \? ROJO_BORDE : ACENTO\.claro;/.test(main));
-  function hex(h) { h = h.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
-  function L(rgb) { const s = rgb.map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2]; }
-  function ratio(fg, bg) { const a = L(hex(fg)), b = L(hex(bg)); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); }
-  const rNorm = ratio('FFC9B8', '121216'), rUrg = ratio('FF0055', '121216');
-  console.log(`  contraste normal #FFC9B8/#121216 = ${rNorm.toFixed(2)}:1 · urgente #FF0055 = ${rUrg.toFixed(2)}:1`);
-  chk('contraste alto sin el trazo (texto grande 32px: umbral 3:1 de sobra)', rNorm >= 3 && rUrg >= 3);
+  chk('formato M:SS con relleno de cero en los segundos', /Math\.floor\(seg \/ 60\) \+ ':' \+ \(seg % 60 < 10 \? '0' \+ \(seg % 60\) : seg % 60\)/.test(main));
+  chk('cifras tabulares en el temporizador', /\.barra-tiempo \{[\s\S]{0,120}tabular-nums/.test(css));
+  chk('tiempo tenue (color secundario) y de menor jerarquía que el puntaje', /\.barra-tiempo \{[\s\S]{0,120}color: var\(--texto-apagado/.test(css));
 }
 
-console.log('=== El resto de estilos del marcador INTACTO ===');
+console.log('=== Últimos 5 segundos (1.5): rojo + latido, SIN shadowBlur ===');
 {
-  // El marcador Actual (DOM) sigue igual (nunca tuvo stroke; su regla no cambió).
-  chk('.marcador--actual .valor intacto (font texto-xl, color acento-vivo, sin stroke)', /\.marcador--actual \.valor \{\s*font: var\(--texto-xl\);\s*color: var\(--acento-vivo/.test(css) && !/text-stroke/.test(css));
-  chk('.marcador--record .valor intacto', /\.marcador--record \.valor \{\s*font: var\(--texto-l\);/.test(css));
-  // Otros halos (badge ×N, flotantes) NO se tocaron: sólo el del contador se quitó.
-  // FASE 29: el badge ×N ya NO usa haloTexto (contorno vetado); su halo es un disco cacheado.
-  chk('badge ×N sin haloTexto; halo por disco cacheado (discoMult)', !/haloTexto\(txtMult/.test(main) && /ctx\.drawImage\(discoMult\.canvas/.test(main));
-  chk('flotantes conservan su halo (haloTexto)', /if \(fl\.glow\) haloTexto\(fl\.texto, 0, 0/.test(main));
-  chk('el helper haloTexto sigue existiendo (no se borró, sólo dejó de usarse en el timer)', /function haloTexto\(/.test(main));
+  chk('umbral de 5 s marca la clase .urgente', /tiempoRestante <= 5000/.test(main));
+  chk('.urgente pone el temporizador en rojo de alarma', /\.barra-tiempo\.urgente \{[\s\S]{0,80}color: var\(--tiempo-urgente/.test(css));
+  chk('latido por CSS: escala 1.0 → 1.12, un ciclo por segundo (1s)', /\.barra-tiempo\.urgente \{[\s\S]{0,120}animation: lat-tiempo 1s/.test(css) && /@keyframes lat-tiempo \{[\s\S]{0,80}scale\(1\.12\)/.test(css));
+  // El estado urgente destaca por COLOR + ESCALA, nunca por sombra/blur (regla dura, 1.5).
+  const urgente = (css.match(/\.barra-tiempo\.urgente \{[^}]*\}/) || [''])[0];
+  chk('sin box-shadow ni filter en el temporizador urgente (color + escala, nunca blur)', !/box-shadow/.test(urgente) && !/filter/.test(urgente));
+}
+
+console.log('=== El puntaje del centro (DOM) sigue con su estilo y su pop ===');
+{
+  chk('.barra-centro .valor blanco, texto-xl, con transición de pop', /\.barra-centro \.valor \{[\s\S]{0,220}transition: transform 0\.15s/.test(css));
+  chk('el helper haloTexto sigue existiendo (lo usan los flotantes)', /function haloTexto\(/.test(main) && /if \(fl\.glow\) haloTexto\(fl\.texto, 0, 0/.test(main));
 }
 
 console.log(`\n== RESUMEN contador: ${ok} OK, ${ko} NO ==`);

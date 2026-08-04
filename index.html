@@ -15,23 +15,29 @@
   <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
+  <!-- SPRITE de iconos monocromos (corona, casa, lápiz). Trazo simple, heredan el color
+       del texto (currentColor). Definidos UNA vez y referenciados con <use> — sin archivos
+       ni red. El podio (assets/podio-1.svg) ya existe y se reutiliza como <img>. -->
+  <svg class="icono-sprite" width="0" height="0" aria-hidden="true" focusable="false">
+    <symbol id="ic-corona" viewBox="0 0 24 24"><path d="M2.5 8l4.2 3.2L12 4.5l5.3 6.7L21.5 8l-1.7 10.5H4.2L2.5 8z"/></symbol>
+    <symbol id="ic-casa" viewBox="0 0 24 24"><path d="M12 3.2 21.5 11h-2.9v9.8h-4.7v-5.7h-2.8v5.7H5.4V11H2.5z"/></symbol>
+    <symbol id="ic-lapiz" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.84 1.83 3.75 3.75 1.84-1.83z"/></symbol>
+  </svg>
+
+  <!-- BARRA de juego: tres zonas SIN etiquetas de texto (P1). Izquierda = récord (corona +
+       número, pequeño y tenue). Centro = puntaje grande (blanco) + tiempo debajo, apilados.
+       Derecha = salir (casa, mismo peso que el récord; área táctil 44×44). -->
   <header class="barra">
-    <div class="marcador marcador--record">
-      <span class="etiqueta">Record</span>
-      <span class="valor">0</span>
+    <div class="barra-record" aria-label="Récord">
+      <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg>
+      <span class="valor" id="barraRecord">0</span>
     </div>
-    <div class="marcador marcador--nombre">
-      <span class="etiqueta barra-nombre" id="barraNombre"></span>
+    <div class="barra-centro">
+      <span class="valor" id="barraActual">0</span>
+      <span class="barra-tiempo" id="barraTiempo"></span>
     </div>
-    <div class="marcador marcador--actual">
-      <span class="etiqueta">Actual</span>
-      <span class="valor">0</span>
-    </div>
-    <button class="boton-pausa" aria-label="Pausa">
-      <svg width="14" height="16" viewBox="0 0 14 16" fill="currentColor" aria-hidden="true">
-        <rect x="0" y="0" width="5" height="16" rx="1.5"/>
-        <rect x="9" y="0" width="5" height="16" rx="1.5"/>
-      </svg>
+    <button class="barra-salir" id="botonSalir" type="button" aria-label="Abandonar y volver al inicio">
+      <svg class="icono" aria-hidden="true"><use href="#ic-casa"></use></svg>
     </button>
   </header>
 
@@ -39,32 +45,43 @@
 
   <div class="hitmaker" aria-hidden="true"></div>
 
+  <!-- EDITAR NOMBRE (reusa este overlay tanto en la primera carga como al tocar el saludo).
+       Guardar persiste; Cancelar vuelve al inicio sin cambiar nada (siempre hay salida). -->
   <div id="nombre" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
       <p class="ini-titulo">Tu nombre</p>
       <input id="nombreInput" class="nombre-input" type="text" maxlength="8"
              autocomplete="off" autocapitalize="characters" spellcheck="false"
              inputmode="text" placeholder="hasta 8" aria-label="Tu nombre">
-      <button id="nombreOk" class="go-reiniciar">Confirmar</button>
-      <button id="nombreOmitir" class="go-reiniciar go-modo-libre">Omitir</button>
+      <button id="nombreOk" class="go-reiniciar">Guardar</button>
+      <button id="nombreOmitir" class="go-reiniciar go-modo-libre">Cancelar</button>
     </div>
   </div>
 
   <div id="inicio" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
       <p class="ini-titulo">HitClaud</p>
-      <div class="marcador marcador--record ini-record">
-        <span class="etiqueta">Record</span>
+      <!-- Saludo pulsable (saludo + lápiz): abre editar-nombre. Área táctil ≥44px. -->
+      <button class="ini-saludo" id="iniSaludo" type="button">
+        <span id="iniSaludoTexto">Ponte un nombre</span>
+        <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-lapiz"></use></svg>
+      </button>
+      <!-- Récord del modo seleccionado: corona + número, sin la palabra "Record". -->
+      <div class="ini-record" aria-label="Récord del modo">
+        <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg>
         <span class="valor" id="iniRecord">0</span>
       </div>
       <div class="ini-modos" role="group" aria-label="Duración">
-        <button id="sel15" class="go-reiniciar ini-sel">15 seg</button>
-        <button id="sel30" class="go-reiniciar ini-sel">30 seg</button>
-        <button id="sel60" class="go-reiniciar ini-sel sel-activo">60 seg</button>
+        <button id="sel15" class="go-reiniciar ini-sel">15s</button>
+        <button id="sel30" class="go-reiniciar ini-sel">30s</button>
+        <button id="sel60" class="go-reiniciar ini-sel sel-activo">60s</button>
       </div>
       <button id="jugar" class="go-reiniciar ini-jugar">JUGAR</button>
-      <button id="verRanking" class="ini-actu">Ranking</button>
-      <button id="verActualizaciones" class="ini-actu">Actualizaciones</button>
+      <button id="verRanking" class="ini-ranking" type="button">
+        <img src="assets/podio-1.svg" alt="" aria-hidden="true">
+        <span>Ranking</span>
+      </button>
+      <button id="verActualizaciones" class="ini-actu" type="button">Actualizaciones</button>
     </div>
   </div>
 
@@ -88,33 +105,33 @@
     <div class="actu-panel">
       <p class="actu-titulo">Ranking</p>
       <div class="rank-modos" role="group" aria-label="Duración">
-        <button class="go-reiniciar ini-sel rank-sel" data-modo="15">15 seg</button>
-        <button class="go-reiniciar ini-sel rank-sel" data-modo="30">30 seg</button>
-        <button class="go-reiniciar ini-sel rank-sel" data-modo="60">60 seg</button>
+        <button class="go-reiniciar ini-sel rank-sel" data-modo="15">15s</button>
+        <button class="go-reiniciar ini-sel rank-sel" data-modo="30">30s</button>
+        <button class="go-reiniciar ini-sel rank-sel" data-modo="60">60s</button>
       </div>
       <div class="rank-cuerpo" id="rankCuerpo"></div>
       <button id="rankCerrar" class="go-reiniciar">Cerrar</button>
     </div>
   </div>
 
+  <!-- FIN DE PARTIDA: puntaje dominante (sin la palabra "Score"), línea de récord con
+       corona si corresponde, confirmación de ranking, botón Ranking (podio), selector de
+       modos para volver a jugar, y un botón discreto de Inicio. -->
   <div id="gameover" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
-      <p class="go-titulo">hitcloude</p>
-      <p class="go-score oculto"><span class="etiqueta">Score</span><span class="valor">0</span></p>
-      <p class="go-record oculto">¡Nuevo récord!</p>
+      <p class="go-score oculto"><span class="valor">0</span></p>
+      <p class="go-record oculto"><svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg> ¡Nuevo récord!</p>
       <p class="go-rank oculto"></p>
-      <p class="go-envio oculto"></p>
-      <button id="jugar15" class="go-reiniciar">15 seg</button>
-      <button id="jugar30" class="go-reiniciar">30 seg</button>
-      <button id="jugar60" class="go-reiniciar">60 seg</button>
-    </div>
-  </div>
-
-  <div id="pausa" class="oculto" role="dialog" aria-modal="true">
-    <div class="go-panel">
-      <p class="go-titulo">Pausa</p>
-      <button id="continuar" class="go-reiniciar">Continuar</button>
-      <button id="reiniciar" class="go-reiniciar go-modo-libre">Reiniciar</button>
+      <button id="verRankingFin" class="ini-ranking" type="button">
+        <img src="assets/podio-1.svg" alt="" aria-hidden="true">
+        <span>Ranking</span>
+      </button>
+      <div class="ini-modos go-modos" role="group" aria-label="Jugar de nuevo">
+        <button id="jugar15" class="go-reiniciar ini-sel">15s</button>
+        <button id="jugar30" class="go-reiniciar ini-sel">30s</button>
+        <button id="jugar60" class="go-reiniciar ini-sel">60s</button>
+      </div>
+      <button id="volverInicio" class="ini-actu" type="button">Inicio</button>
     </div>
   </div>
 

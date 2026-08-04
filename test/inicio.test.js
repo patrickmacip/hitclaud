@@ -13,15 +13,15 @@ console.log('=== CONTENIDO: título "HitClaud", récord (estilo marcador Record)
 {
   chk('overlay #inicio existe (role=dialog)', /<div id="inicio"[^>]*role="dialog"/.test(html));
   chk('título grande "HitClaud"', /class="ini-titulo">HitClaud</.test(html));
-  chk('récord reusa el estilo del marcador Record (.marcador--record)', /class="marcador marcador--record ini-record"[\s\S]*id="iniRecord"/.test(html));
-  chk('récord tiene etiqueta "Record" + valor', /ini-record[\s\S]{0,120}etiqueta">Record<[\s\S]{0,60}id="iniRecord"/.test(html));
+  chk('récord: corona + número en .ini-record (sin la palabra "Record")', /class="ini-record"[\s\S]*id="iniRecord"/.test(html) && /ini-record[\s\S]{0,140}#ic-corona[\s\S]{0,90}id="iniRecord"/.test(html));
+  chk('el récord del inicio ya NO lleva etiqueta de texto "Record"', !/ini-record[\s\S]{0,120}>Record</.test(html));
   chk('botón JUGAR reusa la familia .go-reiniciar (no un botón nuevo)', /<button id="jugar" class="go-reiniciar ini-jugar">JUGAR<\/button>/.test(html));
 }
 
-console.log('=== MECANISMO: mismo sistema de overlays DOM que #gameover/#pausa ===');
+console.log('=== MECANISMO: mismo sistema de overlays DOM que #gameover ===');
 {
   chk('#inicio en la regla .oculto compuesta de overlays', /#inicio\.oculto[,{]/.test(css) && /\.oculto[^{]*\{ display: none; \}/.test(css));
-  chk('#inicio en la regla de posición fixed/z-index de overlays', /#gameover, #pausa, #inicio[,{ ]/.test(css));
+  chk('#inicio en la regla de posición fixed/z-index de overlays', /#gameover, #inicio[,{ ]/.test(css));
   chk('main.js muestra/oculta #inicio con .classList (mismo mecanismo)', /elInicio\.classList\.remove\('oculto'\)/.test(main) && /elInicio\.classList\.add\('oculto'\)/.test(main));
   chk('NO hay dibujo en canvas de la pantalla (es DOM, no un mecanismo paralelo)', !/dibujarInicio|pantallaInicioCanvas/.test(main));
 }
@@ -57,7 +57,7 @@ console.log('=== RÉCORD mostrado = el GUARDADO; robusto si el almacén falla ==
 
 console.log('=== REGRESIÓN: el overlay de game over conserva sus botones/comportamiento ===');
 {
-  chk('#gameover sigue con #jugar60 (60 seg)', /<button id="jugar60" class="go-reiniciar">60 seg<\/button>/.test(html));
+  chk('#gameover sigue con #jugar60 (60s)', /<button id="jugar60" class="go-reiniciar ini-sel">60s<\/button>/.test(html));
   chk('#gameover ya NO tiene Relax (jugarLibre eliminado)', !/jugarLibre/.test(html));
   chk('los botones del game over llaman iniciarPartida (no la pantalla de inicio)', /btn60\.addEventListener\('click', function \(\) \{ iniciarPartida\('60'\); \}\)/.test(main));
   chk('pintarFin (game over) NO muestra la pantalla de inicio', !/pintarFin[\s\S]{0,200}elInicio/.test(main));

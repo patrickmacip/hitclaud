@@ -108,7 +108,7 @@ console.log('\n=== Integración en main.js (grep): estado nuevo, guards, sin pau
   chk('reloj gateado durante la secuencia', /DURACIONES\[modoJuego\] && !secuencia/.test(main));
   chk('input pointerdown ignora la secuencia', /if \(secuencia\) return; \/\/ durante la secuencia/.test(main));
   chk('hitscan ignora la secuencia', /if \(pausado \|\| !jugando \|\| secuencia\) return;/.test(main));
-  chk('pausa bloqueada durante la secuencia', /!jugando \|\| pausado \|\| secuencia/.test(main));
+  chk('salir bloqueado durante la secuencia (no interrumpe la caída del CloudOver)', /botonSalir\.addEventListener\([\s\S]{0,140}if \(secuencia\) return;/.test(main));
   chk('CloudOver dispara golpeCloudover (no termina directo)', /golpeCloudover\(tg, /.test(main) && !/tg\.rojo\) \{ terminarPartida/.test(main));
   chk('explosión de cubos con color de identidad (cloudoverB)', /explotarCubos\(centros, px, py, [\d.]+, tg\.vx, tg\.vy, COLOR\.cloudoverB\)/.test(main));
   chk('robustez: catch del cuadro salta al overlay', /catch \(e\) \{ saltarAlOverlay\(\); dibujar\(\); return; \}/.test(main));

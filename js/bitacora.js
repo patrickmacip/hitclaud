@@ -14,6 +14,16 @@
 
   const versiones = [
     {
+      version: '1.4', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Interfaz rediseñada: la barra ahora muestra puntaje y tiempo juntos' },
+        { texto: 'Tu nombre te saluda en el inicio y puedes cambiarlo cuando quieras' },
+        { texto: 'El botón de pausa se fue: ahora es un botón de inicio que abandona la partida' },
+        { texto: 'Ranking más visible, con el icono del podio' },
+        { texto: 'Los últimos 5 segundos se ponen rojos' },
+      ],
+    },
+    {
       version: '1.3', fecha: '3 de agosto',
       puntos: [
         { texto: 'Ahora todas tus partidas compiten por el ranking, no solo tus récords' },

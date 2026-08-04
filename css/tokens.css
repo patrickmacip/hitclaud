@@ -41,4 +41,17 @@
   /* Layout */
   --barra-alto: 58px;
   --radio: 8px;
+
+  /* AGREGADOS (rediseño de interfaz). No modifican ningún token existente. */
+  /* Escala de espaciado — ritmo vertical consistente (P5). Úsala; nada de márgenes sueltos. */
+  --esp-1: 4px;
+  --esp-2: 8px;
+  --esp-3: 12px;
+  --esp-4: 16px;
+  --esp-5: 24px;
+  --esp-6: 32px;
+  /* Puntaje dominante de la barra: blanco puro (P1: el dato más importante, el más claro). */
+  --blanco: #FFFFFF;
+  /* Temporizador en los últimos 5 s: rojo de alarma (distinto de los rojos del CloudOver). */
+  --tiempo-urgente: #FF4D4D;
 }

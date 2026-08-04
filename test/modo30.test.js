@@ -20,7 +20,7 @@ console.log('=== \'30\' arranca en 30000ms y comparte TODO lo demás con \'60\' 
   chk('iniciarPartida usa DURACIONES[modo] (no rama por modo)', /tiempoRestante = DURACIONES\[modo\] \|\| 0;/.test(main));
   // El reloj y el temporizador gatean por DURACIONES[modoJuego], IDÉNTICO para 30 y 60.
   chk('el reloj corre para cualquier modo cronometrado (DURACIONES[modoJuego])', /if \(DURACIONES\[modoJuego\] && !secuencia\) \{/.test(main));
-  chk('el temporizador se dibuja para cualquier modo cronometrado', /if \(jugando && DURACIONES\[modoJuego\]\) \{/.test(main));
+  chk('el temporizador (DOM) actualiza para cualquier modo cronometrado', /function actualizarTiempo\(\)[\s\S]{0,220}!DURACIONES\[modoJuego\]/.test(main));
   // NADA especial-casea '30' en la lógica de juego (si lo hiciera, sería código duplicado).
   chk('sin rama especial "modoJuego === \'30\'" (no duplica lógica de partida)', !/modoJuego === '30'/.test(main));
   chk('sin DURACION_60 hardcodeada suelta (se parametrizó a DURACIONES)', !/DURACION_60/.test(main));
@@ -66,12 +66,12 @@ console.log('=== Regla fase 12: por CloudOver NO se guarda récord (ni en 30 ni 
 console.log('=== SELECCIÓN de modo: inicio (30/60 + JUGAR) y game over (+30 seg) ===');
 {
   // Pantalla de inicio: selector 30/60 reusando .go-reiniciar, y JUGAR arranca el elegido.
-  chk('inicio: botones sel30/sel60 reusan .go-reiniciar (sin componentes nuevos)', /id="sel30" class="go-reiniciar ini-sel"/.test(html) && /id="sel60" class="go-reiniciar ini-sel sel-activo"/.test(html));
+  chk('inicio: botones sel30/sel60 reusan .go-reiniciar .ini-sel (sin componentes nuevos)', /id="sel30" class="go-reiniciar ini-sel"/.test(html) && /id="sel60" class="go-reiniciar ini-sel sel-activo"/.test(html));
   chk('JUGAR arranca el modo SELECCIONADO (modoInicioSel)', /iniciarPartida\(modoInicioSel\)/.test(main));
-  chk('default seleccionado = 60 (sel-activo en sel60)', /let modoInicioSel = '60';/.test(main) && /ini-sel sel-activo">60 seg/.test(html));
-  // Game over: "30 seg" en la misma familia; orden 30 → 60 (Relax eliminado).
-  chk('game over: botón "30 seg" (.go-reiniciar) agregado', /<button id="jugar30" class="go-reiniciar">30 seg<\/button>/.test(html));
-  chk('orden game over: 30 seg → 60 seg', /30 seg<\/button>\s*<button id="jugar60" class="go-reiniciar">60 seg<\/button>/.test(html));
+  chk('default seleccionado = 60 (sel-activo en sel60)', /let modoInicioSel = '60';/.test(main) && /ini-sel sel-activo">60s/.test(html));
+  // Game over: "30s" en la misma familia de selector; orden 30 → 60 (Relax eliminado).
+  chk('game over: botón "30s" (.go-reiniciar .ini-sel) agregado', /<button id="jugar30" class="go-reiniciar ini-sel">30s<\/button>/.test(html));
+  chk('orden game over: 30s → 60s', /30s<\/button>\s*<button id="jugar60" class="go-reiniciar ini-sel">60s<\/button>/.test(html));
   chk('jugar30 llama iniciarPartida(\'30\')', /btn30\.addEventListener\('click', function \(\) \{ iniciarPartida\('30'\); \}\)/.test(main));
 }
 
@@ -95,8 +95,8 @@ console.log('=== REGRESIÓN 60 + ley de tacto + costo ===');
   chk('Relax ELIMINADO: sin jugarLibre ni iniciarPartida(\'libre\')', !/jugarLibre|iniciarPartida\('libre'\)/.test(main));
   chk('60 = 60000ms, sin \'libre\' en ninguna tabla', /'60': 60 \* 1000/.test(main) && !/'libre':/.test(main));
   // Ley de tacto en los botones NUEVOS.
-  chk('sel: :active + hover@media + ≥44px', /\.ini-sel:active \{/.test(css) && /@media \(hover: hover\) \{ \.ini-sel:hover/.test(css) && /\.ini-sel \{[\s\S]{0,80}min-height: 48px/.test(css));
-  chk('jugar30 (game over): :active + hover@media', /#jugar30:active/.test(css) && /@media \(hover: hover\) \{ #jugar30:hover/.test(css));
+  chk('sel: :active + hover@media + ≥44px (min-height 56)', /\.ini-sel:active \{/.test(css) && /@media \(hover: hover\) \{ \.ini-sel:hover/.test(css) && /\.ini-sel \{[\s\S]{0,120}min-height: 56px/.test(css));
+  chk('jugar30 (game over) usa .ini-sel → hereda :active + hover del selector', /id="jugar30" class="go-reiniciar ini-sel"/.test(html) && /\.ini-sel:active \{/.test(css));
   // Costo: nada de shadowBlur/gradiente en el CSS nuevo; el bucle no cambió.
   chk('sin shadowBlur/gradiente en el CSS del selector', !/\.ini-sel[\s\S]{0,200}box-shadow|\.ini-sel[\s\S]{0,200}gradient/.test(css));
   chk('el bucle de dibujo sigue con 1 solo shadowBlur (el de desktop)', (main.match(/ctx\.shadowBlur/g) || []).length === 1);
