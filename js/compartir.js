@@ -114,10 +114,11 @@
   // Bolita coral con estela (firma visual). Reutiliza U.estelaMeteoro con una historia
   // sintética (arco corto). Sin shadowBlur: la estela es una cola de discos que se
   // estrechan y se desvanecen (como dibujarEstela, simplificado).
-  function firmaBolita(ctx, cx, cy, radio, t) {
+  function firmaBolita(ctx, cx, cy, radio, t, dirX) {
+    dirX = dirX || -1; // -1 = estela hacia la izquierda-abajo (récord); +1 = derecha-abajo (ranking)
     ctx.save();
     var hist = [];
-    for (var k = 1; k <= 12; k++) hist.push({ x: cx - k * 14, y: cy + k * k * 0.9 });
+    for (var k = 1; k <= 12; k++) hist.push({ x: cx + dirX * k * 14, y: cy + k * k * 0.9 });
     var e = (U && U.estelaMeteoro) ? U.estelaMeteoro(cx, cy, hist, radio, 24) : null;
     if (e && e.pts) {
       for (var i = 0; i < e.pts.length; i++) {
@@ -132,17 +133,23 @@
     ctx.beginPath(); ctx.arc(cx, cy, radio, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
-  // Franja coral inclinada "NUEVO RÉCORD" (negro sobre coral) que cruza la tarjeta.
-  function dibujarFranja(ctx, t) {
+  // CINTA horizontal "NUEVO RÉCORD" (negro sobre coral), centrada en (cx,cy). SIN inclinar
+  // y del ancho JUSTO del texto + margen interno → no cruza la tarjeta ni tapa el título.
+  function dibujarCinta(ctx, cx, cy, t) {
+    var texto = 'NUEVO RÉCORD';
     ctx.save();
-    ctx.translate(LADO / 2, 168);
-    ctx.rotate(-Math.PI / 15); // ~ -12°
+    ctx.font = '800 32px ' + FUENTE;
+    try { ctx.letterSpacing = '4px'; } catch (e) {} // espaciado entre letras (navegador)
+    var wText = ctx.measureText(texto).width;
+    var padX = 34, h = 58;
+    var wBox = wText + padX * 2;
     ctx.fillStyle = t.coral;
-    ctx.fillRect(-LADO * 0.85, -52, LADO * 1.7, 104);
+    _roundRect(ctx, cx - wBox / 2, cy - h / 2, wBox, h, 12);
+    ctx.fill();
     ctx.fillStyle = t.negro;
-    ctx.font = '800 58px ' + FUENTE;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('NUEVO RÉCORD', 0, 2);
+    ctx.fillText(texto, cx, cy + 1);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
     ctx.restore();
   }
 
@@ -159,13 +166,21 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = t.coral; ctx.font = '800 64px ' + FUENTE;
     ctx.fillText('HitClaud', cx, 300);
-    // PUNTAJE enorme blanco, tamaño ajustado a los dígitos (nunca se desborda).
+    // CINTA "NUEVO RÉCORD" JUSTO ENCIMA del puntaje (si corresponde). Se dibuja ANTES que el
+    // puntaje y por encima de su tope visual → el título "HitClaud" queda SIEMPRE limpio (D1).
+    // La posición del puntaje NO depende de la cinta: con o sin récord sigue centrado (1.4).
+    var SCORE_Y = 560;
     var texto = String(_entero(o.puntos));
     var medir = function (txt, px) { ctx.font = '800 ' + px + 'px ' + FUENTE; return ctx.measureText(txt).width; };
     var size = tamPuntaje(texto, anchoUtil, medir, 300);
+    if (o.esRecord) {
+      var capTop = SCORE_Y - size * 0.36;   // tope visual aproximado del dígito
+      dibujarCinta(ctx, cx, capTop - 40, t); // cinta pegada sobre el puntaje, centrada
+    }
+    // PUNTAJE enorme blanco, tamaño ajustado a los dígitos (nunca se desborda).
     ctx.font = '800 ' + size + 'px ' + FUENTE;
-    ctx.fillStyle = t.blanco; ctx.textBaseline = 'middle';
-    ctx.fillText(texto, cx, 560);
+    ctx.fillStyle = t.blanco; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(texto, cx, SCORE_Y);
     ctx.textBaseline = 'alphabetic';
     // MODO, tenue y pequeño.
     ctx.fillStyle = t.tenue; ctx.font = '400 36px ' + FUENTE;
@@ -179,8 +194,6 @@
       ctx.fillStyle = t.coralVivo; ctx.textBaseline = 'alphabetic';
       ctx.fillText(nombre, cx + 24, 838);
     }
-    // NUEVO RÉCORD sólo si corresponde.
-    if (o.esRecord) dibujarFranja(ctx, t);
     // Dirección abajo, tenue.
     ctx.fillStyle = t.tenue; ctx.font = '400 28px ' + FUENTE;
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
@@ -235,25 +248,33 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = t.coral; ctx.font = '800 64px ' + FUENTE;
     ctx.fillText('HitClaud', cx, 170);
-    ctx.fillStyle = t.blanco; ctx.font = '800 46px ' + FUENTE;
-    ctx.fillText('TOP 3 · ' + etiquetaModo(o.modo).toUpperCase(), cx, 258);
     var top = Array.isArray(o.top) ? o.top : [];
     var imgs = o.imgs || {};
-    var y = 360, filaH = 150;
+    // 2.1/2.2: el título dice la verdad — "TOP 3" con 3 o más; "RANKING" con menos.
+    var titulo = (top.length >= 3 ? 'TOP 3' : 'RANKING') + ' · ' + etiquetaModo(o.modo).toUpperCase();
+    ctx.fillStyle = t.blanco; ctx.font = '800 46px ' + FUENTE;
+    ctx.fillText(titulo, cx, 258);
     var n = Math.min(3, top.length); // 3.7: si hay menos de tres, muestra los que haya
-    for (var i = 0; i < n; i++) {
-      dibujarFilaRank(ctx, t, x, y, w, i + 1, top[i], imgs[i + 1], false);
-      y += filaH;
-    }
-    // 3.4/3.5/3.6: fila del jugador SÓLO si está en top 20 y NO en el podio.
-    var puesto = puestoDe(top, o.nombre);
-    if (puesto && puesto > 3 && puesto <= 20) {
+    var puesto = puestoDe(top, o.nombre); // 3.4/3.5/3.6: fila del jugador si está en top 20 y no en el podio
+    var hayJugador = !!(puesto && puesto > 3 && puesto <= 20);
+    // CAMBIO 3: el BLOQUE de filas (podio + fila del jugador si la hay) se centra
+    // verticalmente entre el título y el pie → nunca queda medio lienzo vacío abajo.
+    var filaH = 150, rowH = 118, sep = 46;
+    var Hvis = Math.max(0, (n - 1)) * filaH + rowH + (hayJugador ? (sep + rowH) : 0);
+    var regTop = 316, regBot = LADO - MARGEN - 70; // franja disponible sobre el pie (~944)
+    var y0 = regTop + Math.max(0, ((regBot - regTop) - Hvis) / 2);
+    for (var i = 0; i < n; i++) dibujarFilaRank(ctx, t, x, y0 + i * filaH, w, i + 1, top[i], imgs[i + 1], false);
+    if (hayJugador) {
+      var yTrasPodio = y0 + (n - 1) * filaH + rowH; // borde inferior del último podio
       ctx.save();
       ctx.strokeStyle = t.tenue; ctx.globalAlpha = 0.45; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(x, y + 12); ctx.lineTo(x + w, y + 12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, yTrasPodio + sep / 2); ctx.lineTo(x + w, yTrasPodio + sep / 2); ctx.stroke();
       ctx.restore();
-      dibujarFilaRank(ctx, t, x, y + 34, w, puesto, top[puesto - 1], null, true);
+      dibujarFilaRank(ctx, t, x, yTrasPodio + sep, w, puesto, top[puesto - 1], null, true);
     }
+    // 4.1/4.2: firma visual (bolita coral con estela) también en el ranking, abajo-derecha,
+    // con la estela hacia la esquina (dirX +1) para no tapar filas ni el pie.
+    firmaBolita(ctx, LADO - MARGEN - 100, LADO - MARGEN - 60, 22, t, 1);
     ctx.fillStyle = t.tenue; ctx.font = '400 28px ' + FUENTE;
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillText(DIR_CORTA, cx, LADO - MARGEN + 10);

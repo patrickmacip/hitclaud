@@ -14,21 +14,25 @@ function chk(n, c) { console.log(`  ${n}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) o
 
 // ── ctx simulado: registra fillText / stroke / drawImage; measureText desde el font. ──
 function mockCtx() {
-  const rec = { fills: [], strokes: 0, images: 0 };
+  const rec = { fills: [], pos: [], strokes: 0, images: 0, arcs: 0 };
   const noop = function () {};
   const ctx = {
-    _font: '20px', fillStyle: '', strokeStyle: '', globalAlpha: 1, lineWidth: 1, textAlign: '', textBaseline: '',
-    save: noop, restore: noop, beginPath: noop, moveTo: noop, lineTo: noop, arc: noop, arcTo: noop,
+    _font: '20px', _ls: '0px', fillStyle: '', strokeStyle: '', globalAlpha: 1, lineWidth: 1, textAlign: '', textBaseline: '',
+    save: noop, restore: noop, beginPath: noop, moveTo: noop, lineTo: noop, arcTo: noop,
     closePath: noop, fill: noop, translate: noop, rotate: noop, scale: noop, fillRect: noop,
+    arc: function () { rec.arcs++; },
     stroke: function () { rec.strokes++; },
     drawImage: function () { rec.images++; },
     measureText: function (s) { const m = /(\d+)px/.exec(ctx._font || ''); const px = m ? +m[1] : 20; return { width: String(s).length * px * 0.6 }; },
-    fillText: function (t) { rec.fills.push(String(t)); },
+    fillText: function (t, x, y) { rec.fills.push(String(t)); rec.pos.push({ t: String(t), x: x, y: y }); },
   };
   Object.defineProperty(ctx, 'font', { get() { return ctx._font; }, set(v) { ctx._font = v; } });
+  Object.defineProperty(ctx, 'letterSpacing', { get() { return ctx._ls; }, set(v) { ctx._ls = v; } });
   ctx._rec = rec;
   return ctx;
 }
+function yDe(rec, texto) { const p = rec.pos.find(function (o) { return o.t === texto; }); return p ? p.y : null; }
+function tituloRank(rec) { return rec.fills.find(function (s) { return s.indexOf(' · ') !== -1; }); }
 
 (async function () {
   console.log('=== V4: los textos de compartir en los tres casos (4.1/4.2/4.3) ===');
@@ -52,16 +56,44 @@ function mockCtx() {
     chk('ningún caso se desborda (ancho ≤ útil)', medir('4200', t4) <= anchoUtil && medir('123456', t6) <= anchoUtil && medir('999999999', t9) <= anchoUtil);
   }
 
-  console.log('=== V4: la franja "NUEVO RÉCORD" sólo aparece cuando corresponde ===');
+  console.log('=== V4: la cinta "NUEVO RÉCORD" sólo aparece cuando corresponde (CAMBIO 1) ===');
   {
     const conRec = mockCtx(); C.dibujarTarjetaRecord(conRec, { puntos: 1234, modo: '15', nombre: 'PAT', esRecord: true });
     const sinRec = mockCtx(); C.dibujarTarjetaRecord(sinRec, { puntos: 123456, modo: '30', nombre: 'PAT', esRecord: false });
     chk('con récord nuevo → dibuja "NUEVO RÉCORD"', conRec._rec.fills.indexOf('NUEVO RÉCORD') !== -1);
-    chk('sin récord nuevo → NO dibuja la franja', sinRec._rec.fills.indexOf('NUEVO RÉCORD') === -1);
-    chk('dibujar la tarjeta de récord NO lanza (ctx simulado)', true);
-    // el puntaje se dibuja como texto (número completo, no abreviado)
+    chk('sin récord nuevo → NO dibuja la cinta', sinRec._rec.fills.indexOf('NUEVO RÉCORD') === -1);
     chk('el puntaje completo se dibuja (123456)', sinRec._rec.fills.indexOf('123456') !== -1);
     chk('el modo se dibuja en palabras ("30 segundos")', sinRec._rec.fills.indexOf('30 segundos') !== -1);
+    // 1.4: el puntaje queda en el MISMO sitio con o sin récord (no se mueve).
+    chk('el puntaje no se mueve entre récord y no-récord (mismo Y)', yDe(conRec._rec, '1234') === yDe(sinRec._rec, '123456'));
+  }
+
+  console.log('=== V4: nada se superpone al título "HitClaud" (D1/1.3) ===');
+  {
+    // La cinta va DEBAJO del título y ENCIMA del puntaje: título < cinta < puntaje (Y crece hacia abajo).
+    const c = mockCtx(); C.dibujarTarjetaRecord(c, { puntos: 4200, modo: '15', nombre: 'PAT', esRecord: true });
+    const yTit = yDe(c._rec, 'HitClaud'), yCinta = yDe(c._rec, 'NUEVO RÉCORD'), ySc = yDe(c._rec, '4200');
+    chk('orden vertical título < cinta < puntaje (nada tapa el título)', yTit < yCinta && yCinta < ySc);
+    // En la tarjeta de ranking el título también queda arriba, sin nada encima.
+    const r = mockCtx(); C.dibujarTarjetaRanking(r, { modo: '15', top: [{ nombre: 'A', puntos: 9 }], nombre: 'A' });
+    const yH = yDe(r._rec, 'HitClaud'), yT = yDe(r._rec, tituloRank(r._rec));
+    chk('ranking: "HitClaud" arriba y el subtítulo debajo', yH < yT);
+  }
+
+  console.log('=== V4: el título del ranking dice la verdad (CAMBIO 2) ===');
+  {
+    const t3 = mockCtx(); C.dibujarTarjetaRanking(t3, { modo: '30', top: [1, 2, 3].map(function (i) { return { nombre: 'J' + i, puntos: i }; }), nombre: 'J1' });
+    const t2 = mockCtx(); C.dibujarTarjetaRanking(t2, { modo: '15', top: [{ nombre: 'A', puntos: 2 }, { nombre: 'B', puntos: 1 }], nombre: 'A' });
+    const t1 = mockCtx(); C.dibujarTarjetaRanking(t1, { modo: '60', top: [{ nombre: 'SOLO', puntos: 9 }], nombre: 'SOLO' });
+    chk('con 3 puntajes → "TOP 3 · 30 SEGUNDOS"', tituloRank(t3._rec) === 'TOP 3 · 30 SEGUNDOS');
+    chk('con 2 puntajes → "RANKING · 15 SEGUNDOS" (no miente con TOP 3)', tituloRank(t2._rec) === 'RANKING · 15 SEGUNDOS');
+    chk('con 1 puntaje → "RANKING · 60 SEGUNDOS"', tituloRank(t1._rec) === 'RANKING · 60 SEGUNDOS');
+  }
+
+  console.log('=== V4: la firma (bolita coral con estela) también en el ranking (CAMBIO 4) ===');
+  {
+    const r = mockCtx(); C.dibujarTarjetaRanking(r, { modo: '15', top: [{ nombre: 'A', puntos: 9 }], nombre: 'A' });
+    chk('el ranking dibuja la bolita/estela (arcos de círculo)', r._rec.arcs > 0);
   }
 
   console.log('=== V4: la fila del jugador sólo aparece si está en top 20 y NO en el podio ===');
