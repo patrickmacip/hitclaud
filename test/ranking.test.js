@@ -14,30 +14,46 @@ function limpiarPend() { R.MODOS.forEach(function (m) { R._borrarPendiente(m); }
 (async function () {
   const fetchReal = global.fetch;
 
-  console.log('=== 1.3: el registro del último envío refleja los SEIS casos ===');
+  console.log('=== CAMBIO 1: el registro del último envío refleja los SEIS casos ===');
   {
     limpiarPend();
-    // (a) no-intentado por CloudOver
-    await R.enviarPuntaje({ nombre: 'Pat', puntos: 100, modo: '60', porTiempo: false, superaRecord: true });
+    // (a) no-intentado por CloudOver (1.2)
+    await R.enviarPuntaje({ nombre: 'Pat', puntos: 100, modo: '60', porTiempo: false });
     chk('CloudOver → no-intentado / cloudover', R.ultimoEnvio().estado === 'no-intentado' && R.ultimoEnvio().motivo === 'cloudover');
-    // (b) no-intentado por no superar récord
-    await R.enviarPuntaje({ nombre: 'Pat', puntos: 100, modo: '60', porTiempo: true, superaRecord: false });
-    chk('no supera récord → no-intentado / no-supera-record', R.ultimoEnvio().motivo === 'no-supera-record');
-    // (c) no-intentado por falta de nombre
-    await R.enviarPuntaje({ nombre: '   ', puntos: 100, modo: '60', porTiempo: true, superaRecord: true });
+    // (b) no-intentado por falta de nombre (1.3)
+    await R.enviarPuntaje({ nombre: '   ', puntos: 100, modo: '60', porTiempo: true });
     chk('sin nombre → no-intentado / sin-nombre', R.ultimoEnvio().motivo === 'sin-nombre');
-    // (d) se intentó y falló la red
+    // (c) no-intentado por puntaje cero/negativo (1.4)
+    await R.enviarPuntaje({ nombre: 'Pat', puntos: 0, modo: '60', porTiempo: true });
+    chk('cero puntos → no-intentado / cero', R.ultimoEnvio().estado === 'no-intentado' && R.ultimoEnvio().motivo === 'cero');
+    // (d) se intentó y falló la red — POR TIEMPO, SIN pasar superaRecord (1.5)
     global.fetch = function () { return Promise.reject(new Error('sin red')); };
-    await R.enviarPuntaje({ nombre: 'Pat', puntos: 100, modo: '15', porTiempo: true, superaRecord: true });
+    await R.enviarPuntaje({ nombre: 'Pat', puntos: 100, modo: '15', porTiempo: true });
     chk('red caída → estado fallo-red', R.ultimoEnvio().estado === 'fallo-red');
     // (e) se intentó y el servidor devolvió error
     global.fetch = function () { return Promise.resolve({ ok: false, status: 500, json: function () { return Promise.resolve({}); } }); };
-    await R.enviarPuntaje({ nombre: 'Pat', puntos: 100, modo: '30', porTiempo: true, superaRecord: true });
+    await R.enviarPuntaje({ nombre: 'Pat', puntos: 100, modo: '30', porTiempo: true });
     chk('error del servidor → estado error-servidor (status 500)', R.ultimoEnvio().estado === 'error-servidor' && R.ultimoEnvio().status === 500);
     // (f) se intentó y funcionó
     global.fetch = function () { return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ entro: true, posicion: 3 }); } }); };
-    await R.enviarPuntaje({ nombre: 'Pat', puntos: 999, modo: '60', porTiempo: true, superaRecord: true });
+    await R.enviarPuntaje({ nombre: 'Pat', puntos: 999, modo: '60', porTiempo: true });
     chk('éxito → estado ok, entro true, posicion 3', R.ultimoEnvio().estado === 'ok' && R.ultimoEnvio().entro === true && R.ultimoEnvio().posicion === 3);
+    global.fetch = fetchReal;
+  }
+
+  console.log('=== CAMBIO 1.5: por tiempo SIEMPRE se manda, supere o no el récord ===');
+  {
+    limpiarPend();
+    let cuerpoEnviado = null;
+    global.fetch = function (url, opt) {
+      try { cuerpoEnviado = JSON.parse(opt.body); } catch (e) {}
+      return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ entro: false }); } });
+    };
+    // superaRecord:false pero por tiempo y con nombre y puntos>0 → SE MANDA igual.
+    await R.enviarPuntaje({ nombre: 'Pat', puntos: 42, modo: '15', porTiempo: true, superaRecord: false });
+    chk('por tiempo sin superar récord → SÍ se intenta (estado ok)', R.ultimoEnvio().estado === 'ok');
+    chk('el POST llevó el puntaje de esa partida (42)', cuerpoEnviado && cuerpoEnviado.puntos === 42);
+    chk('superaRecord ya NO se pasa al cuerpo del POST', cuerpoEnviado && !('superaRecord' in cuerpoEnviado));
     global.fetch = fetchReal;
   }
 
@@ -73,11 +89,15 @@ function limpiarPend() { R.MODOS.forEach(function (m) { R._borrarPendiente(m); }
 
   console.log('=== decidirEnviarPuntaje / motivoNoEnvio (puros) ===');
   {
-    chk('por tiempo + supera + nombre → sí', R.decidirEnviarPuntaje({ porTiempo: true, superaRecord: true, nombre: 'Pat' }) === true);
-    chk('motivo cloudover', R.motivoNoEnvio({ porTiempo: false, superaRecord: true, nombre: 'Pat' }) === 'cloudover');
-    chk('motivo no-supera-record', R.motivoNoEnvio({ porTiempo: true, superaRecord: false, nombre: 'Pat' }) === 'no-supera-record');
-    chk('motivo sin-nombre', R.motivoNoEnvio({ porTiempo: true, superaRecord: true, nombre: '' }) === 'sin-nombre');
-    chk('sin motivo (null) cuando corresponde', R.motivoNoEnvio({ porTiempo: true, superaRecord: true, nombre: 'Pat' }) === null);
+    chk('por tiempo + nombre + puntos>0 → sí', R.decidirEnviarPuntaje({ porTiempo: true, nombre: 'Pat', puntos: 100 }) === true);
+    chk('motivo cloudover', R.motivoNoEnvio({ porTiempo: false, nombre: 'Pat', puntos: 100 }) === 'cloudover');
+    chk('motivo sin-nombre', R.motivoNoEnvio({ porTiempo: true, nombre: '', puntos: 100 }) === 'sin-nombre');
+    chk('motivo cero (0 puntos)', R.motivoNoEnvio({ porTiempo: true, nombre: 'Pat', puntos: 0 }) === 'cero');
+    chk('motivo cero (puntos negativos)', R.motivoNoEnvio({ porTiempo: true, nombre: 'Pat', puntos: -5 }) === 'cero');
+    chk('sin motivo (null) cuando corresponde', R.motivoNoEnvio({ porTiempo: true, nombre: 'Pat', puntos: 100 }) === null);
+    // 1.5: superaRecord ya NO participa — con o sin él, y sea true o false, el resultado es el mismo.
+    chk('superaRecord:false NO bloquea (sigue null)', R.motivoNoEnvio({ porTiempo: true, nombre: 'Pat', puntos: 100, superaRecord: false }) === null);
+    chk('el récord ya no es condición: no existe el motivo no-supera-record', R.motivoNoEnvio({ porTiempo: true, nombre: 'Pat', puntos: 100, superaRecord: false }) !== 'no-supera-record');
   }
 
   console.log('=== /partida coherente y anónimo + iconos ===');
@@ -100,8 +120,9 @@ function limpiarPend() { R.MODOS.forEach(function (m) { R._borrarPendiente(m); }
   {
     chk('main.js NO llama fetch directamente', !/[^.\w]fetch\(/.test(main));
     chk('record.terminar corre ANTES del envío', main.indexOf('record.terminar(scoreFinal') < main.indexOf('enviarAlServidor(porTiempo'));
-    chk('el envío va en try/catch (la red nunca rompe el fin)', /try \{ enviarAlServidor\(porTiempo, superaRecord\); \} catch/.test(main));
-    chk('/partida siempre; /score sólo si porTiempo && superaRecord', /Ranking\.enviarPartida\(Ranking\.armarDatosPartida\(/.test(main) && /if \(porTiempo && superaRecord\) \{[\s\S]{0,260}Ranking\.enviarPuntaje\(/.test(main));
+    chk('el envío va en try/catch (la red nunca rompe el fin)', /try \{ enviarAlServidor\(porTiempo\); \} catch/.test(main));
+    chk('/partida siempre; /score SIEMPRE que sea porTiempo (ya no depende del récord)', /Ranking\.enviarPartida\(Ranking\.armarDatosPartida\(/.test(main) && /if \(porTiempo\) \{[\s\S]{0,260}Ranking\.enviarPuntaje\(/.test(main));
+    chk('el /score ya NO pasa superaRecord en el cuerpo', !/Ranking\.enviarPuntaje\(\{[^}]*superaRecord/.test(main));
     chk('vía A: resolverNombre relee localStorage y reconcilia IDB', /function resolverNombre\(cb\)[\s\S]{0,320}nombreStore\.valor[\s\S]{0,200}nombreStore\.reconciliar\(\)/.test(main));
     chk('el envío del puntaje resuelve el nombre ANTES de mandar', /resolverNombre\(function \(nombre\) \{[\s\S]{0,200}Ranking\.enviarPuntaje\(\{ nombre: nombre/.test(main));
     chk('confirmación sólo si entró y el fin sigue visible', /function mostrarConfirmacionRanking\(posicion\)[\s\S]{0,160}elGameOver\.classList\.contains\('oculto'\)/.test(main) && /reg\.estado === 'ok' && reg\.entro\) mostrarConfirmacionRanking/.test(main));

@@ -118,14 +118,18 @@
   const _ent = function (v) { const n = Math.floor(Number(v)); return Number.isFinite(n) && n > 0 ? n : 0; };
 
   // Motivo por el que NO se manda el puntaje, o null si SÍ se manda. Orden: por tiempo
-  // (2.2) → supera récord (2.1) → hay nombre (2.3).
+  // → hay nombre → puntaje > 0. YA NO se exige superar el récord local: el envío estaba
+  // atado al récord y quien juega hace días casi nunca lo supera, así que nunca entraba
+  // al ranking (error de diseño). El SERVIDOR decide si entra al top 20; nosotros sólo
+  // filtramos lo que no tiene sentido mandar (CloudOver, sin nombre, cero/negativo).
+  // NOTA: `superaRecord` ya no participa en la decisión; se ignora si viene.
   function motivoNoEnvio(o) {
     o = o || {};
     const nombre = typeof o.nombre === 'string' ? o.nombre.trim() : '';
-    if (!o.porTiempo) return 'cloudover';
-    if (!o.superaRecord) return 'no-supera-record';
-    if (nombre.length === 0) return 'sin-nombre';
-    return null;
+    if (!o.porTiempo) return 'cloudover';       // 1.2: CloudOver no compite
+    if (nombre.length === 0) return 'sin-nombre'; // 1.3: sin nombre no se puede rankear
+    if (_ent(o.puntos) <= 0) return 'cero';       // 1.4: cero o negativo no se manda
+    return null;                                  // 1.5: supere o no el récord, se manda
   }
   function decidirEnviarPuntaje(o) { return motivoNoEnvio(o) === null; }
 

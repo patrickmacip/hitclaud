@@ -27,9 +27,9 @@ console.log('=== \'15\' = 15000ms y comparte TODO lo demás con \'30\' y \'60\' 
   chk('SIN iniciarPartida duplicado para 15', !/function iniciarPartida15|iniciarPartida_15/.test(main));
 }
 
-console.log('=== RÉCORD propio: llave hitclaud.record.v2.15, no pisa a los otros ni al revés ===');
+console.log('=== RÉCORD propio: llave hitclaud.record.v3.15, no pisa a los otros ni al revés ===');
 {
-  chk('record15 con su llave (doble almacén, fase 10)', /const record15 = U\.crearPersistencia\(almacen, idbKV, 'hitclaud\.record\.v2\.15', 500\)/.test(main));
+  chk('record15 con su llave v3 (reset; doble almacén, fase 10)', /const record15 = U\.crearPersistencia\(almacen, idbKV, 'hitclaud\.record\.v3\.15', 500\)/.test(main));
   chk('record15 entra a la reconciliación (por el mayor)', /\[record60, record30, record15\]\.forEach/.test(main));
   const local = mockLocal();
   const K15 = 'hitclaud.record.v2.15', K30 = 'hitclaud.record.v2.30', K60 = 'hitclaud.record.v2.60';

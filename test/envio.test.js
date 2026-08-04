@@ -39,6 +39,8 @@ console.log('=== estadoEnvioTexto: los siete estados a texto llano ===');
     f({ estado: 'no-intentado', motivo: 'no-supera-record' }) === 'no se intentó: no superó tu récord');
   chk('no se intentó: sin nombre',
     f({ estado: 'no-intentado', motivo: 'sin-nombre' }) === 'no se intentó: sin nombre');
+  chk('no se intentó: sin puntos (motivo cero)',
+    f({ estado: 'no-intentado', motivo: 'cero' }) === 'no se intentó: sin puntos');
   chk('falló: sin conexión',
     f({ estado: 'fallo-red' }) === 'falló: sin conexión');
   {

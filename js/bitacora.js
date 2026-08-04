@@ -14,6 +14,13 @@
 
   const versiones = [
     {
+      version: '1.3', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Ahora todas tus partidas compiten por el ranking, no solo tus récords' },
+        { texto: 'Los récords locales arrancan de cero para todos' },
+      ],
+    },
+    {
       version: '1.2', fecha: '3 de agosto',
       puntos: [
         { texto: 'Nueva tabla de posiciones: los 20 mejores de cada modo, con podio' },

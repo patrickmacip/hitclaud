@@ -81,9 +81,16 @@
       };
     } catch (e) { return null; }
   })();
-  const record60 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.60', 500);
-  const record30 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.30', 500); // FASE 20: llave propia
-  const record15 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v2.15', 500); // FASE 21: llave propia
+  // RESET DE RÉCORDS (cambio de economía del ranking): se pasa a la llave VERSIONADA
+  // NUEVA v3 por modo. Igual que el reset previo v1→v2 (commit 27965c1): NO se borra la
+  // vieja, se ignora para siempre → todos arrancan en récord 0 sin código de migración.
+  // LLAVES HUÉRFANAS (quedan intactas en el almacén de cada jugador, nunca se leen ni se
+  // borran): 'hitclaud.record.v2.60', 'hitclaud.record.v2.30', 'hitclaud.record.v2.15'.
+  // (El 4º argumento es el throttle de escritura, no la base: crearPersistencia arranca
+  //  SIEMPRE el récord en 0.)
+  const record60 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v3.60', 500);
+  const record30 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v3.30', 500); // FASE 20: llave propia
+  const record15 = U.crearPersistencia(almacen, idbKV, 'hitclaud.record.v3.15', 500); // FASE 21: llave propia
   // MAPA modo→persistencia (fuente única; parametriza en vez de duplicar por modo).
   // FASE 21: Relax eliminado → quedan 15/30/60. La vieja llave 'hitclaud.record.v2.libre'
   // de quien jugó Relax queda HUÉRFANA en su almacén; simplemente se ignora (no se borra).
@@ -185,13 +192,14 @@
     actualizarRecord();
     pintarFin(scoreFinal, esRecord);
     // ── SERVIDOR (segundo plano, blindado: la red JAMÁS bloquea ni rompe el fin) ──
-    try { enviarAlServidor(porTiempo, superaRecord); } catch (e) { /* un fallo de red no llega al juego */ }
+    try { enviarAlServidor(porTiempo); } catch (e) { /* un fallo de red no llega al juego */ }
     cascEvento('terminarPartida', 'porTiempo:' + !!porTiempo + ' score:' + scoreFinal);
   }
   // Manda al servidor de ranking, todo en segundo plano (ranking.js no espera nada).
   //  · /partida SIEMPRE (anónimo, coherente): por tiempo o por CloudOver.
-  //  · /score SÓLO si por tiempo, superó el récord y hay nombre guardado.
-  function enviarAlServidor(porTiempo, superaRecord) {
+  //  · /score SIEMPRE que la partida terminó por TIEMPO y haya nombre (supere o no el
+  //    récord local: el servidor decide si entra al top 20). Por CloudOver no se manda.
+  function enviarAlServidor(porTiempo) {
     if (typeof Ranking === 'undefined') return;          // sin el módulo, el juego sigue igual
     const modo = modoJuego;
     if (!DURACIONES[modo]) return;
@@ -205,19 +213,19 @@
       tiros: pTiros, aciertos: pAciertos, rachaMax: pRachaMax, carambolas: pCarambolas,
       plataforma: esDesktop ? 'escritorio' : 'movil',
     }));
-    // /score: sólo si por tiempo y superó el récord. Se resuelve el NOMBRE de la fuente
-    // más fiable (memoria → localStorage → reconciliar IDB) antes de mandar; al confirmar
-    // el servidor, si el puntaje entró al top, se avisa (sin bloquear el fin de partida).
+    // /score: SIEMPRE que sea por tiempo (ya no depende del récord). Se resuelve el NOMBRE
+    // de la fuente más fiable (memoria → localStorage → reconciliar IDB) antes de mandar; al
+    // confirmar el servidor, si el puntaje entró al top, se avisa (sin bloquear el fin).
     const puntosScore = marcador.puntos;
-    if (porTiempo && superaRecord) {
+    if (porTiempo) {
       pintarEstadoEnvio({ estado: 'enviando' }); // DIAGNÓSTICO: se actualiza al resolver
       resolverNombre(function (nombre) {
-        Ranking.enviarPuntaje({ nombre: nombre, puntos: puntosScore, modo: modo, porTiempo: true, superaRecord: true })
+        Ranking.enviarPuntaje({ nombre: nombre, puntos: puntosScore, modo: modo, porTiempo: true })
           .then(function (reg) { pintarEstadoEnvio(reg); if (reg && reg.estado === 'ok' && reg.entro) mostrarConfirmacionRanking(reg.posicion); });
       });
     } else {
-      // No corresponde: sólo se registra el motivo (cloudover / no-supera-record) para diagnóstico.
-      Ranking.enviarPuntaje({ nombre: '', puntos: puntosScore, modo: modo, porTiempo: porTiempo, superaRecord: superaRecord })
+      // CloudOver: no se manda; sólo se registra el motivo (cloudover) para diagnóstico.
+      Ranking.enviarPuntaje({ nombre: '', puntos: puntosScore, modo: modo, porTiempo: false })
         .then(pintarEstadoEnvio); // DIAGNÓSTICO: muestra el motivo de no-envío
     }
   }
@@ -264,6 +272,7 @@
       if (reg.motivo === 'cloudover') return 'no se intentó: no terminó por tiempo';
       if (reg.motivo === 'no-supera-record') return 'no se intentó: no superó tu récord';
       if (reg.motivo === 'sin-nombre') return 'no se intentó: sin nombre';
+      if (reg.motivo === 'cero') return 'no se intentó: sin puntos';
       return 'no se intentó';
     }
     if (reg.estado === 'fallo-red') return 'falló: sin conexión';

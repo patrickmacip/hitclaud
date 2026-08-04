@@ -26,9 +26,9 @@ console.log('=== \'30\' arranca en 30000ms y comparte TODO lo demás con \'60\' 
   chk('sin DURACION_60 hardcodeada suelta (se parametrizó a DURACIONES)', !/DURACION_60/.test(main));
 }
 
-console.log('=== RÉCORD APARTE: llave propia \'hitclaud.record.v2.30\', no pisa al de 60 ni al revés ===');
+console.log('=== RÉCORD APARTE: llave propia \'hitclaud.record.v3.30\', no pisa al de 60 ni al revés ===');
 {
-  chk('llave nueva declarada: hitclaud.record.v2.30', /crearPersistencia\(almacen, idbKV, 'hitclaud\.record\.v2\.30', 500\)/.test(main));
+  chk('llave nueva declarada: hitclaud.record.v3.30', /crearPersistencia\(almacen, idbKV, 'hitclaud\.record\.v3\.30', 500\)/.test(main));
   chk('mapa records incluye 15/30/60 (sin libre)', /const records = \{ '15': record15, '30': record30, '60': record60 \};/.test(main));
   // Independencia real (doble almacén compartido, llaves distintas).
   const local = mockLocal();
