@@ -115,11 +115,29 @@
   // plataforma y duraciones. Cuando su mecánica exista, pon jugable:true. Todo lo demás
   // (pantallas, récords versionados, tablas de ranking) aparece solo.
   const JUEGOS = [
-    { id: 'hitclaud',  nombre: 'HitClaud',  desc: 'Lanza la bola y demuele', jugable: true,  plataforma: 'ambas',      duraciones: ['15', '60'] },
+    { id: 'hitclaud',  nombre: 'HitClaud',  desc: 'Lanza la bola y demuele', jugable: true,  plataforma: 'tactil',     duraciones: ['15', '60'] },
     { id: 'shotclaud', nombre: 'ShotClaud', desc: 'Apunta y dispara',        jugable: true,  plataforma: 'escritorio', duraciones: ['20', '60'] },
     { id: 'pushclaud', nombre: 'PushClaud', desc: 'Aplasta con el dedo',     jugable: false, plataforma: 'tactil',     duraciones: ['15'] },
   ];
   function juegoPorId(id) { for (let i = 0; i < JUEGOS.length; i++) if (JUEGOS[i].id === id) return JUEGOS[i]; return null; }
+  // DISPONIBILIDAD por plataforma, DERIVADA de la estructura de JUEGOS (fuente única, no
+  // repartida por el código — CAMBIO 5.5). En COMPUTADORA sólo se ofrece ShotClaud; en
+  // TÁCTIL, HitClaud y PushClaud. Devuelve { jugable, aviso, pronto }:
+  //   · fuera de su plataforma → jugable:false, aviso 'Disponible en computadora'/'…en móvil'.
+  //   · en su plataforma pero aún no terminado (PushClaud) → jugable:false, aviso 'Pronto'.
+  //   · en su plataforma y terminado → jugable:true, sin aviso.
+  // El aviso de plataforma y el de "Pronto" son cosas DISTINTAS (5.4): un juego no
+  // disponible por plataforma NO dice "Pronto".
+  function disponibilidad(j, desktop) {
+    const enPlataforma = j.plataforma === 'ambas'
+      || (j.plataforma === 'escritorio' && desktop)
+      || (j.plataforma === 'tactil' && !desktop);
+    if (!enPlataforma) {
+      return { jugable: false, pronto: false, aviso: j.plataforma === 'escritorio' ? 'Disponible en computadora' : 'Disponible en móvil' };
+    }
+    if (!j.jugable) return { jugable: false, pronto: true, aviso: 'Pronto' };
+    return { jugable: true, pronto: false, aviso: null };
+  }
   const duracionMs = function (dur) { return Number(dur) * 1000; }; // 15→15000, 20→20000, 60→60000
   // Mapa duración→ms DERIVADO de JUEGOS (sin lista aparte). El bucle/temporizador lo leen.
   const DURACIONES = (function () { const d = {}; JUEGOS.forEach(function (j) { j.duraciones.forEach(function (x) { d[x] = duracionMs(x); }); }); return d; })();
@@ -462,34 +480,29 @@
     if (!elJuegoLista) return;
     elJuegoLista.textContent = '';
     JUEGOS.forEach(function (j) {
-      // ¿jugable EN ESTE dispositivo? Un juego 'escritorio' (ShotClaud) NO se puede jugar en
-      // táctil, y uno 'tactil' no se juega en escritorio. 'ambas' vale en los dos. Si no es
-      // jugable aquí, la tarjeta va ATENUADA y su toque NO navega (no empieza partida).
-      const plataformaOk = j.plataforma === 'ambas'
-        || (j.plataforma === 'escritorio' && esDesktop)
-        || (j.plataforma === 'tactil' && !esDesktop);
-      const jugableAqui = j.jugable && plataformaOk;
+      // Disponibilidad DERIVADA de la estructura (disponibilidad()): decide si se juega aquí
+      // y, si no, con qué aviso (plataforma vs "Pronto"). Nada de reglas sueltas por el código.
+      const disp = disponibilidad(j, esDesktop);
       const card = document.createElement('button');
       card.type = 'button';
-      card.className = 'juego-card' + (jugableAqui ? '' : ' juego-pronto');
+      card.className = 'juego-card' + (disp.jugable ? '' : ' juego-pronto');
       card.setAttribute('data-juego', j.id);
       const nom = document.createElement('span'); nom.className = 'juego-nombre'; nom.textContent = j.nombre;
       const desc = document.createElement('span'); desc.className = 'juego-desc'; desc.textContent = j.desc;
       card.appendChild(nom); card.appendChild(desc);
-      if (!j.jugable) {
+      if (disp.pronto) { // en su plataforma pero aún no terminado → etiqueta "Pronto"
         const tag = document.createElement('span'); tag.className = 'juego-tag'; tag.textContent = 'Pronto';
         card.appendChild(tag);
-      }
-      if (j.plataforma === 'escritorio' && !esDesktop) { // ShotClaud en táctil: es para computadora
-        const nota = document.createElement('span'); nota.className = 'juego-nota'; nota.textContent = 'En computadora';
+      } else if (disp.aviso) { // de OTRA plataforma → nota persistente (distinta de "Pronto")
+        const nota = document.createElement('span'); nota.className = 'juego-nota'; nota.textContent = disp.aviso;
         card.appendChild(nota);
       }
       const aviso = document.createElement('span'); aviso.className = 'juego-aviso oculto';
-      aviso.textContent = !j.jugable ? 'Llega pronto' : 'Es para computadora'; // jugable pero no en este equipo
+      aviso.textContent = disp.aviso || ''; // el mismo motivo, al tocar la tarjeta no jugable
       card.appendChild(aviso);
       card.addEventListener('click', function () {
-        if (jugableAqui) { mostrarPantallaDuracion(j.id, true); return; } // desde el MENÚ → reinicia a la más corta
-        // No jugable aquí (futuro o de otra plataforma): avisa breve y NO navega.
+        if (disp.jugable) { mostrarPantallaDuracion(j.id, true); return; } // desde el MENÚ → reinicia a la más corta
+        // No jugable aquí (otra plataforma o aún no terminado): avisa breve y NO navega.
         aviso.classList.remove('oculto');
         setTimeout(function () { try { aviso.classList.add('oculto'); } catch (e) {} }, 1400);
       });
@@ -853,7 +866,10 @@
   // pantalla nunca queda más de 800ms sin aparición de un target (habiendo lugar).
   function retardoNaranja(ahora) {
     const base = P.rangoVigente(ritmo, marcador.puntos, ahora);
-    return Math.min(SPAWN_GAP_MAX, P.retardoCaotico(base, caosSpawn, Math.random));
+    // ShotClaud recorta más el hueco (SHOT.SPAWN_GAP_MAX) para que la pantalla se llene y
+    // haya cupo de naranjas frente a tantos rojos; HitClaud conserva su SPAWN_GAP_MAX (800).
+    const gapMax = esShot() ? SHOT.SPAWN_GAP_MAX : SPAWN_GAP_MAX;
+    return Math.min(gapMax, P.retardoCaotico(base, caosSpawn, Math.random));
   }
 
   // Números flotantes de feedback (canvas puro): pop de escala + subida + fade.
@@ -1031,17 +1047,49 @@
   const GRANDE_MIN_MS = 8000;   // tiempo MÍNIMO entre apariciones
   const GRANDE_JITTER_MS = 4000; // variación extra (siempre ≥ mínimo)
 
-  // ── ShotClaud: dificultad, en UN SOLO lugar ────────────────────────
-  // ShotClaud reutiliza LOS MISMOS targets y la MISMA física que HitClaud; sólo
-  // cambia la DIFICULTAD (frecuencia/velocidad), nunca la lógica del rojo ni la del
-  // motor. Estos factores multiplican sobre los valores de HitClaud, así que si
-  // HitClaud se re-balancea, ShotClaud lo sigue de forma proporcional.
+  // ── ShotClaud: dificultad y física visible, en UN SOLO lugar ────────
+  // ShotClaud reutiliza EL MISMO motor (js/fisica.js) que HitClaud; lo que cambia se pasa
+  // por PARÁMETROS desde acá (tamaño de grilla, velocidad, frecuencia de rojos, demolición),
+  // nunca tocando el motor. HitClaud conserva sus propios valores intactos.
   const SHOT = {
-    ROJO_FACTOR: 0.25,  // 4× MÁS rojos que HitClaud → su intervalo se multiplica por 1/4
-    VEL_FACTOR: 1.15,   // targets Y rojos 15% más rápidos que en HitClaud (vx, vy ×1.15)
-    SIN_GRANDE: true,   // ShotClaud NO lanza Big Claude
+    // CAMBIO 2 — Tamaño: 40% MÁS grande que HitClaud (grilla 5×4 → 7×6). El cubo de 8px es
+    // atómico: más cubos, no cubos mayores. Naranjas y rojos usan esta misma grilla.
+    COLS: 7,
+    FILAS: 6,
+    // CAMBIO 1 — Demolición del disparo FUERA del centro: destruye ~esta FRACCIÓN de las
+    // celdas vivas del target, en la zona del impacto (las más cercanas a la mira). Único
+    // sitio ajustable del radio de demolición.
+    DEMOLE_FRAC: 0.5,
+    // CAMBIO 3 — Velocidad: BASE 10% más lenta que la ShotClaud previa (que iba 1.15× la de
+    // HitClaud) → 1.15 × 0.90 = 1.035× HitClaud. Y una VARIACIÓN por target, sorteada al
+    // aparecer (las proporciones suman 1): la mayoría a la base, algunos +20%, pocos +40%.
+    // Aplica IGUAL a naranjas y rojos.
+    VEL_BASE: 1.035,
+    VEL_VARIA: [
+      { mult: 1.0, prob: 0.6 },   // 60% a la velocidad base
+      { mult: 1.2, prob: 0.3 },   // 30% un 20% más rápidos
+      { mult: 1.4, prob: 0.1 },   // 10% un 40% más rápidos
+    ],
+    // CAMBIO 4 — Rojos: 5× MÁS que la ShotClaud previa (que iba ×0.25 = 4× HitClaud) →
+    // ×0.05. TOPE DURO aparte (en el spawn): los rojos NUNCA superan en número a los
+    // naranjas. Más objetos ⇒ cupos propios mayores para que la pantalla se llene sin
+    // reventar los topes de dibujo.
+    ROJO_FACTOR: 0.05,
+    MAX_EN_PANTALLA: 6,   // cupo de spawn de ShotClaud (HitClaud sigue en MAX_EN_PANTALLA=2)
+    MAX_VIVOS: 16,        // tope duro de dibujo de ShotClaud (HitClaud sigue en MAX_TARGETS_VIVOS=10)
+    SPAWN_GAP_MAX: 380,   // naranjas más seguidas → hay cupo para tantos rojos (HitClaud 800)
+    SIN_GRANDE: true,     // ShotClaud NO lanza Big Claude
   };
   const esShot = function () { return juegoActivo === 'shotclaud'; };
+  // Cupos según el juego activo: ShotClaud llena más la pantalla; HitClaud queda idéntico.
+  function capEnPantalla() { return esShot() ? SHOT.MAX_EN_PANTALLA : MAX_EN_PANTALLA; }
+  function capVivos() { return esShot() ? SHOT.MAX_VIVOS : MAX_TARGETS_VIVOS; }
+  // Cuenta naranjas (todo lo no-rojo: naranjas, grandes, fragmentos) y rojos en pantalla.
+  function contarTargets() {
+    let rojos = 0, naranjas = 0;
+    for (let i = 0; i < targets.length; i++) { if (targets[i].rojo) rojos++; else naranjas++; }
+    return { rojos: rojos, naranjas: naranjas };
+  }
 
   // ── Inactividad ────────────────────────────────────────────────────
   const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
@@ -1258,20 +1306,37 @@
   // Lanza un target NARANJA (el que puntúa): crearTarget da el origen (uno de los
   // 4) y la velocidad variable. Sin variantes: los especiales se eliminaron.
   function generarNaranja() {
-    targets.push(acelerarShot(F.crearTarget({ w: W, h: H })));
+    targets.push(nuevoTarget());
   }
 
-  // ShotClaud: mismos targets, 15% más rápidos (CAMBIO 5). Multiplica SÓLO la
-  // magnitud de la velocidad (la gravedad/arco quedan igual); en HitClaud no toca nada.
-  function acelerarShot(t) {
-    if (esShot()) { t.vx *= SHOT.VEL_FACTOR; t.vy *= SHOT.VEL_FACTOR; }
+  // Crea un target con los PARÁMETROS del juego activo (el motor F.crearTarget no cambia).
+  // ShotClaud: grilla propia 40% mayor (SHOT.COLS×FILAS), radio de salida acorde y velocidad
+  // ajustada (base + variación). HitClaud: su 5×4 y su velocidad, sin tocar nada.
+  function nuevoTarget() {
+    if (!esShot()) return F.crearTarget({ w: W, h: H });
+    const t = F.crearTarget({ w: W, h: H }, SHOT.COLS, SHOT.FILAS);
+    t.radio = Math.max(SHOT.COLS, SHOT.FILAS) * 4 + 12; // margen de salida ≈ media diagonal (como el grande)
+    aplicarVelocidadShot(t);
     return t;
+  }
+
+  // CAMBIO 3 — velocidad de ShotClaud: base (SHOT.VEL_BASE) × variación por target sorteada
+  // al aparecer. Multiplica SÓLO la magnitud (gravedad/arco intactos). Igual para naranjas y rojos.
+  function aplicarVelocidadShot(t) {
+    const f = SHOT.VEL_BASE * sortearVariacionVel();
+    t.vx *= f; t.vy *= f;
+  }
+  function sortearVariacionVel() {
+    const r = Math.random();
+    let acc = 0;
+    for (let i = 0; i < SHOT.VEL_VARIA.length; i++) { acc += SHOT.VEL_VARIA[i].prob; if (r < acc) return SHOT.VEL_VARIA[i].mult; }
+    return SHOT.VEL_VARIA[SHOT.VEL_VARIA.length - 1].mult; // fallback por redondeo
   }
 
   // Lanza un target ROJO (parpadea, termina la partida). Sale como cualquier otro
   // (mismo crearTarget: 4 orígenes, velocidad del rango) — sólo marcado `rojo`.
   function generarRojo() {
-    const t = acelerarShot(F.crearTarget({ w: W, h: H }));
+    const t = nuevoTarget();
     t.rojo = true;
     targets.push(t);
   }
@@ -1300,7 +1365,7 @@
   // tope. No retira el CloudOver (rojo) — su desaparición silenciosa quitaría la
   // amenaza sin game over; muere por su propia física/secuencia.
   function aplicarTopeTargets() {
-    while (targets.length > MAX_TARGETS_VIVOS) {
+    while (targets.length > capVivos()) {
       let viejo = -1;
       for (let i = 0; i < targets.length; i++) {
         if (targets[i].rojo) continue;
@@ -1479,7 +1544,7 @@
       pAciertos += 1;
       if (tg.rojo) { golpeCloudover(tg, mx, my); return; } // rojo → CloudOver (sin cambios)
       tg.destelloHasta = ahora + DESTELLO_MS;
-      if (tg.tocado) {                        // YA caído: 50 siempre, nunca 200, sin rachas
+      if (tg.tocado) {                        // debris/caído: 50 siempre, nunca 200, sin rachas
         const r = S.anotarCaido(marcador);
         flashShot(mx, my, ahora, false);
         pintarGananciaShot(mx, my, r.ganancia, false);
@@ -1498,8 +1563,9 @@
         pintarGananciaShot(mx, my, r.ganancia, true);
         return;
       }
-      // FUERA del centro (primer toque): no se destruye, sigue cayendo por gravedad.
-      tg.tocado = true;
+      // FUERA del centro (target INTACTO): DEMUELE ~la mitad en la zona del impacto; el pedazo
+      // que sobrevive CAE (islas). Puntúa 50 y rompe la racha positiva (marcado como caído dentro).
+      demolerMitadShot(tg, ti, mx, my, ahora);
       const r = S.anotarLateral(marcador);
       flashShot(mx, my, ahora, false);
       pintarGananciaShot(mx, my, r.ganancia, false);
@@ -1522,6 +1588,28 @@
     flotante(mx, my, '+' + g, ACENTO.vivo, tamGanancia(g), centro);
     if (centro) popMarcador();
     actualizarMarcador();
+  }
+
+  // CAMBIO 1 — Demolición del disparo FUERA del centro (ShotClaud): destruye ~la mitad
+  // (SHOT.DEMOLE_FRAC) de las celdas vivas del target en la zona del impacto (las más
+  // cercanas a la mira), las hace EXPLOTAR (misma mecánica de siempre) y parte el resto en
+  // islas que CAEN y se ven caer — reutiliza quizasPartir/F.partirTarget, la MISMA lógica de
+  // Big Claude, no la reescribe. No decide puntuación (el llamador anota 50). Marca el resto
+  // como "caído" (debris): al re-pegarle vale 50, nunca 200.
+  function demolerMitadShot(tg, ti, mx, my, ahora) {
+    const n = Math.min(tg.vivos, Math.max(1, Math.ceil(tg.vivos * SHOT.DEMOLE_FRAC)));
+    const arrancadas = F.celdasCercanas(tg, mx, my, n);
+    const centros = [];
+    for (let k = 0; k < arrancadas.length; k++) { centros.push(F.celdaMundo(tg, arrancadas[k])); tg.celdas[arrancadas[k]] = false; }
+    tg.vivos -= arrancadas.length;
+    tg.masa = F.FISICA.MASA_TARGET * (tg.vivos / 20);
+    tg.destelloHasta = ahora + DESTELLO_MS;
+    explotarCubos(centros, mx, my, 1.0, tg.vx, tg.vy, ACENTO.base); // el destrozo se VE
+    sacudidaHasta = ahora + SACUDIDA_MS;
+    if (tg.vivos <= 0) { targets.splice(ti, 1); return; } // no quedó nada → se retira
+    tg.tocado = true;
+    quizasPartir(tg, mx, my, 1.0);          // el pedazo que sobrevive cae (islas: gravedad, giro, empuje)
+    for (let k = 0; k < targets.length; k++) if (targets[k].fragmento) targets[k].tocado = true; // los trozos son debris
   }
 
   // Ejecuta la suelta desde la posición del dedo. forzar=true (frenos) siempre
@@ -1798,20 +1886,27 @@
     // mira targets.length ACTUAL (tras un spawn el siguiente ve el lugar ocupado →
     // nunca se pasa de 2). Si no hay lugar/no toca, el timer queda vencido y dispara
     // al liberarse (no se descarta el turno).
-    if (targets.length < MAX_EN_PANTALLA && t >= proximoSpawn) {
+    if (targets.length < capEnPantalla() && t >= proximoSpawn) {
       generarNaranja();
       proximoSpawn = t + retardoNaranja(t);
     }
     // ESCALADA de ROJOS: sube de nivel cada 5–10s (sin tope); el nivel acorta su intervalo.
     P.pasoEscalada(escalada, t, Math.random);
-    if (targets.length < MAX_EN_PANTALLA && t >= proximoRojo) {
-      generarRojo();
-      // ShotClaud: 4× más rojos → el intervalo se acorta con SHOT.ROJO_FACTOR (CAMBIO 5).
-      const factorRojo = esShot() ? SHOT.ROJO_FACTOR : 1;
-      proximoRojo = t + P.intervaloRojo(escalada.nivel) * factorRojo * rnd(ROJO_JITTER[0], ROJO_JITTER[1]);
+    if (targets.length < capEnPantalla() && t >= proximoRojo) {
+      // TOPE DURO (CAMBIO 4.2): en ShotClaud los rojos NUNCA superan en número a los naranjas.
+      // Si ya hay tantos rojos como naranjas, se salta el turno (el timer vencido reintenta en
+      // cuanto aparezca un naranja). En HitClaud no aplica: escala como siempre.
+      const c = contarTargets();
+      const puedeRojo = !esShot() || c.rojos < c.naranjas;
+      if (puedeRojo) {
+        generarRojo();
+        // ShotClaud: 5× más rojos → el intervalo se acorta con SHOT.ROJO_FACTOR (CAMBIO 4).
+        const factorRojo = esShot() ? SHOT.ROJO_FACTOR : 1;
+        proximoRojo = t + P.intervaloRojo(escalada.nivel) * factorRojo * rnd(ROJO_JITTER[0], ROJO_JITTER[1]);
+      }
     }
     // GRANDE: mínimo 8s entre apariciones; nunca dos a la vez; tope de 2. ShotClaud NO lanza Big Claude.
-    if (!(esShot() && SHOT.SIN_GRANDE) && targets.length < MAX_EN_PANTALLA && t >= proximoGrande && !targets.some(function (x) { return x.grande; })) {
+    if (!(esShot() && SHOT.SIN_GRANDE) && targets.length < capEnPantalla() && t >= proximoGrande && !targets.some(function (x) { return x.grande; })) {
       generarGrande();
       proximoGrande = t + GRANDE_MIN_MS + Math.random() * GRANDE_JITTER_MS;
     }

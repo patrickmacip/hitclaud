@@ -14,6 +14,15 @@
 
   const versiones = [
     {
+      version: '2.0', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'En ShotClaud un disparo ahora demuele medio target y se ve caer' },
+        { texto: 'Targets más grandes y con velocidades variadas' },
+        { texto: 'Muchos más rojos: la pantalla se llena' },
+        { texto: 'Cada juego se ofrece solo donde se juega bien' },
+      ],
+    },
+    {
       version: '1.9', fecha: '3 de agosto',
       puntos: [
         { texto: 'Llega ShotClaud: entrena tu puntería en la computadora' },
