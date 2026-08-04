@@ -14,6 +14,17 @@
 
   const versiones = [
     {
+      version: '1.2', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Nueva tabla de posiciones: los 20 mejores de cada modo, con podio' },
+        { texto: 'Ya no puedes golpear targets que aún no han entrado a la pantalla' },
+        { texto: 'Un target rojo ya no te mata antes de aparecer' },
+        { texto: 'La carambola da 500 puntos por dos golpes, sin escalar' },
+        { texto: 'Los puntos de carambola se suman justo cuando ves el número' },
+        { texto: 'El multiplicador de racha se ve más grande y limpio' },
+      ],
+    },
+    {
       version: '1.1', fecha: '2 de agosto',
       puntos: [
         { texto: 'Big Claude se rompe de verdad: los pedazos se separan, caen y giran cada uno por su lado' },

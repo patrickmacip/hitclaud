@@ -22,8 +22,8 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 6 versiones', B.versiones.length === 6);
-  chk('la primera entrada es la 1.1 (más reciente primero)', B.versiones[0].version === '1.1');
+  chk('hay exactamente 7 versiones', B.versiones.length === 7);
+  chk('la primera entrada es la 1.2 (más reciente primero)', B.versiones[0].version === '1.2');
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });
