@@ -16,7 +16,8 @@ console.log('=== PANTALLA 1 (elegir juego): título, saludo, lista de juegos, Ra
   chk('saludo pulsable con lápiz', /id="iniSaludo"[\s\S]{0,140}id="iniSaludoTexto"[\s\S]{0,140}#ic-lapiz/.test(html));
   chk('contenedor de tarjetas de juego (se generan desde JUEGOS)', /<div class="juego-lista" id="juegoLista"><\/div>/.test(html));
   chk('las tarjetas se construyen desde JUEGOS (una por juego)', /function construirJuegos\(\)[\s\S]{0,400}JUEGOS\.forEach/.test(main));
-  chk('abajo: Ranking (podio) y Actualizaciones', /id="verRanking"[\s\S]{0,120}podio-1\.svg[\s\S]{0,220}id="verActualizaciones"/.test(html));
+  chk('abajo: SOLO Actualizaciones (el ranking ya NO vive en la pantalla 1)', /id="verActualizaciones"/.test(html));
+  chk('la pantalla 1 NO tiene botón de ranking', !/id="verRanking"/.test(html));
   chk('ya NO hay selector de modo ni JUGAR sueltos en la pantalla 1', !/id="sel15"/.test(html) && !/id="jugar" /.test(html));
 }
 
@@ -35,7 +36,7 @@ console.log('=== MECANISMO: mismo sistema de overlays DOM; ambas pantallas regis
   chk('#inicio y #duracion en la regla de posición fixed/z-index', /#gameover, #inicio, #duracion, #nombre, #actualizaciones, #ranking \{/.test(css));
   chk('#inicio y #duracion en la regla de ocultado compuesto', /#inicio\.oculto, #duracion\.oculto/.test(css));
   chk('mostrarPantallaInicio deja jugando=false (mundo quieto)', /function mostrarPantallaInicio\(\) \{\s*jugando = false;/.test(main));
-  chk('mostrarPantallaDuracion deja jugando=false y muestra #duracion', /function mostrarPantallaDuracion\(juego\)[\s\S]{0,400}jugando = false;[\s\S]{0,120}elDuracion\.classList\.remove\('oculto'\)/.test(main));
+  chk('mostrarPantallaDuracion deja jugando=false y muestra #duracion', /function mostrarPantallaDuracion\(juego, reiniciar\)[\s\S]{0,500}jugando = false;[\s\S]{0,120}elDuracion\.classList\.remove\('oculto'\)/.test(main));
 }
 
 console.log('=== ARRANQUE: pantalla 1 primero, sin partida corriendo ===');

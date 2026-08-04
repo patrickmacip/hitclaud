@@ -14,6 +14,14 @@
 
   const versiones = [
     {
+      version: '1.7', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Cada juego tiene su propio ranking, ya no se mezclan' },
+        { texto: 'Desde el ranking puedes lanzarte a jugar esa duración de inmediato' },
+        { texto: 'Tu nombre te acompaña al elegir duración' },
+      ],
+    },
+    {
       version: '1.6', fecha: '3 de agosto',
       puntos: [
         { texto: 'HitClaud ahora es una colección: llegan ShotClaud y PushClaud' },

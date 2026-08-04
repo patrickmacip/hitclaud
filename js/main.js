@@ -295,14 +295,14 @@
   // (elegir duración) DEL JUEGO que se estaba jugando — no a la pantalla 1. NO guarda récord
   // ni manda /score; SÍ registra la partida en stats con termino 'cloudover'.
   function abandonarPartida() {
-    if (!jugando) { mostrarPantallaDuracion(juegoActivo); return; } // sin partida → a la pantalla 2
+    if (!jugando) { mostrarPantallaDuracion(juegoActivo, false); return; } // sin partida → a la pantalla 2
     jugando = false;
     actualizarTiempo();                 // limpia el temporizador
     pPuntosFin = marcador.puntos;        // puntaje al abandonar → /partida (stats)
     secuencia = null; sacudidaCloudover = null;
     try { enviarAlServidor(false); } catch (e) { /* la red nunca rompe el abandono */ }
     cascEvento('abandonarPartida', 'score:' + pPuntosFin);
-    mostrarPantallaDuracion(juegoActivo); // sube UN nivel (pantalla 2 del juego)
+    mostrarPantallaDuracion(juegoActivo, false); // sube UN nivel (pantalla 2 del juego)
   }
   // Resuelve el nombre más fiable SIN esperar a la red: memoria → localStorage (síncrono)
   // → reconciliar IDB (local, no es red) si sigue vacío. Adopta el nombre si aparece.
@@ -391,8 +391,11 @@
   const elDuracion = document.getElementById('duracion');
   const elJuegoLista = document.getElementById('juegoLista');
   const elDurJuego = document.getElementById('durJuego');
+  const elDurNombre = document.getElementById('durNombre');
   const elDurModos = document.getElementById('durModos');
   const elDurRecord = document.getElementById('durRecord');
+  // Duración MÁS CORTA de un juego (min numérico; robusto ante el orden de la lista).
+  function duracionMasCorta(j) { return j.duraciones.slice().sort(function (a, b) { return Number(a) - Number(b); })[0]; }
 
   // Oculta TODOS los overlays de navegación (para mostrar uno solo). No toca el juego.
   function ocultarNav() {
@@ -424,7 +427,7 @@
       const aviso = document.createElement('span'); aviso.className = 'juego-aviso oculto'; aviso.textContent = 'Llega pronto';
       card.appendChild(aviso);
       card.addEventListener('click', function () {
-        if (j.jugable) { mostrarPantallaDuracion(j.id); return; }
+        if (j.jugable) { mostrarPantallaDuracion(j.id, true); return; } // desde el MENÚ → reinicia a la más corta
         // No jugable: avisa breve y NO navega (no empieza partida).
         aviso.classList.remove('oculto');
         setTimeout(function () { try { aviso.classList.add('oculto'); } catch (e) {} }, 1400);
@@ -465,12 +468,15 @@
       elDurModos.appendChild(b);
     });
   }
-  function mostrarPantallaDuracion(juego) {
+  // Muestra la pantalla 2 del `juego`. `reiniciar`=true (entrada desde el MENÚ) fuerza la
+  // duración MÁS CORTA (D4/5.3); si no, conserva la duración elegida (5.1/5.2), validándola
+  // contra las del juego. Muestra también el nombre del jugador (sólo lectura, D2/2.2).
+  function mostrarPantallaDuracion(juego, reiniciar) {
     const j = juegoPorId(juego); if (!j) return;
     juegoSel = juego;
-    // duración por defecto: la ÚLTIMA jugada de este juego si aplica, si no la primera del juego.
-    if (j.duraciones.indexOf(modoInicioSel) === -1) modoInicioSel = j.duraciones[j.duraciones.length - 1];
+    if (reiniciar || j.duraciones.indexOf(modoInicioSel) === -1) modoInicioSel = duracionMasCorta(j);
     if (elDurJuego) elDurJuego.textContent = j.nombre;
+    if (elDurNombre) elDurNombre.textContent = nombreUsuario ? ('Juegas como ' + nombreUsuario) : '';
     construirDuraciones();
     actualizarRecordDuracion();
     jugando = false;
@@ -479,14 +485,16 @@
   }
   const btnDurAtras = document.getElementById('durAtras');
   if (btnDurAtras) btnDurAtras.addEventListener('click', mostrarPantallaInicio); // 3.3: sube a pantalla 1
+  const btnDurRanking = document.getElementById('durRanking'); // 2.5: ranking DE ESE juego, duración seleccionada
+  if (btnDurRanking) btnDurRanking.addEventListener('click', function () { abrirRanking(juegoSel, 'duracion'); });
   const btnDurJugar = document.getElementById('durJugar');
   if (btnDurJugar) btnDurJugar.addEventListener('click', function () { iniciarPartida(juegoSel, modoInicioSel); });
 
   // ── BOTONES DEL FIN DE PARTIDA (CAMBIO 4) ───────────────────────────────────────────
   const btnFinJugar = document.getElementById('finJugarDeNuevo');   // mismo juego, misma duración (4.4)
   if (btnFinJugar) btnFinJugar.addEventListener('click', function () { iniciarPartida(juegoActivo, modoJuego); });
-  const btnFinCambiar = document.getElementById('finCambiarDuracion'); // vuelve a la pantalla 2 (4.5)
-  if (btnFinCambiar) btnFinCambiar.addEventListener('click', function () { mostrarPantallaDuracion(juegoActivo); });
+  const btnFinCambiar = document.getElementById('finCambiarDuracion'); // vuelve a la pantalla 2, conserva la duración (4.5/5.1)
+  if (btnFinCambiar) btnFinCambiar.addEventListener('click', function () { mostrarPantallaDuracion(juegoActivo, false); });
   const btnFinMenu = document.getElementById('finMenu');            // vuelve a la pantalla 1 (4.7)
   if (btnFinMenu) btnFinMenu.addEventListener('click', mostrarPantallaInicio);
   // (construirJuegos() se llama en el arranque, DESPUÉS de definir esDesktop, que usa.)
@@ -599,53 +607,34 @@
   // nombres del servidor se insertan como TEXTO (textContent), nunca como HTML.
   const elRanking = document.getElementById('ranking');
   const elRankCuerpo = document.getElementById('rankCuerpo');
-  const elRankJuegos = document.getElementById('rankJuegos');
   const elRankModos = document.getElementById('rankModos');
-  const btnVerRanking = document.getElementById('verRanking');
+  const elRankJuegoNombre = document.getElementById('rankJuegoNombre');
   const btnRankCerrar = document.getElementById('rankCerrar');
-  let rankJuego = 'hitclaud'; // JUEGO mostrado en el ranking (nivel 1)
-  let rankModo = '60';        // DURACIÓN mostrada (nivel 2)
+  // El ranking vive SIEMPRE en el contexto de UN juego (juegoSel) y una duración (modoInicioSel,
+  // compartida con la pantalla 2 → coherencia, CAMBIO 5). `rankOrigen` recuerda de dónde se abrió
+  // ('duracion' | 'fin') para que Cerrar vuelva exactamente ahí (3.5). NO hay selector de juego.
+  let rankOrigen = 'duracion';
   let rankPeticion = 0;  // token de relevo: descarta respuestas viejas
   let rankTopActual = []; // último top cargado (para compartir la tarjeta)
-  // Selector de JUEGO (nivel 1) y de DURACIÓN (nivel 2), generados desde JUEGOS: sólo
-  // aparecen las combinaciones que existen (6.2). Los juegos aún no jugables sí aparecen,
-  // pero su tabla se muestra vacía (6.4).
-  function construirRankJuegos() {
-    if (!elRankJuegos) return;
-    elRankJuegos.textContent = '';
-    JUEGOS.forEach(function (j) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'go-reiniciar ini-sel rank-juego' + (j.id === rankJuego ? ' sel-activo' : '');
-      b.setAttribute('data-juego', j.id);
-      b.textContent = j.nombre;
-      b.addEventListener('click', function () { elegirRankJuego(j.id); });
-      elRankJuegos.appendChild(b);
-    });
-  }
+  // Selector de DURACIÓN del juego del contexto (sólo sus duraciones, 3.4). Marca modoInicioSel.
   function construirRankModos() {
     if (!elRankModos) return;
-    const j = juegoPorId(rankJuego); if (!j) return;
+    const j = juegoPorId(juegoSel); if (!j) return;
     elRankModos.textContent = '';
     j.duraciones.forEach(function (dur) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'go-reiniciar ini-sel rank-sel' + (dur === rankModo ? ' sel-activo' : '');
+      b.className = 'go-reiniciar ini-sel rank-sel' + (dur === modoInicioSel ? ' sel-activo' : '');
       b.setAttribute('data-modo', dur);
       b.textContent = dur + 's';
       b.addEventListener('click', function () { elegirModoRank(dur); });
       elRankModos.appendChild(b);
     });
   }
-  function marcarRankJuego() {
-    if (!elRankJuegos) return;
-    const bs = elRankJuegos.querySelectorAll('button');
-    for (let i = 0; i < bs.length; i++) bs[i].classList.toggle('sel-activo', bs[i].getAttribute('data-juego') === rankJuego);
-  }
   function marcarModoRank() {
     if (!elRankModos) return;
     const bs = elRankModos.querySelectorAll('button');
-    for (let i = 0; i < bs.length; i++) bs[i].classList.toggle('sel-activo', bs[i].getAttribute('data-modo') === rankModo);
+    for (let i = 0; i < bs.length; i++) bs[i].classList.toggle('sel-activo', bs[i].getAttribute('data-modo') === modoInicioSel);
   }
   function rankEstado(texto, conReintento) {
     if (!elRankCuerpo) return;
@@ -699,46 +688,46 @@
     // Sólo HitClaud tiene datos hoy: su modo servidor es la duración pelada ('15'/'60'). Los
     // demás juegos aún no envían (el servidor rechaza los modos con prefijo, 6.3) → tabla
     // vacía con el mensaje de "aún no hay puntajes" (6.4), sin pegarle al servidor.
-    if (rankJuego !== 'hitclaud' || typeof Ranking === 'undefined') {
+    if (juegoSel !== 'hitclaud' || typeof Ranking === 'undefined') {
       rankTopActual = [];
       rankEstado('Aún no hay puntajes en este juego. ¡Pronto!', false);
       return;
     }
     rankEstado('Cargando…', false);
-    Ranking.pedirTop(modoServidor(rankJuego, rankModo)).then(function (res) {
-      if (token !== rankPeticion) return; // respuesta vieja (se cambió de juego/modo) → ignorar
+    Ranking.pedirTop(modoServidor(juegoSel, modoInicioSel)).then(function (res) {
+      if (token !== rankPeticion) return; // respuesta vieja (se cambió de duración) → ignorar
       if (res && res.ok) { rankTopActual = res.top || []; pintarTabla(res.top); }
       else { rankTopActual = []; rankEstado('No se pudo cargar la tabla. Revisá tu conexión.', true); }
     });
   }
-  function elegirModoRank(modo) { rankModo = modo; marcarModoRank(); cargarRanking(); }
-  function elegirRankJuego(juego) {
-    const j = juegoPorId(juego); if (!j) return;
-    rankJuego = juego;
-    if (j.duraciones.indexOf(rankModo) === -1) rankModo = j.duraciones[j.duraciones.length - 1]; // duración válida del juego
-    marcarRankJuego();
-    construirRankModos(); // el nivel 2 depende del juego elegido
-    cargarRanking();
-  }
-  function abrirRanking() {
-    // Arranca en el juego/duración que el jugador usó la última vez (si son válidos).
-    rankJuego = juegoSel;
-    const j = juegoPorId(rankJuego) || juegoPorId('hitclaud');
-    if (j) { rankJuego = j.id; rankModo = j.duraciones.indexOf(modoInicioSel) !== -1 ? modoInicioSel : j.duraciones[j.duraciones.length - 1]; }
-    construirRankJuegos();
+  // Cambiar la duración en el ranking mueve la duración COMPARTIDA (modoInicioSel): la
+  // pantalla 2 lo reflejará al volver (5.2) y JUGAR usará ESA duración (4.2).
+  function elegirModoRank(modo) { modoInicioSel = modo; marcarModoRank(); cargarRanking(); }
+  // Abre el ranking en el contexto de `juego`, recordando el origen para Cerrar (3.2/3.5).
+  function abrirRanking(juego, origen) {
+    const j = juegoPorId(juego) || juegoPorId('hitclaud');
+    if (!j) return;
+    juegoSel = j.id;
+    rankOrigen = origen || 'duracion';
+    if (j.duraciones.indexOf(modoInicioSel) === -1) modoInicioSel = duracionMasCorta(j); // duración válida del juego
+    if (elRankJuegoNombre) elRankJuegoNombre.textContent = j.nombre; // 3.3: nombre del juego arriba
     construirRankModos();
     if (elRankCuerpo) elRankCuerpo.scrollTop = 0;
     ocultarNav();
     if (elRanking) elRanking.classList.remove('oculto');
     cargarRanking();
   }
+  // Cerrar vuelve EXACTAMENTE al origen (3.5): al fin de partida, o a la pantalla 2 (que
+  // reflejará la duración que quedó seleccionada, 5.2). Nunca a otro sitio.
   function cerrarRanking() {
     if (elRanking) elRanking.classList.add('oculto');
-    mostrarPantallaInicio(); // siempre hay salida
+    if (rankOrigen === 'fin') { if (elGameOver) elGameOver.classList.remove('oculto'); }
+    else mostrarPantallaDuracion(juegoSel, false);
   }
-  if (btnVerRanking) btnVerRanking.addEventListener('click', abrirRanking);
-  const btnVerRankingFin = document.getElementById('verRankingFin'); // Ranking desde el fin (4.4)
-  if (btnVerRankingFin) btnVerRankingFin.addEventListener('click', abrirRanking);
+  const btnVerRankingFin = document.getElementById('verRankingFin'); // Ranking desde el fin (3.2)
+  if (btnVerRankingFin) btnVerRankingFin.addEventListener('click', function () { abrirRanking(juegoActivo, 'fin'); });
+  const btnRankJugar = document.getElementById('rankJugar'); // 4.2: arranca la duración seleccionada en la tabla
+  if (btnRankJugar) btnRankJugar.addEventListener('click', function () { iniciarPartida(juegoSel, modoInicioSel); });
   if (btnRankCerrar) btnRankCerrar.addEventListener('click', cerrarRanking);
 
   // ── COMPARTIR (FASE: imagen). Todo pasa por js/compartir.js (ninguna otra parte del
@@ -774,7 +763,7 @@
     if (typeof Compartir === 'undefined') return;
     marcarCompartiendo(btnCompartirRank, true);
     try {
-      Compartir.compartirRanking({ modo: rankModo, top: rankTopActual, nombre: nombreUsuario })
+      Compartir.compartirRanking({ modo: modoInicioSel, top: rankTopActual, nombre: nombreUsuario })
         .then(function (r) { marcarCompartiendo(btnCompartirRank, false, r && r.via); },
               function () { marcarCompartiendo(btnCompartirRank, false); });
     } catch (e) { marcarCompartiendo(btnCompartirRank, false); }

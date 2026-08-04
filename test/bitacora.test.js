@@ -22,16 +22,16 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 11 versiones', B.versiones.length === 11);
-  chk('la primera entrada es la 1.6 (más reciente primero)', B.versiones[0].version === '1.6');
-  chk('la 1.6 trae sus puntos literales, con el modo 30 marcado como retirado', (function () {
+  chk('hay exactamente 12 versiones', B.versiones.length === 12);
+  chk('la primera entrada es la 1.7 (más reciente primero)', B.versiones[0].version === '1.7');
+  chk('la 1.7 trae sus tres puntos literales', (function () {
     const v = B.versiones[0];
-    return v.version === '1.6' && v.fecha === '3 de agosto' && v.puntos.length === 5 &&
-      v.puntos[0].texto === 'HitClaud ahora es una colección: llegan ShotClaud y PushClaud' &&
-      v.puntos[3].retirado === true && v.puntos[3].texto === 'El modo de 30 segundos' &&
-      v.puntos[4].texto === 'Volver a jugar está a un solo toque al terminar';
+    return v.version === '1.7' && v.fecha === '3 de agosto' && v.puntos.length === 3 &&
+      v.puntos[0].texto === 'Cada juego tiene su propio ranking, ya no se mezclan' &&
+      v.puntos[1].texto === 'Desde el ranking puedes lanzarte a jugar esa duración de inmediato' &&
+      v.puntos[2].texto === 'Tu nombre te acompaña al elegir duración';
   })());
-  chk('la segunda entrada sigue siendo la 1.5', B.versiones[1].version === '1.5');
+  chk('la segunda entrada sigue siendo la 1.6 (con el modo 30 retirado)', B.versiones[1].version === '1.6' && B.versiones[1].puntos[3].retirado === true);
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });

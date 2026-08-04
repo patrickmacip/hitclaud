@@ -42,16 +42,16 @@ console.log('=== CAMBIO 2: migración de récords 15/60; el 30 no; el nombre sob
 console.log('=== CAMBIO 3/5: navegación en dos niveles; nunca se sale del juego ===');
 {
   chk('iniciarPartida sólo permite juegos JUGABLES y combos válidos', /function iniciarPartida\(juego, modo\) \{[\s\S]{0,180}if \(!j \|\| !j\.jugable \|\| j\.duraciones\.indexOf\(String\(modo\)\) === -1\) return;/.test(main));
-  chk('tarjeta NO jugable: avisa y NO navega ni inicia partida', /if \(j\.jugable\) \{ mostrarPantallaDuracion\(j\.id\); return; \}[\s\S]{0,160}aviso\.classList\.remove\('oculto'\)/.test(main));
+  chk('tarjeta NO jugable: avisa y NO navega ni inicia partida', /if \(j\.jugable\) \{ mostrarPantallaDuracion\(j\.id, true\); return; \}[\s\S]{0,160}aviso\.classList\.remove\('oculto'\)/.test(main));
   chk('flecha de atrás de la pantalla 2 sube a la pantalla 1 (3.3)', /btnDurAtras\.addEventListener\('click', mostrarPantallaInicio\)/.test(main));
-  chk('el botón de casa vuelve a la PANTALLA 2 del juego, no a la 1 (5.1)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarPantallaDuracion\(juegoActivo\)/.test(main));
+  chk('el botón de casa vuelve a la PANTALLA 2 del juego, no a la 1 (5.1)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarPantallaDuracion\(juegoActivo, false\)/.test(main));
   chk('JUGAR de la pantalla 2 arranca (juegoSel, modoInicioSel)', /btnDurJugar[\s\S]{0,120}iniciarPartida\(juegoSel, modoInicioSel\)/.test(main));
 }
 
 console.log('=== CAMBIO 4: fin de partida — jugar de nuevo / cambiar duración ===');
 {
   chk('"Jugar de nuevo": mismo juego y misma duración (4.4)', /finJugarDeNuevo[\s\S]{0,120}iniciarPartida\(juegoActivo, modoJuego\)/.test(main));
-  chk('"Cambiar duración" vuelve a la pantalla 2 del mismo juego (4.5)', /finCambiarDuracion[\s\S]{0,120}mostrarPantallaDuracion\(juegoActivo\)/.test(main));
+  chk('"Cambiar duración" vuelve a la pantalla 2 del mismo juego (4.5)', /finCambiarDuracion[\s\S]{0,220}mostrarPantallaDuracion\(juegoActivo, false\)/.test(main));
   chk('"Cambiar duración" se OCULTA si el juego tiene una sola duración', /function pintarFin[\s\S]{0,700}btnFinCambiar\.classList\.toggle\('oculto', unaSola\)/.test(main));
   chk('"Menú de juegos" vuelve a la pantalla 1 (4.7)', /finMenu[\s\S]{0,160}mostrarPantallaInicio/.test(main));
   chk('orden en el HTML: puntaje → récord → puesto → Jugar de nuevo', /go-score[\s\S]*?go-record[\s\S]*?go-rank[\s\S]*?id="finJugarDeNuevo"/.test(html));
@@ -68,7 +68,7 @@ console.log('=== P4: todo elemento pulsable declara ≥44px de área táctil ===
     '.ini-actu (≥44)': /\.ini-actu \{[\s\S]{0,200}min-height: 44px/,
     '.barra-salir (44×44)': /\.barra-salir \{[\s\S]{0,80}width: 44px;[\s\S]{0,40}height: 44px;/,
     '.ini-saludo (≥44)': /\.ini-saludo \{[\s\S]{0,200}min-height: 44px/,
-    '.rank-juego (≥48)': /\.rank-juego \{[\s\S]{0,80}min-height: 48px/,
+    '.rank-sel (≥48)': /\.ini-sel \{[\s\S]{0,160}min-height: 56px/,
   };
   Object.keys(reglas).forEach(function (k) { chk('área táctil ' + k, reglas[k].test(css)); });
 }

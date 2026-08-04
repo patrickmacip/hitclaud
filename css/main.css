@@ -256,10 +256,14 @@ body {
   display: grid; place-items: center; cursor: pointer;
 }
 .nivel-titulo { font: var(--texto-xl); color: var(--acento-vivo, #FF8764); }
+/* Nombre del jugador en la pantalla 2 (sólo lectura, discreto — se edita en la pantalla 1). */
+.nivel-nombre { font: var(--texto-s); color: var(--texto-apagado, #8989B1); text-align: center; margin: 0 0 var(--esp-3); }
+.nivel-nombre:empty { display: none; }
 
-/* Selector de JUEGO del ranking (nivel 1): mismos cuadros que el de duración. */
-.rank-juegos { display: flex; gap: var(--esp-2); margin-bottom: var(--esp-2); }
-.rank-juego { flex: 1; min-height: 48px; padding: 0 4px; font: var(--texto-s); }
+/* Nombre del juego arriba de la tabla de ranking (contexto: cuál estás viendo). */
+.rank-juego-nombre { font: var(--texto-m); color: var(--acento-vivo, #FF8764); text-align: center; margin: 0 0 var(--esp-2); }
+/* Botón JUGAR del ranking: relleno sólido, al pie, antes de Compartir (CAMBIO 4). */
+.rank-jugar { margin-top: var(--esp-2); }
 
 /* Botón "Actualizaciones": discreto, debajo de todo. Sin contorno, texto chico y tenue,
    SIN subrayado (P3). Área táctil 44px de alto (P4). */

@@ -27,7 +27,7 @@ console.log('=== CAMBIO 1.3: SALIR abandona la partida sin guardar récord ni ma
   chk('abandonarPartida NO manda /score (enviarAlServidor(false): sólo /partida)', /function abandonarPartida\(\)[\s\S]{0,400}enviarAlServidor\(false\)/.test(main));
   chk('el /score sólo sale por tiempo (enviarAlServidor: if (porTiempo))', /function enviarAlServidor\(porTiempo\)[\s\S]*?if \(porTiempo\) \{[\s\S]{0,200}enviarPuntaje/.test(main));
   chk('abandono → stats con termino cloudover (el abandono cuenta como caída)', /termino: porTiempo \? 'tiempo' : 'cloudover'/.test(main));
-  chk('abandonar sube a la pantalla 2 del juego (siempre hay salida, 5.1)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarPantallaDuracion\(juegoActivo\)/.test(main));
+  chk('abandonar sube a la pantalla 2 del juego (siempre hay salida, 5.1)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarPantallaDuracion\(juegoActivo, false\)/.test(main));
   chk('salir no interrumpe la secuencia de CloudOver', /botonSalir\.addEventListener\([\s\S]{0,120}if \(secuencia\) return;/.test(main));
 }
 

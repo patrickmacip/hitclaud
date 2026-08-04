@@ -62,7 +62,8 @@
 
   <!-- PANTALLA 1 — ELEGIR JUEGO (arranque). Título del proyecto, saludo editable, y una
        tarjeta por juego (se generan desde la estructura JUEGOS de main.js, fuente única).
-       Abajo: Ranking y Actualizaciones. -->
+       El ranking pertenece a CADA juego, así que NO vive aquí (se abre desde la pantalla 2
+       o desde el fin). Abajo sólo queda Actualizaciones. -->
   <div id="inicio" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
       <p class="ini-titulo">HitClaud</p>
@@ -73,17 +74,15 @@
       </button>
       <!-- Tarjetas de juego (una por entrada de JUEGOS). Se llenan desde main.js. -->
       <div class="juego-lista" id="juegoLista"></div>
-      <button id="verRanking" class="ini-ranking" type="button">
-        <img src="assets/podio-1.svg" alt="" aria-hidden="true">
-        <span>Ranking</span>
-      </button>
       <button id="verActualizaciones" class="ini-actu" type="button">Actualizaciones</button>
     </div>
   </div>
 
-  <!-- PANTALLA 2 — ELEGIR DURACIÓN. Flecha de atrás (sube a la pantalla 1) + nombre del
-       juego; récord del jugador en ese juego (cambia con la duración); selector de las
-       duraciones de ESE juego (oculto si sólo tiene una); y JUGAR. -->
+  <!-- PANTALLA 2 — ELEGIR DURACIÓN. Orden: flecha de atrás + nombre del juego · nombre del
+       jugador (sólo lectura, discreto — se edita en la pantalla 1) · récord del jugador en
+       ese juego y duración (con corona, cambia con la duración) · selector de duraciones
+       (oculto si sólo hay una; la más corta viene marcada al entrar) · Ranking (del juego,
+       en la duración seleccionada) · JUGAR. -->
   <div id="duracion" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
       <div class="nivel-cabecera">
@@ -92,11 +91,16 @@
         </button>
         <span class="nivel-titulo" id="durJuego">HitClaud</span>
       </div>
+      <p class="nivel-nombre" id="durNombre"></p>
       <div class="ini-record" aria-label="Récord del juego">
         <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg>
         <span class="valor" id="durRecord">0</span>
       </div>
       <div class="ini-modos" id="durModos" role="group" aria-label="Duración"></div>
+      <button id="durRanking" class="ini-ranking" type="button">
+        <img src="assets/podio-1.svg" alt="" aria-hidden="true">
+        <span>Ranking</span>
+      </button>
       <button id="durJugar" class="go-reiniciar ini-jugar">JUGAR</button>
     </div>
   </div>
@@ -113,24 +117,22 @@
     </div>
   </div>
 
-  <!-- PANTALLA DE RANKING (FASE 30): tabla de posiciones del servidor (js/ranking.js).
-       Selector de modo, tabla scrolleable con Cerrar SIEMPRE visible (ley: toda pantalla
-       tiene salida). Los tres estados (cargando / con datos / error) se pintan desde JS;
-       los nombres se insertan como TEXTO, nunca como HTML. -->
-  <!-- PANTALLA DE RANKING: DOS niveles de selección — primero el juego, luego la duración
-       de ese juego. Ambos selectores se generan desde JUEGOS (main.js): sólo aparecen las
-       combinaciones que existen. Los nombres del servidor se insertan como TEXTO. -->
+  <!-- PANTALLA DE RANKING: SIEMPRE en el contexto de UN juego (el que traías de la pantalla 2
+       o del fin). NO hay selector de juego (los juegos no se mezclan). Arriba, el nombre del
+       juego. Se conserva el selector de DURACIÓN de ese juego. Al pie: JUGAR (arranca esa
+       duración), Compartir y Cerrar (vuelve al origen). Los nombres del servidor van como TEXTO. -->
   <div id="ranking" class="oculto" role="dialog" aria-modal="true">
     <div class="actu-panel">
       <p class="actu-titulo">Ranking</p>
-      <div class="rank-juegos" id="rankJuegos" role="group" aria-label="Juego"></div>
+      <p class="rank-juego-nombre" id="rankJuegoNombre">HitClaud</p>
       <div class="rank-modos" id="rankModos" role="group" aria-label="Duración"></div>
       <div class="rank-cuerpo" id="rankCuerpo"></div>
+      <button id="rankJugar" class="go-reiniciar ini-jugar rank-jugar">JUGAR</button>
       <button id="compartirRank" class="ini-ranking rank-compartir" type="button">
         <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-compartir"></use></svg>
         <span>Compartir</span>
       </button>
-      <button id="rankCerrar" class="go-reiniciar">Cerrar</button>
+      <button id="rankCerrar" class="go-reiniciar go-modo-libre">Cerrar</button>
     </div>
   </div>
 

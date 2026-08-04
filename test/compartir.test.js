@@ -191,7 +191,7 @@ function tituloRank(rec) { return rec.fills.find(function (s) { return s.indexOf
     chk('botón Compartir en el ranking (cerca de Cerrar)', /<button id="compartirRank" class="ini-ranking rank-compartir"[\s\S]{0,120}#ic-compartir[\s\S]*?<button id="rankCerrar"/.test(html));
     chk('icono de compartir definido (SVG monocromo, currentColor)', /<symbol id="ic-compartir"/.test(html));
     chk('compartirFin cableado → Compartir.compartirRecord', /compartirFin[\s\S]{0,260}Compartir\.compartirRecord\(/.test(main));
-    chk('compartirRank cableado → Compartir.compartirRanking (modo visible + top actual)', /compartirRank[\s\S]{0,260}Compartir\.compartirRanking\(\{ modo: rankModo, top: rankTopActual/.test(main));
+    chk('compartirRank cableado → Compartir.compartirRanking (duración seleccionada + top actual)', /compartirRank[\s\S]{0,260}Compartir\.compartirRanking\(\{ modo: modoInicioSel, top: rankTopActual/.test(main));
     chk('el botón muestra que trabaja mientras genera (5.3)', /marcarCompartiendo\([^,]+, true\)/.test(main) && /Generando…/.test(main));
     chk('área táctil del botón ≥44px (reusa .ini-ranking, min-height 52)', /\.ini-ranking \{[\s\S]{0,200}min-height: 52px/.test(css));
     chk('script de compartir.js ANTES de main.js', main && /compartir\.js"><\/script>\s*<script src="js\/main\.js"/.test(html));
