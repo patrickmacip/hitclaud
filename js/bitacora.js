@@ -14,6 +14,15 @@
 
   const versiones = [
     {
+      version: '1.9', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Llega ShotClaud: entrena tu puntería en la computadora' },
+        { texto: 'Al centro 200 puntos, fuera del centro 50' },
+        { texto: 'Falla tres veces seguidas y el castigo se multiplica' },
+        { texto: 'Sin carambola, sin Big Claude, y cuatro veces más rojos' },
+      ],
+    },
+    {
       version: '1.8', fecha: '3 de agosto',
       puntos: [
         { texto: 'Los doce primeros puestos del ranking tienen su propia medalla' },

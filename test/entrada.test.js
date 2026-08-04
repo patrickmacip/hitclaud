@@ -95,14 +95,16 @@ console.log('=== Fragmentos/islas: nacen con haEntrado=true → golpeables de in
   chk('el fragmento entrado es golpeable de inmediato (golpes=1)', res.golpes === 1);
 }
 
-console.log('=== main.js consulta haEntrado en AMBAS rutas (bola y hitscan) ===');
+console.log('=== main.js consulta haEntrado en TODAS las rutas (bola + hitscan HitClaud + hitscan ShotClaud) ===');
 {
   // Ruta de la bola: dentro de colisionar, ANTES del chequeo de rojo.
   chk('colisionar salta el target no-entrado antes de todo', /function colisionar\(b\) \{[\s\S]{0,700}if \(!tg\.haEntrado\) continue;[\s\S]{0,120}if \(tg\.rojo && !tg\.fragmento\)/.test(main));
-  // Ruta de hitscan: antes de celdaEnPunto.
-  chk('hitscan salta el target no-entrado antes de celdaEnPunto', /if \(!tg\.haEntrado\) continue;[\s\S]{0,120}const idx = F\.celdaEnPunto\(tg, mx, my\)/.test(main));
-  // Exactamente dos consultas nuevas (una por ruta) + ninguna otra referencia rara.
-  chk('main.js consulta haEntrado exactamente en 2 sitios (bola + hitscan)', (main.match(/!tg\.haEntrado/g) || []).length === 2);
+  // Ruta de hitscan HitClaud: antes de celdaEnPunto.
+  chk('hitscan (HitClaud) salta el target no-entrado antes de celdaEnPunto', /if \(!tg\.haEntrado\) continue;[\s\S]{0,120}const idx = F\.celdaEnPunto\(tg, mx, my\)/.test(main));
+  // Ruta de hitscan ShotClaud: MISMO criterio (haEntrado sin cambios), antes de celdaEnPunto.
+  chk('hitscan (ShotClaud) usa el MISMO guard de haEntrado antes de celdaEnPunto', /if \(!tg\.haEntrado\) continue;[\s\S]{0,140}if \(F\.celdaEnPunto\(tg, mx, my\) < 0\) continue;/.test(main));
+  // Tres consultas (una por ruta): la lógica de haEntrado NO cambió, sólo hay un consumidor más.
+  chk('main.js consulta haEntrado exactamente en 3 sitios (bola + 2 hitscan)', (main.match(/!tg\.haEntrado/g) || []).length === 3);
 }
 
 console.log(`\n== RESUMEN entrada: ${ok} OK, ${ko} NO ==`);

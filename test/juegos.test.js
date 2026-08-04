@@ -17,7 +17,7 @@ console.log('=== CAMBIO 1: la estructura JUEGOS declara EXACTAMENTE tres juegos 
   const ids = (bloque.match(/id: '(\w+)'/g) || []).map(function (s) { return s.replace(/id: '|'/g, ''); });
   chk('tres juegos: hitclaud, shotclaud, pushclaud', ids.join(',') === 'hitclaud,shotclaud,pushclaud');
   chk('HitClaud: jugable, ambas, 15 y 60', /id: 'hitclaud'[\s\S]{0,160}jugable: true[\s\S]{0,30}plataforma: 'ambas'[\s\S]{0,40}duraciones: \['15', '60'\]/.test(bloque));
-  chk('ShotClaud: NO jugable, escritorio, 20 y 60', /id: 'shotclaud'[\s\S]{0,160}jugable: false[\s\S]{0,30}plataforma: 'escritorio'[\s\S]{0,40}duraciones: \['20', '60'\]/.test(bloque));
+  chk('ShotClaud: jugable, escritorio, 20 y 60', /id: 'shotclaud'[\s\S]{0,160}jugable: true[\s\S]{0,30}plataforma: 'escritorio'[\s\S]{0,40}duraciones: \['20', '60'\]/.test(bloque));
   chk('PushClaud: NO jugable, táctil, sólo 15', /id: 'pushclaud'[\s\S]{0,160}jugable: false[\s\S]{0,30}plataforma: 'tactil'[\s\S]{0,40}duraciones: \['15'\]/.test(bloque));
   chk('el modo 20 existe SÓLO en ShotClaud', /duraciones: \['20', '60'\]/.test(bloque) && !/id: 'hitclaud'[\s\S]{0,200}'20'/.test(bloque) && !/id: 'pushclaud'[\s\S]{0,120}'20'/.test(bloque));
   chk('comentario de cómo AGREGAR un juego', /PARA AGREGAR UN JUEGO/.test(main));
@@ -42,7 +42,7 @@ console.log('=== CAMBIO 2: migración de récords 15/60; el 30 no; el nombre sob
 console.log('=== CAMBIO 3/5: navegación en dos niveles; nunca se sale del juego ===');
 {
   chk('iniciarPartida sólo permite juegos JUGABLES y combos válidos', /function iniciarPartida\(juego, modo\) \{[\s\S]{0,180}if \(!j \|\| !j\.jugable \|\| j\.duraciones\.indexOf\(String\(modo\)\) === -1\) return;/.test(main));
-  chk('tarjeta NO jugable: avisa y NO navega ni inicia partida', /if \(j\.jugable\) \{ mostrarPantallaDuracion\(j\.id, true\); return; \}[\s\S]{0,160}aviso\.classList\.remove\('oculto'\)/.test(main));
+  chk('tarjeta NO jugable AQUÍ: avisa y NO navega ni inicia partida', /if \(jugableAqui\) \{ mostrarPantallaDuracion\(j\.id, true\); return; \}[\s\S]{0,180}aviso\.classList\.remove\('oculto'\)/.test(main));
   chk('flecha de atrás de la pantalla 2 sube a la pantalla 1 (3.3)', /btnDurAtras\.addEventListener\('click', mostrarPantallaInicio\)/.test(main));
   chk('el botón de casa vuelve a la PANTALLA 2 del juego, no a la 1 (5.1)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarPantallaDuracion\(juegoActivo, false\)/.test(main));
   chk('JUGAR de la pantalla 2 arranca (juegoSel, modoInicioSel)', /btnDurJugar[\s\S]{0,120}iniciarPartida\(juegoSel, modoInicioSel\)/.test(main));

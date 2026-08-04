@@ -13,6 +13,7 @@
   const ctx = canvas.getContext('2d');
   const F = window.Fisica;
   const P = window.Puntuacion;
+  const S = window.ShotClaud;   // reglas de puntuación de ShotClaud (módulo puro aparte)
   const U = window.Util;
 
   // Lectura de tokens A PRUEBA DE FALLOS: si el CSS no está aplicado o el SW
@@ -115,7 +116,7 @@
   // (pantallas, récords versionados, tablas de ranking) aparece solo.
   const JUEGOS = [
     { id: 'hitclaud',  nombre: 'HitClaud',  desc: 'Lanza la bola y demuele', jugable: true,  plataforma: 'ambas',      duraciones: ['15', '60'] },
-    { id: 'shotclaud', nombre: 'ShotClaud', desc: 'Apunta y dispara',        jugable: false, plataforma: 'escritorio', duraciones: ['20', '60'] },
+    { id: 'shotclaud', nombre: 'ShotClaud', desc: 'Apunta y dispara',        jugable: true,  plataforma: 'escritorio', duraciones: ['20', '60'] },
     { id: 'pushclaud', nombre: 'PushClaud', desc: 'Aplasta con el dedo',     jugable: false, plataforma: 'tactil',     duraciones: ['15'] },
   ];
   function juegoPorId(id) { for (let i = 0; i < JUEGOS.length; i++) if (JUEGOS[i].id === id) return JUEGOS[i]; return null; }
@@ -192,8 +193,10 @@
   let pTiros = 0, pAciertos = 0, pRachaMax = 0, pCarambolas = 0, pPuntosFin = 0;
   function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
+    marcador.rachaPos = 0; marcador.rachaNeg = 0;   // rachas de ShotClaud (HitClaud las ignora)
+    miraDisparoEn = -Infinity; miraFlashEn = -Infinity; miraFlashCentro = false;
     pTiros = 0; pAciertos = 0; pRachaMax = 0; pCarambolas = 0; pPuntosFin = 0;
-    targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; bonos.length = 0; multAnterior = 1;
+    targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; bonos.length = 0; disparos.length = 0; multAnterior = 1;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null; sacudidaCloudover = null;
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
@@ -261,6 +264,11 @@
   //    récord local: el servidor decide si entra al top 20). Por CloudOver no se manda.
   function enviarAlServidor(porTiempo) {
     if (typeof Ranking === 'undefined') return;          // sin el módulo, el juego sigue igual
+    // RANKING POR JUEGO (hoy): el servidor SÓLO acepta los modos de HitClaud. Para los demás
+    // juegos (ShotClaud, etc.) el envío queda LISTO pero INACTIVO: no se dispara ninguna
+    // llamada (/partida ni /score) hasta que el servidor acepte sus modos ('shotclaud:20',
+    // 'shotclaud:60'). Ver el bloque de modoServidor arriba (FALTA DEL LADO DEL SERVIDOR).
+    if (juegoActivo !== 'hitclaud') return;
     const modo = modoJuego;
     const modoSrv = modoServidor(juegoActivo, modo);     // '15'/'60' para HitClaud (compatible hoy)
     if (!DURACIONES[modo]) return;
@@ -454,9 +462,16 @@
     if (!elJuegoLista) return;
     elJuegoLista.textContent = '';
     JUEGOS.forEach(function (j) {
+      // ¿jugable EN ESTE dispositivo? Un juego 'escritorio' (ShotClaud) NO se puede jugar en
+      // táctil, y uno 'tactil' no se juega en escritorio. 'ambas' vale en los dos. Si no es
+      // jugable aquí, la tarjeta va ATENUADA y su toque NO navega (no empieza partida).
+      const plataformaOk = j.plataforma === 'ambas'
+        || (j.plataforma === 'escritorio' && esDesktop)
+        || (j.plataforma === 'tactil' && !esDesktop);
+      const jugableAqui = j.jugable && plataformaOk;
       const card = document.createElement('button');
       card.type = 'button';
-      card.className = 'juego-card' + (j.jugable ? '' : ' juego-pronto');
+      card.className = 'juego-card' + (jugableAqui ? '' : ' juego-pronto');
       card.setAttribute('data-juego', j.id);
       const nom = document.createElement('span'); nom.className = 'juego-nombre'; nom.textContent = j.nombre;
       const desc = document.createElement('span'); desc.className = 'juego-desc'; desc.textContent = j.desc;
@@ -469,11 +484,12 @@
         const nota = document.createElement('span'); nota.className = 'juego-nota'; nota.textContent = 'En computadora';
         card.appendChild(nota);
       }
-      const aviso = document.createElement('span'); aviso.className = 'juego-aviso oculto'; aviso.textContent = 'Llega pronto';
+      const aviso = document.createElement('span'); aviso.className = 'juego-aviso oculto';
+      aviso.textContent = !j.jugable ? 'Llega pronto' : 'Es para computadora'; // jugable pero no en este equipo
       card.appendChild(aviso);
       card.addEventListener('click', function () {
-        if (j.jugable) { mostrarPantallaDuracion(j.id, true); return; } // desde el MENÚ → reinicia a la más corta
-        // No jugable: avisa breve y NO navega (no empieza partida).
+        if (jugableAqui) { mostrarPantallaDuracion(j.id, true); return; } // desde el MENÚ → reinicia a la más corta
+        // No jugable aquí (futuro o de otra plataforma): avisa breve y NO navega.
         aviso.classList.remove('oculto');
         setTimeout(function () { try { aviso.classList.add('oculto'); } catch (e) {} }, 1400);
       });
@@ -1015,6 +1031,18 @@
   const GRANDE_MIN_MS = 8000;   // tiempo MÍNIMO entre apariciones
   const GRANDE_JITTER_MS = 4000; // variación extra (siempre ≥ mínimo)
 
+  // ── ShotClaud: dificultad, en UN SOLO lugar ────────────────────────
+  // ShotClaud reutiliza LOS MISMOS targets y la MISMA física que HitClaud; sólo
+  // cambia la DIFICULTAD (frecuencia/velocidad), nunca la lógica del rojo ni la del
+  // motor. Estos factores multiplican sobre los valores de HitClaud, así que si
+  // HitClaud se re-balancea, ShotClaud lo sigue de forma proporcional.
+  const SHOT = {
+    ROJO_FACTOR: 0.25,  // 4× MÁS rojos que HitClaud → su intervalo se multiplica por 1/4
+    VEL_FACTOR: 1.15,   // targets Y rojos 15% más rápidos que en HitClaud (vx, vy ×1.15)
+    SIN_GRANDE: true,   // ShotClaud NO lanza Big Claude
+  };
+  const esShot = function () { return juegoActivo === 'shotclaud'; };
+
   // ── Inactividad ────────────────────────────────────────────────────
   const GRACIA_MS = 3000;         // 3s sin gestos antes de empezar a cobrar
 
@@ -1044,6 +1072,20 @@
   }
   const RADIO_MIRA = RADIO_NORMAL / 4; // hitball de desktop: 4× más chica (14 → 3.5)
   const DISPARO_MS = 130;              // duración del destello del tiro (hitscan)
+
+  // ── Retícula de ShotClaud (mira de precisión, desktop) ─────────────
+  // Cruz de 4 trazos con hueco central y punto al centro (la mira que ya usa el
+  // desktop, aquí con vida propia). RETROCESO: al disparar, los 4 brazos se abren y
+  // vuelven a cerrarse en MIRA_RETROCESO_MS (~120ms). DESTELLO de acierto: un flash
+  // corto, DISTINTO si fue al centro (anillo grande, acento vivo) o no (chico, tenue).
+  // SIN shadowBlur: sólo color, tamaño y trazo (la única sombra del dibujo sigue
+  // siendo la del destello de HitClaud).
+  const MIRA_RETROCESO_MS = 120;   // el retroceso (apertura→cierre) de la cruz dura ~120ms
+  const MIRA_RETROCESO_PX = 6;     // cuánto se abren los brazos en el pico del retroceso
+  const MIRA_FLASH_MS = 150;       // duración del destello de acierto de la retícula
+  let miraDisparoEn = -Infinity;   // timestamp del último tiro (anima el retroceso)
+  let miraFlashEn = -Infinity;     // timestamp del último acierto (anima el destello)
+  let miraFlashCentro = false;     // ¿el último acierto fue al centro? (destello distinto)
 
   let W = 0;
   let H = 0;
@@ -1216,13 +1258,20 @@
   // Lanza un target NARANJA (el que puntúa): crearTarget da el origen (uno de los
   // 4) y la velocidad variable. Sin variantes: los especiales se eliminaron.
   function generarNaranja() {
-    targets.push(F.crearTarget({ w: W, h: H }));
+    targets.push(acelerarShot(F.crearTarget({ w: W, h: H })));
+  }
+
+  // ShotClaud: mismos targets, 15% más rápidos (CAMBIO 5). Multiplica SÓLO la
+  // magnitud de la velocidad (la gravedad/arco quedan igual); en HitClaud no toca nada.
+  function acelerarShot(t) {
+    if (esShot()) { t.vx *= SHOT.VEL_FACTOR; t.vy *= SHOT.VEL_FACTOR; }
+    return t;
   }
 
   // Lanza un target ROJO (parpadea, termina la partida). Sale como cualquier otro
   // (mismo crearTarget: 4 orígenes, velocidad del rango) — sólo marcado `rojo`.
   function generarRojo() {
-    const t = F.crearTarget({ w: W, h: H });
+    const t = acelerarShot(F.crearTarget({ w: W, h: H }));
     t.rojo = true;
     targets.push(t);
   }
@@ -1370,6 +1419,7 @@
     const ahora = performance.now();
     if (ahora - ultimoDisparo < CADENCIA_MS) return;
     ultimoDisparo = ahora;
+    if (esShot()) { dispararHitscanShot(mx, my, ahora); return; } // ShotClaud tiene su propia puntuación
     miraX = mx; miraY = my; miraActiva = true;
     marcarActividad();
     disparos.push({ x: mx, y: my, inicio: ahora }); // destello del tiro
@@ -1408,6 +1458,70 @@
     const pen = P.anotarFallo(marcador);
     actualizarMarcador();
     registrarPerdida(pen);
+  }
+
+  // DISPARO HITSCAN de ShotClaud (desktop): sistema de puntuación PROPIO (js/shotclaud.js),
+  // distinto al de HitClaud. Los targets y la física son los mismos. Clasificación del tiro:
+  //   • ROJO         → CloudOver (game over), igual que HitClaud.
+  //   • target CAÍDO  → 50 siempre (S.anotarCaido), sin rachas.
+  //   • CENTRO intacto→ destruye el target ENTERO de un tiro, 200×racha (S.anotarCentro).
+  //   • FUERA intacto → 50, NO se destruye (sigue cayendo), rompe racha positiva; marca "caído".
+  //   • NADA          → FALLO: castigo escalado por racha negativa (S.anotarFallo).
+  function dispararHitscanShot(mx, my, ahora) {
+    miraX = mx; miraY = my; miraActiva = true;
+    marcarActividad();
+    miraDisparoEn = ahora;                   // retroceso de la cruz
+    pTiros += 1;                             // un tiro lanzado
+    for (let ti = targets.length - 1; ti >= 0; ti--) {
+      const tg = targets[ti];
+      if (!tg.haEntrado) continue;           // NO golpeable hasta ENTRAR (mismo criterio que la bola)
+      if (F.celdaEnPunto(tg, mx, my) < 0) continue; // el tiro no cae sobre el target
+      pAciertos += 1;
+      if (tg.rojo) { golpeCloudover(tg, mx, my); return; } // rojo → CloudOver (sin cambios)
+      tg.destelloHasta = ahora + DESTELLO_MS;
+      if (tg.tocado) {                        // YA caído: 50 siempre, nunca 200, sin rachas
+        const r = S.anotarCaido(marcador);
+        flashShot(mx, my, ahora, false);
+        pintarGananciaShot(mx, my, r.ganancia, false);
+        return;
+      }
+      if (S.enZonaCentral(tg, mx, my)) {       // CENTRO del target completo → lo destruye entero
+        const r = S.anotarCentro(marcador);
+        if (marcador.rachaPos > pRachaMax) pRachaMax = marcador.rachaPos;
+        const centros = [];
+        for (let k = 0; k < tg.celdas.length; k++) { if (tg.celdas[k]) { centros.push(F.celdaMundo(tg, k)); tg.celdas[k] = false; } }
+        tg.vivos = 0;
+        explotarCubos(centros, mx, my, 1.0, tg.vx, tg.vy, ACENTO.base);
+        targets.splice(ti, 1);
+        sacudidaHasta = ahora + SACUDIDA_MS;
+        flashShot(mx, my, ahora, true);
+        pintarGananciaShot(mx, my, r.ganancia, true);
+        return;
+      }
+      // FUERA del centro (primer toque): no se destruye, sigue cayendo por gravedad.
+      tg.tocado = true;
+      const r = S.anotarLateral(marcador);
+      flashShot(mx, my, ahora, false);
+      pintarGananciaShot(mx, my, r.ganancia, false);
+      return;
+    }
+    // No tocó ningún target → FALLO (castigo escalado por racha negativa).
+    const r = S.anotarFallo(marcador);
+    actualizarMarcador();
+    registrarPerdida(r.castigo);
+  }
+
+  // Destello del acierto de ShotClaud: alimenta la retícula (flash centro/no) y deja un
+  // punto de disparo marcado para el dibujo. SIN shadowBlur (lo pinta dibujarReticulaShot).
+  function flashShot(mx, my, ahora, centro) {
+    miraFlashEn = ahora; miraFlashCentro = centro;
+    disparos.push({ x: mx, y: my, inicio: ahora, shot: true, centro: centro });
+  }
+  // Flotante de ganancia + latido del marcador (el centro, ganancia grande, palpita).
+  function pintarGananciaShot(mx, my, g, centro) {
+    flotante(mx, my, '+' + g, ACENTO.vivo, tamGanancia(g), centro);
+    if (centro) popMarcador();
+    actualizarMarcador();
   }
 
   // Ejecuta la suelta desde la posición del dedo. forzar=true (frenos) siempre
@@ -1692,10 +1806,12 @@
     P.pasoEscalada(escalada, t, Math.random);
     if (targets.length < MAX_EN_PANTALLA && t >= proximoRojo) {
       generarRojo();
-      proximoRojo = t + P.intervaloRojo(escalada.nivel) * rnd(ROJO_JITTER[0], ROJO_JITTER[1]);
+      // ShotClaud: 4× más rojos → el intervalo se acorta con SHOT.ROJO_FACTOR (CAMBIO 5).
+      const factorRojo = esShot() ? SHOT.ROJO_FACTOR : 1;
+      proximoRojo = t + P.intervaloRojo(escalada.nivel) * factorRojo * rnd(ROJO_JITTER[0], ROJO_JITTER[1]);
     }
-    // GRANDE: mínimo 8s entre apariciones; nunca dos a la vez; tope de 2.
-    if (targets.length < MAX_EN_PANTALLA && t >= proximoGrande && !targets.some(function (x) { return x.grande; })) {
+    // GRANDE: mínimo 8s entre apariciones; nunca dos a la vez; tope de 2. ShotClaud NO lanza Big Claude.
+    if (!(esShot() && SHOT.SIN_GRANDE) && targets.length < MAX_EN_PANTALLA && t >= proximoGrande && !targets.some(function (x) { return x.grande; })) {
       generarGrande();
       proximoGrande = t + GRANDE_MIN_MS + Math.random() * GRANDE_JITTER_MS;
     }
@@ -1713,6 +1829,55 @@
     // Re-agendar SIEMPRE: un cuadro malo degrada ese cuadro, nunca el juego.
     rafId = requestAnimationFrame(cuadro);
    }
+  }
+
+  // RETÍCULA de ShotClaud (desktop): cruz de 4 trazos con hueco central y punto al
+  // centro, que SIGUE al cursor. RETROCESO: al disparar los 4 brazos se abren y se
+  // cierran en MIRA_RETROCESO_MS. DESTELLO de acierto: anillo que crece y se apaga,
+  // DISTINTO si fue al centro (grande, acento vivo) o no (chico, tenue). SIN
+  // shadowBlur: sólo color, tamaño y trazo. NO dibuja la sombra del destello de HitClaud.
+  function dibujarReticulaShot(ahoraB) {
+    // Marcas de cada disparo: anillo que se expande y se desvanece (centro vs no).
+    for (let i = disparos.length - 1; i >= 0; i--) {
+      const s = disparos[i];
+      const p = (ahoraB - s.inicio) / DISPARO_MS;
+      if (p >= 1) { disparos.splice(i, 1); continue; }
+      const rBase = s.centro ? 22 : 12;      // el acierto al centro deja una marca más grande
+      ctx.save();
+      ctx.globalAlpha = (1 - p) * (s.centro ? 0.9 : 0.55);
+      ctx.strokeStyle = s.centro ? ACENTO.vivo : ACENTO.base;
+      ctx.lineWidth = s.centro ? 2.5 : 1.5;
+      ctx.beginPath(); ctx.arc(s.x, s.y, rBase * (0.5 + p), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    if (!(miraActiva && miraX >= 0)) return;
+    // RETROCESO: 0→1→0 en MIRA_RETROCESO_MS (sube y baja) → los brazos se abren y cierran.
+    const dt = ahoraB - miraDisparoEn;
+    let retro = 0;
+    if (dt >= 0 && dt < MIRA_RETROCESO_MS) {
+      const u = dt / MIRA_RETROCESO_MS;          // 0..1
+      retro = Math.sin(u * Math.PI);             // 0→1→0: pico a la mitad
+    }
+    const sep = retro * MIRA_RETROCESO_PX;       // px extra de apertura del hueco y de los brazos
+    const g0 = 5 + sep;                          // inicio del brazo (hueco central)
+    const g1 = 16 + sep;                         // fin del brazo
+    // DESTELLO de acierto sobre la cruz: la tiñe más viva un instante (centro = más).
+    const fdt = ahoraB - miraFlashEn;
+    const flash = (fdt >= 0 && fdt < MIRA_FLASH_MS) ? (1 - fdt / MIRA_FLASH_MS) : 0;
+    ctx.save();
+    ctx.strokeStyle = ACENTO.vivo;
+    ctx.lineWidth = 1.5 + flash * (miraFlashCentro ? 2.5 : 1);
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath(); ctx.arc(miraX, miraY, 11 + sep, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(miraX - g1, miraY); ctx.lineTo(miraX - g0, miraY);
+    ctx.moveTo(miraX + g0, miraY); ctx.lineTo(miraX + g1, miraY);
+    ctx.moveTo(miraX, miraY - g1); ctx.lineTo(miraX, miraY - g0);
+    ctx.moveTo(miraX, miraY + g0); ctx.lineTo(miraX, miraY + g1);
+    ctx.stroke();
+    ctx.fillStyle = ACENTO.vivo;
+    ctx.beginPath(); ctx.arc(miraX, miraY, 1.5 + flash * 2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   }
 
   // ── Pintura ────────────────────────────────────────────────────────
@@ -1775,7 +1940,10 @@
     const enVaciado = !!secuencia && (secuencia.fase === 'vaciado' || secuencia.fase === 'cero');
     if (elActual) elActual.style.color = (enVaciado || ahoraB < contadorRojoHasta) ? ROJO_CONTADOR : PUNTAJE_BLANCO;
 
-    if (esDesktop) {
+    if (esDesktop && esShot()) {
+      // ShotClaud: retícula de precisión propia (retroceso + destello centro/no, sin shadowBlur).
+      dibujarReticulaShot(ahoraB);
+    } else if (esDesktop) {
       // Destello del disparo HITSCAN: una hitball chica que aparece y se apaga.
       for (let i = disparos.length - 1; i >= 0; i--) {
         const s = disparos[i];
