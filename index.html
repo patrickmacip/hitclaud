@@ -63,6 +63,7 @@
         <button id="sel60" class="go-reiniciar ini-sel sel-activo">60 seg</button>
       </div>
       <button id="jugar" class="go-reiniciar ini-jugar">JUGAR</button>
+      <button id="verRanking" class="ini-actu">Ranking</button>
       <button id="verActualizaciones" class="ini-actu">Actualizaciones</button>
     </div>
   </div>
@@ -76,6 +77,23 @@
       <p class="actu-titulo">Actualizaciones</p>
       <div class="actu-lista" id="actuLista"></div>
       <button id="actuCerrar" class="go-reiniciar">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- PANTALLA DE RANKING (FASE 30): tabla de posiciones del servidor (js/ranking.js).
+       Selector de modo, tabla scrolleable con Cerrar SIEMPRE visible (ley: toda pantalla
+       tiene salida). Los tres estados (cargando / con datos / error) se pintan desde JS;
+       los nombres se insertan como TEXTO, nunca como HTML. -->
+  <div id="ranking" class="oculto" role="dialog" aria-modal="true">
+    <div class="actu-panel">
+      <p class="actu-titulo">Ranking</p>
+      <div class="rank-modos" role="group" aria-label="Duración">
+        <button class="go-reiniciar ini-sel rank-sel" data-modo="15">15 seg</button>
+        <button class="go-reiniciar ini-sel rank-sel" data-modo="30">30 seg</button>
+        <button class="go-reiniciar ini-sel rank-sel" data-modo="60">60 seg</button>
+      </div>
+      <div class="rank-cuerpo" id="rankCuerpo"></div>
+      <button id="rankCerrar" class="go-reiniciar">Cerrar</button>
     </div>
   </div>
 
@@ -103,6 +121,7 @@
   <script src="js/puntuacion.js"></script>
   <script src="js/render.js"></script>
   <script src="js/bitacora.js"></script>
+  <script src="js/ranking.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

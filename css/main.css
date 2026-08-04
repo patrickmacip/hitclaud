@@ -157,9 +157,9 @@ body {
 .oculto { display: none; }
 /* Una clase utilitaria (0-0-1-0) NO puede anular #gameover{display:flex}
    (ID, 0-1-0-0). Regla ID+clase (0-1-1-0) para que ocultar gane. */
-#gameover.oculto, #pausa.oculto, #inicio.oculto, #nombre.oculto, #actualizaciones.oculto { display: none; }
+#gameover.oculto, #pausa.oculto, #inicio.oculto, #nombre.oculto, #actualizaciones.oculto, #ranking.oculto { display: none; }
 
-#gameover, #pausa, #inicio, #nombre, #actualizaciones {
+#gameover, #pausa, #inicio, #nombre, #actualizaciones, #ranking {
   position: fixed;
   inset: 0;
   z-index: 3;
@@ -256,6 +256,67 @@ body {
   letter-spacing: 0.5px;
   color: var(--texto-apagado, #8989B1);
 }
+
+/* PANTALLA DE RANKING (FASE 30): reusa .actu-panel (columna scrolleable + Cerrar fijo).
+   Selector de modo arriba, tabla scrolleable en medio, Cerrar abajo. Tokens de acento;
+   sin colores nuevos. */
+.rank-modos {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.rank-sel { margin-top: 0; flex: 1; padding: 10px 0; }
+.rank-cuerpo {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 6px;
+  min-height: 120px;
+}
+/* Fila de la tabla: puesto (icono/número) · nombre · puntos. */
+.rank-fila {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  border-bottom: 1px solid rgba(137, 137, 177, 0.14); /* --texto-apagado translúcido */
+}
+.rank-puesto {
+  flex: 0 0 34px;
+  text-align: center;
+  font: 800 16px/1 var(--fuente);
+  color: var(--acento-claro, #FFC9B8);
+}
+.rank-puesto img { width: 30px; height: 30px; display: block; margin: 0 auto; }
+.rank-nombre {
+  flex: 1 1 auto;
+  font: var(--texto-s);
+  color: var(--texto, #F4E9E2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rank-puntos {
+  flex: 0 0 auto;
+  font: 800 15px/1 var(--fuente);
+  color: var(--acento-vivo, #FF8764);
+}
+/* Fila del propio jugador: destacada. */
+.rank-fila.rank-yo {
+  background: rgba(255, 135, 100, 0.14); /* --acento-vivo translúcido */
+  border-bottom-color: transparent;
+}
+.rank-fila.rank-yo .rank-nombre { color: var(--acento-vivo, #FF8764); }
+/* Estados: cargando / vacío / error (mensaje centrado). */
+.rank-estado {
+  text-align: center;
+  color: var(--acento-claro, #FFC9B8);
+  font: var(--texto-s);
+  padding: 28px 10px;
+}
+.rank-reintentar { margin-top: 14px; }
+
 /* Botón JUGAR: dominante. Reusa .go-reiniciar; sólo lo hago más prominente. */
 .ini-jugar {
   font: var(--texto-xl);

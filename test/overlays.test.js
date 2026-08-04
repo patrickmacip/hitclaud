@@ -27,7 +27,7 @@ console.log('=== PARIDAD HTML ↔ CSS: cada overlay del HTML está en AMBAS regl
   console.log(`  HTML(role=dialog): [${idsHtml.join(', ')}]`);
   console.log(`  CSS posición z3  : [${idsPos.join(', ')}]`);
   console.log(`  CSS oculto comp. : [${idsOcu.join(', ')}]`);
-  chk('los 5 overlays esperados en el HTML (inicio, nombre, actualizaciones, gameover, pausa)', set(idsHtml) === set(['inicio', 'nombre', 'actualizaciones', 'gameover', 'pausa']));
+  chk('los 6 overlays esperados en el HTML (inicio, nombre, actualizaciones, ranking, gameover, pausa)', set(idsHtml) === set(['inicio', 'nombre', 'actualizaciones', 'ranking', 'gameover', 'pausa']));
   chk('#novedades ya NO existe en el HTML (aviso emergente retirado)', !/id="novedades"/.test(html) && idsHtml.indexOf('novedades') === -1);
   chk('#novedades NO deja reglas huérfanas en el CSS', !/#novedades/.test(css));
   chk('PARIDAD: HTML == regla de posición (nadie olvidado)', set(idsHtml) === set(idsPos));
@@ -41,7 +41,7 @@ console.log('=== Especificidad: el ocultado de CADA overlay es COMPUESTO (0-1-1-
   const compuestoParaTodos = idsHtml.every(function (id) { return idsOcu.indexOf(id) !== -1; });
   chk('cada overlay tiene su #X.oculto (ninguno depende de la .oculto genérica)', compuestoParaTodos);
   // La genérica .oculto existe pero NO alcanza para estos (por eso el compuesto).
-  chk('existe la .oculto genérica pero los overlays usan el compuesto', /^\.oculto \{ display: none; \}$/m.test(css) && idsOcu.length === 5);
+  chk('existe la .oculto genérica pero los overlays usan el compuesto', /^\.oculto \{ display: none; \}$/m.test(css) && idsOcu.length === 6);
 }
 
 console.log('=== TOQUES: el overlay (y su input/botones) queda POR ENCIMA del canvas ===');
@@ -77,6 +77,21 @@ console.log('=== TECLADO / anti-zoom iOS: campo alto 48, texto 16px, sin autofoc
   chk('input alto 48 y 16px', /\.nombre-input \{[\s\S]{0,220}height: 48px;[\s\S]{0,220}font: 600 16px/.test(css));
   chk('sin autofocus agresivo (no .focus() en el prompt)', !/nombreInput\.focus\(\)/.test(main));
   chk('maxlength 8', /id="nombreInput"[\s\S]{0,140}maxlength="8"/.test(html));
+}
+
+console.log('=== LEY: los SEIS overlays vigentes tienen botón de salida ===');
+{
+  const salidas = {
+    nombre: /id="nombreOmitir"|id="nombreOk"/,
+    inicio: /id="jugar"/,
+    actualizaciones: /id="actuCerrar"/,
+    ranking: /id="rankCerrar"/,
+    gameover: /id="jugar60"|id="jugar30"|id="jugar15"/,
+    pausa: /id="continuar"|id="reiniciar"/,
+  };
+  Object.keys(salidas).forEach(function (id) {
+    chk('#' + id + ' tiene botón de salida', salidas[id].test(html));
+  });
 }
 
 console.log(`\n== RESUMEN overlays: ${ok} OK, ${ko} NO ==`);

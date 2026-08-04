@@ -38,7 +38,7 @@ console.log('=== Cableado: se cobra Y se muestra en el 2º golpe, JUNTOS, una ve
   // El bono se ANOTA en el 2º golpe (=== 2, no >= 2 → una sola vez por bola).
   chk('anota +500 exactamente en el 2º golpe (b.golpes === 2)', /if \(b\.golpes === 2\) \{[\s\S]{0,120}P\.anotarCarambola\(marcador, 2\)/.test(main));
   // ACOPLADO: mostrar va JUNTO al anotar, en el mismo bloque, misma línea de ejecución.
-  chk('muestra el número en el MISMO bloque del anotar (acoplado)', /P\.anotarCarambola\(marcador, 2\)[\s\S]{0,200}mostrarBonoCarambola\(r\.px, r\.py\)/.test(main));
+  chk('muestra el número en el MISMO bloque del anotar (acoplado)', /P\.anotarCarambola\(marcador, 2\)[\s\S]{0,400}mostrarBonoCarambola\(r\.px, r\.py\)/.test(main));
   // No hay número sin puntos ni puntos sin número: mostrarBonoCarambola se llama UNA vez
   // (fuera de su definición) y SIEMPRE tras anotarCarambola.
   chk('mostrarBonoCarambola se llama UNA sola vez (tras anotar)', (main.match(/mostrarBonoCarambola\(r\.px, r\.py\)/g) || []).length === 1);
@@ -77,7 +77,7 @@ console.log('=== DOS BOLAS SIMULTÁNEAS → dos números distintos (lógica) ===
 
 console.log('=== La racha sigue subiendo UNA vez por bola (sin cambios) ===');
 {
-  chk('anotarHit gateado por b.tocado (primer toque, una vez por bola)', /if \(!b\.tocado\) \{[\s\S]{0,120}b\.tocado = true;[\s\S]{0,80}P\.anotarHit\(marcador\)/.test(main));
+  chk('anotarHit gateado por b.tocado (primer toque, una vez por bola)', /if \(!b\.tocado\) \{[\s\S]{0,120}b\.tocado = true;[\s\S]{0,200}P\.anotarHit\(marcador\)/.test(main));
   const m = { puntos: 0, racha: 0 };
   P.anotarHit(m); chk('anotarHit sube la racha en 1', m.racha === 1);
 }

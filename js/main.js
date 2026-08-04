@@ -135,8 +135,14 @@
   // Parametrizado para no duplicar la maquinaria de partida: el reloj y el
   // temporizador leen DURACIONES[modo] (mismo código para 15/30/60).
   const DURACIONES = { '15': 15 * 1000, '30': 30 * 1000, '60': 60 * 1000 };
+  // Contadores de la PARTIDA para el registro ANÓNIMO en el servidor (js/ranking.js).
+  // Se reinician con cada partida. tiros = bolas lanzadas; aciertos = las que golpearon
+  // algo; rachaMax = racha más alta; carambolas = bonos de carambola cobrados; pPuntosFin
+  // = puntaje al morir por CloudOver (el score se vacía a 0, así que se captura aparte).
+  let pTiros = 0, pAciertos = 0, pRachaMax = 0, pCarambolas = 0, pPuntosFin = 0;
   function reiniciarEstado() {
     marcador.puntos = 0; marcador.racha = 0;
+    pTiros = 0; pAciertos = 0; pRachaMax = 0; pCarambolas = 0; pPuntosFin = 0;
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; bonos.length = 0; multAnterior = 1;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null; sacudidaCloudover = null;
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
@@ -169,13 +175,39 @@
     if (!jugando) return;
     jugando = false;
     const ahora = performance.now();
-    // esRecord ANTES de escribir (terminar sube el record si corresponde). Sólo por tiempo.
-    const esRecord = porTiempo && marcador.puntos >= record.valor && marcador.puntos > 0;
+    // superaRecord ANTES de escribir (record.valor es el récord viejo). esRecord añade
+    // el requisito de que sea por tiempo (regla: el récord sólo cuenta si se cumplió).
+    const superaRecord = marcador.puntos >= record.valor && marcador.puntos > 0;
+    const esRecord = porTiempo && superaRecord;
     const scoreFinal = porTiempo ? marcador.puntos : 0; // CloudOver = vaciado a 0
+    // RÉCORD LOCAL: se guarda como siempre, ANTES y con independencia del envío (sellado).
     record.terminar(scoreFinal, ahora, !!porTiempo);
     actualizarRecord();
     pintarFin(scoreFinal, esRecord);
+    // ── SERVIDOR (segundo plano, blindado: la red JAMÁS bloquea ni rompe el fin) ──
+    try { enviarAlServidor(porTiempo, superaRecord); } catch (e) { /* un fallo de red no llega al juego */ }
     cascEvento('terminarPartida', 'porTiempo:' + !!porTiempo + ' score:' + scoreFinal);
+  }
+  // Manda al servidor de ranking, todo en segundo plano (ranking.js no espera nada).
+  //  · /partida SIEMPRE (anónimo, coherente): por tiempo o por CloudOver.
+  //  · /score SÓLO si por tiempo, superó el récord y hay nombre guardado.
+  function enviarAlServidor(porTiempo, superaRecord) {
+    if (typeof Ranking === 'undefined') return;          // sin el módulo, el juego sigue igual
+    const modo = modoJuego;
+    if (!DURACIONES[modo]) return;
+    // duración REAL jugada = duración del modo − lo que quedó (clamp 0..duración del modo).
+    const dur = Math.round(Math.max(0, Math.min(DURACIONES[modo], DURACIONES[modo] - Math.max(0, tiempoRestante))));
+    // puntaje de la partida: por tiempo = score final; por CloudOver = el que tenía al morir.
+    const puntosPartida = porTiempo ? marcador.puntos : pPuntosFin;
+    Ranking.enviarPartida(Ranking.armarDatosPartida({
+      modo: modo, puntos: puntosPartida, duracionReal: dur,
+      termino: porTiempo ? 'tiempo' : 'cloudover',
+      tiros: pTiros, aciertos: pAciertos, rachaMax: pRachaMax, carambolas: pCarambolas,
+      plataforma: esDesktop ? 'escritorio' : 'movil',
+    }));
+    if (Ranking.decidirEnviarPuntaje({ porTiempo: porTiempo, superaRecord: superaRecord, nombre: nombreUsuario })) {
+      Ranking.enviarPuntaje(nombreUsuario, marcador.puntos, modo);
+    }
   }
   // Pinta el overlay de fin con el score y el aviso de récord (diseño sin cambios).
   function pintarFin(score, esRecord) {
@@ -193,6 +225,7 @@
   // falla, salta directo al overlay (el juego NUNCA queda trabado sin salida).
   function golpeCloudover(tg, px, py) {
     if (secuencia || !jugando) return;
+    pPuntosFin = marcador.puntos; // puntaje al morir (antes del vaciado a 0) → /partida
     cascEvento('golpeCloudover', 'px:' + Math.round(px) + ' py:' + Math.round(py));
     try {
       const centros = F.cubosVivosMundo(tg);
@@ -359,6 +392,100 @@
   }
   if (btnVerActualizaciones) btnVerActualizaciones.addEventListener('click', abrirActualizaciones);
   if (btnActuCerrar) btnActuCerrar.addEventListener('click', cerrarActualizaciones);
+
+  // ── PANTALLA DE RANKING (FASE 30): tabla del servidor vía js/ranking.js ──────────
+  // Selector de modo + tabla (hasta 20, mayor a menor). TRES estados: cargando, con
+  // datos, y error (con "Reintentar"). Nunca pantalla en blanco ni giro infinito. Los
+  // nombres del servidor se insertan como TEXTO (textContent), nunca como HTML.
+  const elRanking = document.getElementById('ranking');
+  const elRankCuerpo = document.getElementById('rankCuerpo');
+  const btnVerRanking = document.getElementById('verRanking');
+  const btnRankCerrar = document.getElementById('rankCerrar');
+  const botonesRankSel = elRanking ? elRanking.querySelectorAll('.rank-sel') : [];
+  let rankModo = '60';   // modo mostrado en el ranking
+  let rankPeticion = 0;  // token de relevo: descarta respuestas viejas
+  function marcarModoRank() {
+    for (let i = 0; i < botonesRankSel.length; i++) {
+      botonesRankSel[i].classList.toggle('sel-activo', botonesRankSel[i].getAttribute('data-modo') === rankModo);
+    }
+  }
+  function rankEstado(texto, conReintento) {
+    if (!elRankCuerpo) return;
+    elRankCuerpo.textContent = '';
+    const div = document.createElement('div');
+    div.className = 'rank-estado';
+    div.textContent = texto;
+    elRankCuerpo.appendChild(div);
+    if (conReintento) {
+      const b = document.createElement('button');
+      b.className = 'go-reiniciar rank-reintentar';
+      b.textContent = 'Reintentar';
+      b.addEventListener('click', function () { cargarRanking(); });
+      div.appendChild(b);
+    }
+  }
+  function pintarTabla(top) {
+    if (!elRankCuerpo) return;
+    if (!top || top.length === 0) { rankEstado('Aún no hay puntajes en este modo. ¡Sé el primero!', false); return; }
+    elRankCuerpo.textContent = '';
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < top.length && i < 20; i++) {
+      const e = top[i] || {};
+      const puesto = i + 1;
+      const fila = document.createElement('div');
+      fila.className = 'rank-fila';
+      const cel = document.createElement('div');
+      cel.className = 'rank-puesto';
+      const icono = Ranking.iconoDePuesto(puesto); // 1/2/3 → icono; resto → número
+      if (icono) {
+        const img = document.createElement('img');
+        img.src = icono; img.alt = 'Puesto ' + puesto; img.setAttribute('aria-hidden', 'true');
+        cel.appendChild(img);
+      } else {
+        cel.textContent = String(puesto);
+      }
+      const nom = document.createElement('div');
+      nom.className = 'rank-nombre';
+      nom.textContent = typeof e.nombre === 'string' ? e.nombre : ''; // TEXTO, jamás HTML
+      const pts = document.createElement('div');
+      pts.className = 'rank-puntos';
+      pts.textContent = U.abreviarNumero(typeof e.puntos === 'number' ? e.puntos : 0);
+      if (nombreUsuario && e.nombre === nombreUsuario) fila.classList.add('rank-yo'); // destaca al jugador
+      fila.appendChild(cel); fila.appendChild(nom); fila.appendChild(pts);
+      frag.appendChild(fila);
+    }
+    elRankCuerpo.appendChild(frag);
+  }
+  function cargarRanking() {
+    if (typeof Ranking === 'undefined') { rankEstado('No se pudo cargar la tabla.', true); return; }
+    const token = ++rankPeticion;
+    rankEstado('Cargando…', false);
+    Ranking.pedirTop(rankModo).then(function (res) {
+      if (token !== rankPeticion) return; // respuesta vieja (se cambió de modo / recargó) → ignorar
+      if (res && res.ok) pintarTabla(res.top);
+      else rankEstado('No se pudo cargar la tabla. Revisá tu conexión.', true);
+    });
+  }
+  function elegirModoRank(modo) { rankModo = modo; marcarModoRank(); cargarRanking(); }
+  for (let i = 0; i < botonesRankSel.length; i++) {
+    botonesRankSel[i].addEventListener('click', (function (btn) {
+      return function () { elegirModoRank(btn.getAttribute('data-modo')); };
+    })(botonesRankSel[i]));
+  }
+  function abrirRanking() {
+    rankModo = modoInicioSel; // arranca en el modo que el jugador usó la última vez
+    marcarModoRank();
+    if (elRankCuerpo) elRankCuerpo.scrollTop = 0;
+    if (elInicio) elInicio.classList.add('oculto');
+    if (elRanking) elRanking.classList.remove('oculto');
+    cargarRanking();
+  }
+  function cerrarRanking() {
+    if (elRanking) elRanking.classList.add('oculto');
+    mostrarPantallaInicio(); // siempre hay salida
+  }
+  if (btnVerRanking) btnVerRanking.addEventListener('click', abrirRanking);
+  if (btnRankCerrar) btnRankCerrar.addEventListener('click', cerrarRanking);
   // Reconciliación del nombre (async, IDB): si aparece un nombre guardado y aún no lo
   // teníamos (p.ej. local vacío pero IDB lo conserva), lo adopta y cierra el prompt.
   nombreStore.reconciliar().then(function (v) {
@@ -909,11 +1036,13 @@
     miraX = mx; miraY = my; miraActiva = true;
     marcarActividad();
     disparos.push({ x: mx, y: my, inicio: ahora }); // destello del tiro
+    pTiros += 1;                             // un tiro (hitscan) lanzado
     for (let ti = targets.length - 1; ti >= 0; ti--) {
       const tg = targets[ti];
       if (!tg.haEntrado) continue;           // NO golpeable hasta ENTRAR (mismo criterio que la bola)
       const idx = F.celdaEnPunto(tg, mx, my);
       if (idx < 0) continue;                 // la mira no está sobre un cubo vivo
+      pAciertos += 1;                        // la mira dio en un cubo (acierto ≤ tiros)
       if (tg.rojo) { golpeCloudover(tg, mx, my); return; } // impacto en ROJO → secuencia CloudOver
       // NARANJA normal: destruye el cubito impactado (preciso, 1 cubo). GRANDE:
       // más pesado + hitball chica → cada golpe demuele su ZONA (¼ = ceil(vivosMax/4))
@@ -927,6 +1056,7 @@
       tg.masa = F.FISICA.MASA_TARGET * (tg.vivos / 20);
       tg.destelloHasta = ahora + DESTELLO_MS;
       P.anotarHit(marcador);                 // disparo certero = hit (sube la racha)
+      if (marcador.racha > pRachaMax) pRachaMax = marcador.racha;
       P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, ahora);
       const g = P.anotarDestruidos(marcador, arrancadas.length); // cubos × 5 × racha
       explotarCubos(centros, mx, my, 1.0, tg.vx, tg.vy, ACENTO.base);
@@ -970,6 +1100,7 @@
       ultimoX: fin.x, ultimoY: fin.y, // posición del último impacto (dónde nace el bono flotante)
       historia: [],
     });
+    pTiros += 1;                             // una bola (móvil) lanzada
     ultimoDisparo = performance.now();
   }
 
@@ -1149,13 +1280,16 @@
         // adelante NO pasa nada (ni puntos, ni número). No se cobra a la muerte.
         if (b.golpes === 2) {
           P.anotarCarambola(marcador, 2);      // +500 (limpio, sin racha), una sola vez
+          pCarambolas += 1;                    // una carambola cobrada (para /partida)
           cascEvento('anotarCarambola', 'golpes:2 bono:500');
           mostrarBonoCarambola(r.px, r.py);    // mismo instante y punto (actualizarMarcador abajo lo refleja)
         }
         tg.destelloHasta = t + DESTELLO_MS;    // destello en CUALQUIER contacto
         if (!b.tocado) {                       // primer toque = hit (sube la racha continua)
           b.tocado = true;
+          pAciertos += 1;                      // esta bola golpeó algo (una vez por bola → acierto ≤ tiros)
           P.anotarHit(marcador);
+          if (marcador.racha > pRachaMax) pRachaMax = marcador.racha;
           cascEvento('anotarHit', 'racha:' + marcador.racha);
           P.quizasRespiro(ritmo, marcador.puntos, marcador.racha, t); // respiro al 10º hit en dif. máx
         }

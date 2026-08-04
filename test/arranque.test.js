@@ -30,7 +30,7 @@ console.log('=== El arranque llega al inicio en los TRES casos de nombre ===');
 console.log('=== Botón "Actualizaciones" en el inicio, secundario y cableado ===');
 {
   chk('botón #verActualizaciones existe en #inicio con el texto "Actualizaciones"', /<button id="verActualizaciones" class="ini-actu">Actualizaciones<\/button>/.test(html));
-  chk('vive dentro del overlay #inicio, después de JUGAR', /id="jugar"[\s\S]{0,120}id="verActualizaciones"/.test(html));
+  chk('vive dentro del overlay #inicio, después de JUGAR', /id="jugar"[\s\S]{0,250}id="verActualizaciones"/.test(html));
   chk('NO reusa la clase de JUGAR (.ini-jugar): es secundario', !/class="[^"]*ini-jugar[^"]*"[^>]*id="verActualizaciones"/.test(html) && /class="ini-actu"/.test(html));
   chk('el estilo .ini-actu es secundario (sin relleno, texto chico apagado)', /\.ini-actu \{[\s\S]{0,160}background: transparent;/.test(css));
   chk('cableado: abre actualizaciones y oculta inicio', /function abrirActualizaciones\(\) \{[\s\S]{0,200}elInicio\.classList\.add\('oculto'\)[\s\S]{0,160}elActualizaciones\.classList\.remove\('oculto'\)/.test(main));
