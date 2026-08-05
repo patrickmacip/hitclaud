@@ -14,6 +14,15 @@
 
   const versiones = [
     {
+      version: '2.3', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'El contador de tiempo ahora domina la pantalla' },
+        { texto: 'La mira de ShotClaud se ve sobre cualquier fondo' },
+        { texto: 'Acertar al centro se celebra en dorado' },
+        { texto: 'Fuera los contornos sucios de los números' },
+      ],
+    },
+    {
       version: '2.2', fecha: '3 de agosto',
       puntos: [
         { texto: 'ShotClaud ya compite en el ranking global' },

@@ -30,11 +30,11 @@ console.log('=== La barra NO tiene etiquetas de texto (D1/P1): ni "Record" ni "A
 console.log('=== Tres zonas: récord (corona+número), centro (puntaje+tiempo), salir (casa) ===');
 {
   chk('récord: corona + #barraRecord', /barra-record[\s\S]{0,120}#ic-corona[\s\S]{0,90}id="barraRecord"/.test(barra));
-  chk('centro: puntaje #barraActual + tiempo #barraTiempo apilados', /barra-centro[\s\S]{0,120}id="barraActual"[\s\S]{0,120}id="barraTiempo"/.test(barra));
+  chk('centro: puntaje #barraActual (el tiempo se movió a la marca de agua del canvas)', /barra-centro[\s\S]{0,120}id="barraActual"/.test(barra) && !/id="barraTiempo"/.test(barra));
   chk('salir: botón con icono de casa y área táctil 44×44', /id="botonSalir"[\s\S]{0,120}#ic-casa/.test(barra) && /\.barra-salir \{[\s\S]{0,120}width: 44px;[\s\S]{0,60}height: 44px;/.test(css));
   chk('el récord y el salir son tenues (bajo contraste, referencia)', /\.barra-record \{[\s\S]{0,120}color: var\(--texto-apagado/.test(css) && /\.barra-salir \{[\s\S]{0,300}color: var\(--texto-apagado/.test(css));
   chk('el puntaje del centro es blanco y dominante (texto-xl)', /\.barra-centro \.valor \{[\s\S]{0,140}color: var\(--blanco/.test(css) && /\.barra-centro \.valor \{[\s\S]{0,60}font: var\(--texto-xl\)/.test(css));
-  chk('cifras de ancho fijo en puntaje y tiempo (P6)', /\.barra-centro \.valor \{[\s\S]{0,200}tabular-nums/.test(css) && /\.barra-tiempo \{[\s\S]{0,120}tabular-nums/.test(css));
+  chk('cifras de ancho fijo en el puntaje (P6)', /\.barra-centro \.valor \{[\s\S]{0,200}tabular-nums/.test(css));
 }
 
 console.log('=== El nombre saluda en el INICIO, editable ===');

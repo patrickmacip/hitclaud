@@ -46,19 +46,19 @@ console.log('\n=== Halo sustituto SIN blur en los 3 sitios de móvil ===');
   // 1) Bolita: dos arcos concéntricos (r+6, r+3) a baja alfa.
   chk('bolita: halo por arcos concéntricos (RADIO+6 y RADIO+3)', /RADIO \+ 6[\s\S]*?RADIO \+ 3/.test(cuerpoBolita));
   chk('bolita: alfas del halo 0.18 y 0.30', /globalAlpha = 0\.18[\s\S]*?globalAlpha = 0\.30/.test(cuerpoBolita));
-  // 2) Badge ×N y 3) Flotante grande: halo de texto barato (haloTexto).
-  chk('helper haloTexto() existe (trazo sin blur)', /function haloTexto\(/.test(main) && /strokeText\(/.test(main));
-  chk('badge ×N sin haloTexto (FASE 29: halo por disco cacheado, sin contorno)', !/haloTexto\(txtMult/.test(main) && /ctx\.drawImage\(discoMult\.canvas/.test(main));
-  chk('flotante grande usa haloTexto (si fl.glow)', /if \(fl\.glow\) haloTexto\(/.test(main));
-  // (Extra declarado) el temporizador también recibió el halo barato.
-  chk('temporizador SIN haloTexto (FASE 23: contador sin contorno) — sigue sin shadowBlur', !/haloTexto\(txt, 0, 0, colTimer/.test(main) && (main.match(/ctx\.shadowBlur/g) || []).length === 1);
+  // 2) Badge ×N y 3) Flotante grande: halo por DISCO cacheado (CAMBIO 2: sin strokeText).
+  chk('ya NO existe haloTexto ni strokeText de números (contorno eliminado)', !/function haloTexto\(/.test(main) && !/ctx\.strokeText\(/.test(main));
+  chk('badge ×N con halo por disco cacheado (sin contorno)', /ctx\.drawImage\(discoMult\.canvas/.test(main));
+  chk('flotante grande usa disco cacheado (discoFlotante) si fl.glow', /if \(fl\.glow && discoFlotante\)[\s\S]{0,200}drawImage\(discoFlotante\.canvas/.test(main));
+  // Sin ningún strokeText de números y una sola asignación de shadowBlur (regla dura).
+  chk('sin strokeText de números y una sola asignación de shadowBlur', !/ctx\.strokeText\(/.test(main) && (main.match(/ctx\.shadowBlur/g) || []).length === 1);
 }
 
 console.log('\n=== Nada más cambió: colores, tamaños y posiciones idénticos ===');
 {
   chk('FRANJA_PX = 28 (ancho de borde intacto)', /const FRANJA_PX = 28;/.test(main));
   chk('colores de borde/contador intactos', /ROJO_BORDE = '#FF0055', ROJO_CONTADOR = '#FF4583'/.test(main));
-  chk('timer movido al DOM (barra): actualizarTiempo, sin dibujo del contador en canvas', /function actualizarTiempo\(\)/.test(main) && !/ctx\.font = '800 32px '/.test(main) && !/ctx\.translate\(W \/ 2, 88\)/.test(main));
+  chk('contador = marca de agua en canvas CACHEADA (drawImage por cuadro, se re-rasteriza al cambiar)', /function dibujarContadorTiempo\(\)/.test(main) && /contadorCache\.txt !== txt \|\| contadorCache\.urgente !== urgente/.test(main) && /ctx\.drawImage\(contadorCache\.canvas/.test(main));
   // FASE 29: badge de tamaño FIJO 42 (MULT_ASIENTO), sin crecer con la racha; posición
   // por mx/my (W/2, max(158,H*0.16)) sin translate (dibuja en coords absolutas).
   chk('badge: tamaño fijo 42 (MULT_ASIENTO) y posición (W/2, max(158,H*0.16)) intactas', /const MULT_ASIENTO = 42;/.test(main) && /mx = W \/ 2, my = Math\.max\(158, H \* 0\.16\)/.test(main) && !/26 \+ Math\.min\(20, marcador\.racha\)/.test(main));

@@ -48,25 +48,20 @@
   const elActual = document.getElementById('barraActual');
   function actualizarMarcador() { elActual.textContent = U.abreviarNumero(marcador.puntos); }
   // TEMPORIZADOR en la barra (centro, bajo el puntaje). Antes se dibujaba en el canvas y
-  // los targets lo tapaban (D3); ahora vive en el DOM, junto al puntaje. "M:SS", cifras de
-  // ancho fijo (P6). Últimos 5 s: clase .urgente → rojo + latido por CSS (1.5, sin shadowBlur).
-  const elTiempo = document.getElementById('barraTiempo');
+  // El CONTADOR es una MARCA DE AGUA en el canvas (dibujarContadorTiempo): enorme, blanca y
+  // translúcida, DETRÁS de todo, centrada en el área de juego (ya no vive en la barra, 1.5).
+  // "M:SS", cifras de ancho fijo. Últimos 5 s: rojo + latido, ahora en el canvas (1.7).
   let tiempoUrgente = false;
   function fmtTiempo(ms) {
     const seg = Math.ceil(Math.max(0, ms) / 1000);
     return Math.floor(seg / 60) + ':' + (seg % 60 < 10 ? '0' + (seg % 60) : seg % 60);
   }
+  // El CONTADOR se DIBUJA en el canvas (marca de agua, dibujarContadorTiempo). Aquí sólo se
+  // mantiene el ESTADO de urgencia (últimos 5 s) que ese dibujo lee. La LÓGICA del tiempo NO
+  // cambia (1.8): el reloj sigue corriendo en el bucle y termina por tiempo igual que antes.
   function actualizarTiempo() {
-    if (!elTiempo) return;
-    if (!jugando || !DURACIONES[modoJuego]) { // fuera de partida: sin cuenta ni latido
-      if (elTiempo.textContent !== '') elTiempo.textContent = '';
-      if (tiempoUrgente) { elTiempo.classList.remove('urgente'); tiempoUrgente = false; }
-      return;
-    }
-    const txt = fmtTiempo(tiempoRestante);
-    if (elTiempo.textContent !== txt) elTiempo.textContent = txt;
-    const urg = tiempoRestante <= 5000; // 1.5: últimos 5 segundos
-    if (urg !== tiempoUrgente) { elTiempo.classList.toggle('urgente', urg); tiempoUrgente = urg; }
+    if (!jugando || !DURACIONES[modoJuego]) { tiempoUrgente = false; return; } // fuera de partida: sin urgencia
+    tiempoUrgente = tiempoRestante <= 5000; // 1.7: últimos 5 segundos
   }
 
   // PERSISTENCIA POR MODO (FASE 10): dos datos {record, ultimoScore} por modo,
@@ -983,19 +978,82 @@
     const A = hexRgb(a), B = hexRgb(b);
     return 'rgb(' + Math.round(A.r + (B.r - A.r) * t) + ',' + Math.round(A.g + (B.g - A.g) * t) + ',' + Math.round(A.b + (B.b - A.b) * t) + ')';
   }
-  // Discos cacheados UNA sola vez (blindado): el del bono y el del multiplicador.
-  let discoBono = null, discoMult = null;
+  // Discos cacheados UNA sola vez (blindado): bono, multiplicador y FLOTANTE (glow sin
+  // strokeText — reemplaza al contorno del halo de texto, CAMBIO 2). Radios por su tamaño.
+  const FLOTANTE_GLOW = ACENTO.vivo; // los flotantes con glow siempre son del acento vivo
+  let discoBono = null, discoMult = null, discoFlotante = null;
   try { discoBono = construirDisco(BONO_COLOR, BONO_ASIENTO); } catch (e) { discoBono = null; }
   try { discoMult = construirDisco(MULT_COLOR, MULT_ASIENTO); } catch (e) { discoMult = null; }
+  try { discoFlotante = construirDisco(FLOTANTE_GLOW, 30); } catch (e) { discoFlotante = null; }
+
+  // ── CONTADOR de tiempo: MARCA DE AGUA (canvas, DETRÁS de todo) ─────────────────────
+  // Enorme (7× el temporizador anterior de 15px → 105px), peso máximo, BLANCO, muy
+  // translúcido (~12%; sube a ~20% en los últimos 5 s para que urja). Centrado en el ÁREA
+  // DE JUEGO, no en la barra (1.5). Cifras de ANCHO FIJO: cada carácter se rasteriza en una
+  // celda del ancho del '0' → no baila al cambiar de segundo (1.6). Se CACHEA en un lienzo
+  // offscreen y sólo se re-rasteriza cuando cambia el texto o el estado (≈1 vez/seg, no por
+  // cuadro): cada cuadro es un drawImage barato con su alfa/escala. SIN shadowBlur (1.9).
+  const CONTADOR_TAM = 105;             // px (7 × 15 del temporizador anterior)
+  const CONTADOR_ALFA = 0.12;           // opacidad normal (marca de agua, 1.3)
+  const CONTADOR_ALFA_URG = 0.20;       // opacidad en los últimos 5 s (urge un poco más, 1.7)
+  const CONTADOR_ROJO = tk('--tiempo-urgente', '#FF4D4D'); // rojo de alarma (mismo token que el DOM antes)
+  let contadorCache = null;             // { txt, urgente, canvas, w, h } — se re-rasteriza al cambiar
+
+  // Rasteriza el contador (blanco o rojo) en un lienzo offscreen, con DÍGITOS DE ANCHO FIJO
+  // (cada carácter centrado en su celda; los dígitos usan el ancho del '0'). Se llama sólo al
+  // cambiar el texto/estado, nunca por cuadro.
+  function rasterizarContador(txt, color) {
+    const cv = document.createElement('canvas');
+    const f = '900 ' + CONTADOR_TAM + 'px ' + COLOR.fuente; // peso máximo (1.2)
+    const m = cv.getContext('2d'); m.font = f;
+    const celda = Math.ceil(m.measureText('0').width) || CONTADOR_TAM;   // ancho de un dígito
+    const colon = Math.ceil(m.measureText(':').width) || Math.round(CONTADOR_TAM / 3);
+    const anchos = []; let ancho = 0;
+    for (let i = 0; i < txt.length; i++) { const w = txt[i] === ':' ? colon : celda; anchos.push(w); ancho += w; }
+    const alto = Math.ceil(CONTADOR_TAM * 1.3);
+    cv.width = Math.max(1, ancho); cv.height = Math.max(1, alto);
+    const c2 = cv.getContext('2d');
+    c2.font = f; c2.fillStyle = color; c2.textAlign = 'center'; c2.textBaseline = 'middle';
+    let x = 0;
+    for (let i = 0; i < txt.length; i++) { c2.fillText(txt[i], x + anchos[i] / 2, alto / 2); x += anchos[i]; }
+    return { canvas: cv, w: cv.width, h: cv.height };
+  }
+  // Dibuja la marca de agua del contador. DETRÁS de todo (se llama antes de la cámara y los
+  // targets). Sólo durante una partida cronometrada. NO cambia la lógica del tiempo (1.8).
+  function dibujarContadorTiempo() {
+    if (!jugando || !DURACIONES[modoJuego]) return;
+    const txt = fmtTiempo(tiempoRestante);
+    const urgente = !!tiempoUrgente;
+    if (!contadorCache || contadorCache.txt !== txt || contadorCache.urgente !== urgente) {
+      const r = rasterizarContador(txt, urgente ? CONTADOR_ROJO : '#FFFFFF');
+      contadorCache = { txt: txt, urgente: urgente, canvas: r.canvas, w: r.w, h: r.h };
+    }
+    // Latido en los últimos 5 s: escala 1.0 → 1.12 → 1.0, un ciclo por segundo (como el DOM).
+    const pulso = urgente ? (1 + 0.06 * (1 - Math.cos(performance.now() / 1000 * 2 * Math.PI))) : 1;
+    const alfa = urgente ? CONTADOR_ALFA_URG : CONTADOR_ALFA;
+    const w = contadorCache.w * pulso, h = contadorCache.h * pulso;
+    ctx.save();
+    ctx.globalAlpha = alfa;
+    ctx.drawImage(contadorCache.canvas, W / 2 - w / 2, H / 2 - h / 2, w, h);
+    ctx.restore();
+  }
   // Estado del badge de multiplicador: para detectar el CAMBIO de valor (rebote+destello).
   let multAnterior = 1, multCambioEn = -Infinity;
   // Lista de números de bono activos (uno por carambola; independientes de su bola).
   const bonos = [];
   // Crea el número del bono en el impacto del 2º golpe. Jitter X −8..+8. Texto fijo
-  // "+500 / HITS ×2" (el bono ya no varía), una sola duración.
+  // "+500 / HITS ×2" (la carambola de HitClaud no varía), una sola duración.
   function mostrarBonoCarambola(x, y) {
-    bonos.push({ x: x + rnd(-8, 8), y: y, inicio: performance.now() });
+    bonos.push({ x: x + rnd(-8, 8), y: y, inicio: performance.now(), texto: '+500', sub: 'HITS ×2' });
     if (bonos.length > 8) bonos.shift(); // tope de seguridad (no se alcanza en juego)
+  }
+  // CAMBIO 3: celebración del disparo AL CENTRO de ShotClaud — MISMO lenguaje visual que la
+  // carambola (número DORADO que sale del impacto, con destello blanco→dorado y rebote).
+  // Reutiliza la mecánica de `bonos`; el texto es el valor ganado (200 × multiplicador). Sin
+  // 2ª línea (no es carambola). El fuera-de-centro NO lo usa: sale su +50 discreto (3.4).
+  function mostrarBonoCentro(x, y, g) {
+    bonos.push({ x: x + rnd(-8, 8), y: y, inicio: performance.now(), texto: '+' + g });
+    if (bonos.length > 8) bonos.shift();
   }
   // Tamaño de fuente de una GANANCIA según su magnitud (20px chico → 44px enorme;
   // glow desde +300). A mayor ganancia, más grande y brillante.
@@ -1594,6 +1652,7 @@
     miraX = mx; miraY = my; miraActiva = true;
     marcarActividad();
     miraDisparoEn = ahora;                   // retroceso de la cruz
+    miraFlashEn = ahora; miraFlashCentro = false; // 3.5: destello breve en la mira en CADA tiro (acierto o fallo)
     pTiros += 1;                             // un tiro lanzado
     for (let ti = targets.length - 1; ti >= 0; ti--) {
       const tg = targets[ti];
@@ -1618,7 +1677,11 @@
         targets.splice(ti, 1);
         sacudidaHasta = ahora + SACUDIDA_MS;
         flashShot(mx, my, ahora, true);
-        pintarGananciaShot(mx, my, r.ganancia, true);
+        // CAMBIO 3: se CELEBRA con el número DORADO de la carambola (destello + rebote), no el
+        // flotante discreto. El valor es la ganancia (200 × multiplicador).
+        mostrarBonoCentro(mx, my, r.ganancia);
+        popMarcador();
+        actualizarMarcador();
         return;
       }
       // FUERA del centro (target INTACTO): DEMUELE ~la mitad en la zona del impacto; el pedazo
@@ -2057,10 +2120,13 @@
     // DESTELLO de acierto sobre la cruz: la tiñe más viva un instante (centro = más).
     const fdt = ahoraB - miraFlashEn;
     const flash = (fdt >= 0 && fdt < MIRA_FLASH_MS) ? (1 - fdt / MIRA_FLASH_MS) : 0;
+    // CAMBIO 4: LA MIRA en BLANCO PURO (antes compartía el naranja de la cascada y se perdía).
+    // Trazo grueso y opacidad plena → se lee sobre CUALQUIER fondo (cascada, targets, cubos,
+    // explosión). Sin contorno oscuro, sin shadowBlur.
     ctx.save();
-    ctx.strokeStyle = ACENTO.vivo;
-    ctx.lineWidth = 1.5 + flash * (miraFlashCentro ? 2.5 : 1);
-    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 2.5 + flash * (miraFlashCentro ? 2.5 : 1); // grueso base + engrosa al destellar
+    ctx.globalAlpha = 1;
     ctx.beginPath(); ctx.arc(miraX, miraY, 11 + sep, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(miraX - g1, miraY); ctx.lineTo(miraX - g0, miraY);
@@ -2068,8 +2134,8 @@
     ctx.moveTo(miraX, miraY - g1); ctx.lineTo(miraX, miraY - g0);
     ctx.moveTo(miraX, miraY + g0); ctx.lineTo(miraX, miraY + g1);
     ctx.stroke();
-    ctx.fillStyle = ACENTO.vivo;
-    ctx.beginPath(); ctx.arc(miraX, miraY, 1.5 + flash * 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; // 4.4: punto central BLANCO y visible (donde va el disparo)
+    ctx.beginPath(); ctx.arc(miraX, miraY, 2.5 + flash * 2, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
@@ -2078,6 +2144,7 @@
     const _dib0 = performance.now(); // (debug v41-fps) inicio del cronómetro de dibujo
     ctx.clearRect(0, 0, W, H);
     dibujarFondoDatos(); // CAPA DE FONDO: datos reales FIJOS (valor en vivo), detrás de todo
+    dibujarContadorTiempo(); // CONTADOR marca de agua: fondo, detrás de targets/bola/cubos/efectos (1.4)
 
     // Micro-sacudida de pantalla (solo en destrucción): desplaza todo el dibujo.
     let ox = 0;
@@ -2200,7 +2267,15 @@
       ctx.scale(esc, esc);
       ctx.font = '700 ' + fl.tam + 'px ' + COLOR.fuente;
       const colFl = fl.color || ACENTO.vivo;
-      if (fl.glow) haloTexto(fl.texto, 0, 0, colFl, 4); // halo barato en lugar de shadowBlur
+      // GLOW sin CONTORNO (CAMBIO 2): disco de degradado cacheado detrás del número, en vez
+      // del strokeText del halo. Sin contorno oscuro; la legibilidad la da color + disco + tamaño.
+      if (fl.glow && discoFlotante) {
+        const rr = fl.tam * 1.15;
+        const a0 = ctx.globalAlpha;
+        ctx.globalAlpha = a0 * 0.5;
+        ctx.drawImage(discoFlotante.canvas, -rr, -rr, rr * 2, rr * 2);
+        ctx.globalAlpha = a0;
+      }
       ctx.fillStyle = colFl;
       ctx.fillText(fl.texto, 0, 0);
       ctx.restore();
@@ -2236,14 +2311,18 @@
         ctx.globalAlpha = Math.max(0, alpha) * 0.35;
         ctx.drawImage(discoBono.canvas, cx - rr, cy - rr, rr * 2, rr * 2);
       }
-      // TEXTO dos renglones (sin contorno; el halo lo reemplaza). Renglón 2 al 55%.
+      // TEXTO (sin contorno; el disco de halo lo reemplaza). Carambola = 2 renglones
+      // ('+500' / 'HITS ×2'); centro de ShotClaud = 1 renglón ('+200'), centrado.
       ctx.globalAlpha = Math.max(0, alpha);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = col;
+      const sub = bc.sub;
       ctx.font = '800 ' + fs.toFixed(1) + 'px ' + COLOR.fuente;
-      ctx.fillText('+500', cx, cy - fs * 0.36);
-      ctx.font = '800 ' + (fs * 0.55).toFixed(1) + 'px ' + COLOR.fuente;
-      ctx.fillText('HITS ×2', cx, cy + fs * 0.5);
+      ctx.fillText(bc.texto || '+500', cx, sub ? cy - fs * 0.36 : cy);
+      if (sub) {
+        ctx.font = '800 ' + (fs * 0.55).toFixed(1) + 'px ' + COLOR.fuente;
+        ctx.fillText(sub, cx, cy + fs * 0.5);
+      }
       ctx.restore();
     }
     ctx.globalAlpha = 1;
@@ -2396,7 +2475,10 @@
     let col = t.rojo
       ? (Math.floor(performance.now() / ROJO_PARPADEO_MS) % 2 ? COLOR.cloudoverA : COLOR.cloudoverB)
       : ACENTO.base;
-    if (destella) col = COLOR.crema;
+    // CAMBIO 3.6: el destello de contacto es un PARPADEO MOMENTÁNEO (no cambia el color del
+    // target). En ShotClaud es BLANCO puro (que se vea qué golpeaste); en HitClaud, la crema
+    // de siempre. El color base del target (ACENTO.base / rojo) NO cambia.
+    if (destella) col = esShot() ? '#FFFFFF' : COLOR.crema;
     ctx.fillStyle = col;
     for (let f = 0; f < FILAS; f++) {
       for (let c = 0; c < COLS; c++) {
@@ -2448,20 +2530,9 @@
     ctx.restore();
   }
 
-  // Halo de TEXTO barato (sin blur): un trazo del mismo color a baja alfa detrás
-  // del relleno. Sustituye al shadowBlur en el temporizador, el badge y los
-  // flotantes grandes. Requiere el font/textAlign ya seteados por el llamador;
-  // respeta el globalAlpha vigente (para que el fade del flotante también aplique).
-  function haloTexto(txt, x, y, color, ancho) {
-    const a = ctx.globalAlpha;
-    ctx.save();
-    ctx.globalAlpha = a * 0.35;
-    ctx.lineWidth = ancho || 4;
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = color;
-    ctx.strokeText(txt, x, y);
-    ctx.restore();
-  }
+  // (CAMBIO 2) Se eliminó haloTexto: era el ÚNICO strokeText de números del canvas (contorno
+  // que se veía sucio). Los flotantes con glow ahora usan un DISCO cacheado (discoFlotante);
+  // el bono y el multiplicador ya usaban su disco. Ningún número lleva contorno.
 
   // Desktop: marca el <html> para ocultar el hitmaker y el cursor del sistema
   // (la mira lo reemplaza). Móvil: todo queda como estaba.

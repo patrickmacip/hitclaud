@@ -75,16 +75,8 @@ body {
   font-variant-numeric: tabular-nums; /* P6 */
   transition: transform 0.15s ease-out, color 0.2s ease-out;
 }
-.barra-tiempo {
-  font: var(--texto-s);
-  color: var(--texto-apagado, #8989B1);
-  font-variant-numeric: tabular-nums; /* P6 */
-  transform-origin: center;
-}
-.barra-tiempo:empty { display: none; }
-/* Últimos 5 s (1.5): rojo + latido suave (1.0 → 1.12, un ciclo por segundo). Sin shadowBlur. */
-.barra-tiempo.urgente { color: var(--tiempo-urgente, #FF4D4D); animation: lat-tiempo 1s ease-in-out infinite; }
-@keyframes lat-tiempo { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+/* El CONTADOR de tiempo ya NO vive en la barra: es una marca de agua enorme en el canvas
+   (js/main.js → dibujarContadorTiempo). Rojo + latido de los últimos 5 s también en el canvas. */
 
 /* DERECHA — salir: casa, mismo peso que el récord. Área táctil 44×44 (P4). */
 .barra-salir {

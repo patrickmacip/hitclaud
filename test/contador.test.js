@@ -1,45 +1,63 @@
-// hitclaud — rediseño de interfaz: el temporizador (contador) se movió del canvas al DOM,
-// a la barra, junto al puntaje (D3: antes estaba lejos y los targets lo tapaban). Formato
-// "M:SS", cifras de ancho fijo (P6). En los últimos 5 s: rojo + latido por CSS (1.5, sin
-// shadowBlur). node test/contador.test.js
+// hitclaud — CAMBIO 1: el contador de tiempo pasó a ser una MARCA DE AGUA enorme en el canvas
+// (blanca, translúcida, detrás de todo, centrada en el área de juego). Peso máximo, cifras de
+// ancho fijo, cacheada. Últimos 5 s: rojo + latido. La LÓGICA del tiempo no cambió. Sin
+// shadowBlur, sin strokeText. node test/contador.test.js
 
 const fs = require('fs');
 const main = fs.readFileSync(__dirname + '/../js/main.js', 'utf8');
-const css = fs.readFileSync(__dirname + '/../css/main.css', 'utf8');
 const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
 
 let ok = 0, ko = 0;
 function chk(n, c) { console.log(`  ${n}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) ok++; else ko++; }
 
-console.log('=== El temporizador vive en el DOM (barra), ya NO en el canvas ===');
+console.log('=== El contador es una marca de agua en el CANVAS, ya no vive en la barra (1.5) ===');
 {
-  chk('elemento #barraTiempo en la barra, apilado bajo el puntaje', /barra-centro[\s\S]{0,120}id="barraTiempo"/.test(html));
-  chk('función actualizarTiempo() maneja texto y estado', /function actualizarTiempo\(\)/.test(main));
-  chk('el temporizador YA NO se dibuja en el canvas (sin fillText del contador)', !/const colTimer = urgente/.test(main) && !/ctx\.font = '800 32px '/.test(main));
-  chk('el contador ya no usa haloTexto ni strokeText (nunca fue del canvas otra vez)', !/haloTexto\(txt, 0, 0, colTimer/.test(main));
+  chk('ya NO hay #barraTiempo en el DOM (se movió al canvas)', !/id="barraTiempo"/.test(html));
+  chk('existe la función que lo dibuja (dibujarContadorTiempo)', /function dibujarContadorTiempo\(\)/.test(main));
+  chk('se dibuja durante una partida cronometrada (gateado por DURACIONES[modoJuego])', /function dibujarContadorTiempo\(\) \{\s*if \(!jugando \|\| !DURACIONES\[modoJuego\]\) return;/.test(main));
 }
 
-console.log('=== Formato "M:SS" y cifras de ancho fijo (P6: los números no bailan) ===');
+console.log('=== Tamaño 7×, peso máximo, blanco, opacidad baja (1.1–1.3) ===');
 {
-  chk('formato M:SS con relleno de cero en los segundos', /Math\.floor\(seg \/ 60\) \+ ':' \+ \(seg % 60 < 10 \? '0' \+ \(seg % 60\) : seg % 60\)/.test(main));
-  chk('cifras tabulares en el temporizador', /\.barra-tiempo \{[\s\S]{0,120}tabular-nums/.test(css));
-  chk('tiempo tenue (color secundario) y de menor jerarquía que el puntaje', /\.barra-tiempo \{[\s\S]{0,120}color: var\(--texto-apagado/.test(css));
+  chk('SIETE veces el tamaño anterior (15px → 105px)', /const CONTADOR_TAM = 105;/.test(main));
+  chk('peso máximo de la tipografía (900)', /'900 ' \+ CONTADOR_TAM \+ 'px '/.test(main));
+  chk('opacidad baja ~12% normal', /const CONTADOR_ALFA = 0\.12;/.test(main));
+  chk('sube la opacidad en los últimos 5 s (~20%, urge más, 1.7)', /const CONTADOR_ALFA_URG = 0\.20;/.test(main));
+  chk('color normal BLANCO puro', /rasterizarContador\(txt, urgente \? CONTADOR_ROJO : '#FFFFFF'\)/.test(main));
+  chk('centrado en el ÁREA DE JUEGO (W/2, H/2), no en la barra', /drawImage\(contadorCache\.canvas, W \/ 2 - w \/ 2, H \/ 2 - h \/ 2/.test(main));
 }
 
-console.log('=== Últimos 5 segundos (1.5): rojo + latido, SIN shadowBlur ===');
+console.log('=== Se dibuja DETRÁS de todo: antes de targets, bola, cubos y efectos (1.4) ===');
 {
-  chk('umbral de 5 s marca la clase .urgente', /tiempoRestante <= 5000/.test(main));
-  chk('.urgente pone el temporizador en rojo de alarma', /\.barra-tiempo\.urgente \{[\s\S]{0,80}color: var\(--tiempo-urgente/.test(css));
-  chk('latido por CSS: escala 1.0 → 1.12, un ciclo por segundo (1s)', /\.barra-tiempo\.urgente \{[\s\S]{0,120}animation: lat-tiempo 1s/.test(css) && /@keyframes lat-tiempo \{[\s\S]{0,80}scale\(1\.12\)/.test(css));
-  // El estado urgente destaca por COLOR + ESCALA, nunca por sombra/blur (regla dura, 1.5).
-  const urgente = (css.match(/\.barra-tiempo\.urgente \{[^}]*\}/) || [''])[0];
-  chk('sin box-shadow ni filter en el temporizador urgente (color + escala, nunca blur)', !/box-shadow/.test(urgente) && !/filter/.test(urgente));
+  chk('el contador se dibuja justo tras el fondo y ANTES de la cámara/targets', /dibujarFondoDatos\(\);[\s\S]{0,120}dibujarContadorTiempo\(\);/.test(main));
+  chk('el contador va ANTES que el dibujo de los targets', main.indexOf('dibujarContadorTiempo();') < main.indexOf('dibujarSpriteTarget(t, destella)'));
+  chk('el contador va ANTES que los cubos de explosión', main.indexOf('dibujarContadorTiempo();') < main.indexOf('for (let i = 0; i < cubos.length'));
 }
 
-console.log('=== El puntaje del centro (DOM) sigue con su estilo y su pop ===');
+console.log('=== Cifras de ancho fijo (1.6): no baila al cambiar de segundo ===');
 {
-  chk('.barra-centro .valor blanco, texto-xl, con transición de pop', /\.barra-centro \.valor \{[\s\S]{0,220}transition: transform 0\.15s/.test(css));
-  chk('el helper haloTexto sigue existiendo (lo usan los flotantes)', /function haloTexto\(/.test(main) && /if \(fl\.glow\) haloTexto\(fl\.texto, 0, 0/.test(main));
+  chk('rasteriza cada carácter en una CELDA del ancho del "0" (dígitos) y del ":"', /m\.measureText\('0'\)\.width[\s\S]{0,140}m\.measureText\('\:'\)\.width/.test(main));
+  chk('coloca cada carácter en su celda, centrado', /c2\.fillText\(txt\[i\], x \+ anchos\[i\] \/ 2, alto \/ 2\); x \+= anchos\[i\];/.test(main));
+  chk('formato "M:SS" con relleno de cero (fmtTiempo intacto, 1.8)', /Math\.floor\(seg \/ 60\) \+ ':' \+ \(seg % 60 < 10 \? '0' \+ \(seg % 60\) : seg % 60\)/.test(main));
+}
+
+console.log('=== Últimos 5 segundos (1.7): rojo + latido; la lógica del tiempo NO cambia (1.8) ===');
+{
+  chk('umbral de 5 s marca el estado urgente', /tiempoUrgente = tiempoRestante <= 5000;/.test(main));
+  chk('urgente pinta el contador ROJO (mismo token --tiempo-urgente)', /CONTADOR_ROJO = tk\('--tiempo-urgente'/.test(main) && /urgente \? CONTADOR_ROJO : '#FFFFFF'/.test(main));
+  chk('late en los últimos 5 s (escala sinusoidal 1.0→1.12, un ciclo/seg)', /const pulso = urgente \? \(1 \+ 0\.06 \* \(1 - Math\.cos\(performance\.now\(\) \/ 1000 \* 2 \* Math\.PI\)\)\) : 1;/.test(main));
+  chk('actualizarTiempo conserva el gate por DURACIONES[modoJuego] (lógica intacta)', /function actualizarTiempo\(\)[\s\S]{0,180}!DURACIONES\[modoJuego\]/.test(main));
+  chk('el reloj del bucle sigue igual (DURACIONES[modoJuego] && !secuencia)', /if \(DURACIONES\[modoJuego\] && !secuencia\)/.test(main));
+}
+
+console.log('=== Rendimiento (V6): cacheado; sin shadowBlur ni strokeText (1.9) ===');
+{
+  chk('se CACHEA y sólo se re-rasteriza al cambiar texto o estado (≈1 vez/seg)', /if \(!contadorCache \|\| contadorCache\.txt !== txt \|\| contadorCache\.urgente !== urgente\)/.test(main));
+  chk('cada cuadro es un drawImage barato del lienzo cacheado', /ctx\.drawImage\(contadorCache\.canvas/.test(main));
+  chk('sin strokeText de números y una sola asignación de shadowBlur', !/ctx\.strokeText\(/.test(main) && (main.match(/ctx\.shadowBlur/g) || []).length === 1);
+  const iC = main.indexOf('function dibujarContadorTiempo');
+  const cuerpo = main.slice(iC, iC + 1000); // la función completa; no invade otras
+  chk('el dibujo del contador no usa shadowBlur', cuerpo.indexOf('shadowBlur') === -1 && cuerpo.indexOf('drawImage(contadorCache') !== -1);
 }
 
 console.log(`\n== RESUMEN contador: ${ok} OK, ${ko} NO ==`);
