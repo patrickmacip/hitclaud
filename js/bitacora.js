@@ -14,6 +14,13 @@
 
   const versiones = [
     {
+      version: '2.2', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'ShotClaud ya compite en el ranking global' },
+        { texto: 'La tabla muestra el porcentaje de efectividad de cada jugador' },
+      ],
+    },
+    {
       version: '2.1', fecha: '3 de agosto',
       puntos: [
         { texto: 'ShotClaud ahora guarda tu récord en las dos duraciones' },

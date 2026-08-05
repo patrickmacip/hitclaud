@@ -292,32 +292,34 @@
   //    récord local: el servidor decide si entra al top 20). Por CloudOver no se manda.
   function enviarAlServidor(porTiempo) {
     if (typeof Ranking === 'undefined') return;          // sin el módulo, el juego sigue igual
-    // RANKING POR JUEGO (hoy): el servidor SÓLO acepta los modos de HitClaud. Para los demás
-    // juegos (ShotClaud, etc.) el envío queda LISTO pero INACTIVO: no se dispara ninguna
-    // llamada (/partida ni /score) hasta que el servidor acepte sus modos ('shotclaud:20',
-    // 'shotclaud:60'). Ver el bloque de modoServidor arriba (FALTA DEL LADO DEL SERVIDOR).
-    if (juegoActivo !== 'hitclaud') return;
     const modo = modoJuego;
-    const modoSrv = modoServidor(juegoActivo, modo);     // '15'/'60' para HitClaud (compatible hoy)
+    // MODO DEL SERVIDOR: HitClaud manda la duración PELADA ('15'/'60') — sus tablas dependen de
+    // eso, no se toca. ShotClaud manda con prefijo de juego ('shotclaud:20'/'shotclaud:60').
+    const modoSrv = modoServidor(juegoActivo, modo);
     if (!DURACIONES[modo]) return;
     // duración REAL jugada = duración del modo − lo que quedó (clamp 0..duración del modo).
     const dur = Math.round(Math.max(0, Math.min(DURACIONES[modo], DURACIONES[modo] - Math.max(0, tiempoRestante))));
     // puntaje de la partida: por tiempo = score final; por CloudOver = el que tenía al morir.
     const puntosPartida = porTiempo ? marcador.puntos : pPuntosFin;
-    Ranking.enviarPartida(Ranking.armarDatosPartida({
+    // EFECTIVIDAD: SÓLO ShotClaud la manda (aciertos/disparos, 0..100). HitClaud NUNCA (punto 4).
+    const efc = esShot() ? efectividadPct(pAciertos, pTiros) : null;
+    const datos = {
       modo: modoSrv, puntos: puntosPartida, duracionReal: dur,
       termino: porTiempo ? 'tiempo' : 'cloudover',
       tiros: pTiros, aciertos: pAciertos, rachaMax: pRachaMax, carambolas: pCarambolas,
       plataforma: esDesktop ? 'escritorio' : 'movil',
-    }));
-    // /score: SIEMPRE que sea por tiempo (ya no depende del récord). Se resuelve el NOMBRE
-    // de la fuente más fiable (memoria → localStorage → reconciliar IDB) antes de mandar; al
-    // confirmar el servidor, si el puntaje entró al top, se avisa (sin bloquear el fin).
-    // Por CloudOver / abandono NO se manda /score (sólo /partida, arriba, para las stats).
-    if (porTiempo) {
-      const puntosScore = marcador.puntos;
+    };
+    if (efc !== null) datos.efectividad = efc;
+    Ranking.enviarPartida(Ranking.armarDatosPartida(datos));
+    // /score: HitClaud SÓLO por tiempo (su regla dura: el CloudOver cuesta la partida). ShotClaud
+    // manda SIEMPRE — como casi siempre muere por rojo, su récord cuenta el CloudOver (punto 6),
+    // con el puntaje de la corrida (pPuntosFin). Se resuelve el nombre y, si entró, se avisa.
+    if (porTiempo || esShot()) {
+      const puntosScore = puntosPartida;
       resolverNombre(function (nombre) {
-        Ranking.enviarPuntaje({ nombre: nombre, puntos: puntosScore, modo: modoSrv, porTiempo: true })
+        const envio = { nombre: nombre, puntos: puntosScore, modo: modoSrv, porTiempo: porTiempo, permiteCloudover: esShot() };
+        if (efc !== null) envio.efectividad = efc;
+        Ranking.enviarPuntaje(envio)
           .then(function (reg) { if (reg && reg.estado === 'ok' && reg.entro) mostrarConfirmacionRanking(reg.posicion); });
       });
     }
@@ -775,17 +777,32 @@
       pts.className = 'rank-puntos';
       pts.textContent = U.abreviarNumero(typeof e.puntos === 'number' ? e.puntos : 0);
       if (nombreUsuario && e.nombre === nombreUsuario) fila.classList.add('rank-yo'); // destaca al jugador (con su número, 5.5)
-      fila.appendChild(num); fila.appendChild(med); fila.appendChild(nom); fila.appendChild(pts);
+      fila.appendChild(num); fila.appendChild(med); fila.appendChild(nom);
+      // EFECTIVIDAD (CAMBIO 5): entre el nombre y los puntos, SÓLO si la entrada la trae
+      // (ShotClaud). Las viejas y HitClaud no la tienen → no se agrega y la tabla no cambia.
+      // Estilo en línea (no se toca css/): tenue, tabular, en el acento del juego.
+      if (typeof e.efectividad === 'number') {
+        const efcCell = document.createElement('div');
+        efcCell.className = 'rank-efc';
+        efcCell.textContent = Math.round(e.efectividad) + '%';
+        efcCell.style.color = ACENTO.vivo;
+        efcCell.style.fontSize = '13px';
+        efcCell.style.opacity = '0.8';
+        efcCell.style.margin = '0 10px';
+        efcCell.style.fontVariantNumeric = 'tabular-nums';
+        fila.appendChild(efcCell);
+      }
+      fila.appendChild(pts);
       frag.appendChild(fila);
     }
     elRankCuerpo.appendChild(frag);
   }
   function cargarRanking() {
     const token = ++rankPeticion;
-    // Sólo HitClaud tiene datos hoy: su modo servidor es la duración pelada ('15'/'60'). Los
-    // demás juegos aún no envían (el servidor rechaza los modos con prefijo, 6.3) → tabla
-    // vacía con el mensaje de "aún no hay puntajes" (6.4), sin pegarle al servidor.
-    if (juegoSel !== 'hitclaud' || typeof Ranking === 'undefined') {
+    // HitClaud y ShotClaud tienen ranking en el servidor (HitClaud '15'/'60', ShotClaud
+    // 'shotclaud:20'/'shotclaud:60'). Si el modo del juego no lo soporta el módulo (p.ej. un
+    // juego futuro), pedirTop resuelve ok:false y se muestra el mensaje de error, sin romper.
+    if (typeof Ranking === 'undefined') {
       rankTopActual = [];
       rankEstado('Aún no hay puntajes en este juego. ¡Pronto!', false);
       return;

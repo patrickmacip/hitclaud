@@ -22,17 +22,15 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 16 versiones', B.versiones.length === 16);
-  chk('la primera entrada es la 2.1 (más reciente primero)', B.versiones[0].version === '2.1');
-  chk('la 2.1 trae sus cuatro puntos literales (récord + jugar + picada + medidor)', (function () {
+  chk('hay exactamente 17 versiones', B.versiones.length === 17);
+  chk('la primera entrada es la 2.2 (más reciente primero)', B.versiones[0].version === '2.2');
+  chk('la 2.2 trae sus dos puntos literales (ranking + efectividad)', (function () {
     const v = B.versiones[0];
-    return v.version === '2.1' && v.fecha === '3 de agosto' && v.puntos.length === 4 &&
-      v.puntos[0].texto === 'ShotClaud ahora guarda tu récord en las dos duraciones' &&
-      v.puntos[1].texto === 'El botón de jugar del ranking ya funciona' &&
-      v.puntos[2].texto === 'Los targets golpeados caen en picada' &&
-      v.puntos[3].texto === 'Nuevo medidor de efectividad y todavía más rojos';
+    return v.version === '2.2' && v.fecha === '3 de agosto' && v.puntos.length === 2 &&
+      v.puntos[0].texto === 'ShotClaud ya compite en el ranking global' &&
+      v.puntos[1].texto === 'La tabla muestra el porcentaje de efectividad de cada jugador';
   })());
-  chk('la segunda entrada sigue siendo la 2.0', B.versiones[1].version === '2.0');
+  chk('la segunda entrada sigue siendo la 2.1', B.versiones[1].version === '2.1');
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });

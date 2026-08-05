@@ -31,9 +31,13 @@ function crearApp(opts) {
   let idSeq = 0;
   function makeEl(tag, id) {
     const L = {}, ch = [], at = {}, cl = new Set();
+    let _text = '';
     const el = {
       _tag: tag, id: id || ('el' + (++idSeq)), _listeners: L, children: ch, style: {},
-      textContent: '', value: '', _attrs: at, dataset: {},
+      value: '', _attrs: at, dataset: {},
+      // textContent como en el DOM: leer devuelve lo asignado; asignar '' VACÍA los hijos.
+      get textContent() { return _text; },
+      set textContent(v) { _text = String(v == null ? '' : v); if (_text === '') ch.length = 0; },
       classList: {
         add: function () { for (let i = 0; i < arguments.length; i++) cl.add(arguments[i]); },
         remove: function () { for (let i = 0; i < arguments.length; i++) cl.delete(arguments[i]); },
@@ -46,7 +50,8 @@ function crearApp(opts) {
       addEventListener: function (t, cb) { (L[t] = L[t] || []).push(cb); },
       removeEventListener: function () {},
       dispatch: function (t, ev) { (L[t] || []).forEach(function (cb) { cb(ev || { preventDefault: function () {}, clientX: 0, clientY: 0 }); }); },
-      appendChild: function (c) { ch.push(c); return c; },
+      // appendChild como en el DOM: un DocumentFragment (_tag 'frag') VUELCA sus hijos.
+      appendChild: function (c) { if (c && c._tag === 'frag') { c.children.forEach(function (x) { ch.push(x); }); c.children.length = 0; return c; } ch.push(c); return c; },
       removeChild: function (c) { const i = ch.indexOf(c); if (i >= 0) ch.splice(i, 1); return c; },
       insertBefore: function (c) { ch.push(c); return c; },
       replaceChildren: function () { ch.length = 0; },

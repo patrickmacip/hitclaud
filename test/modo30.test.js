@@ -16,7 +16,7 @@ console.log('=== El modo 30 NO existe en ninguna parte del código ni la interfa
   chk('main.js no arranca ninguna partida de 30', !/iniciarPartida\([^)]*'30'\)/.test(main));
   chk('sin sel30 / jugar30 / "30s" en el HTML', !/id="sel30"/.test(html) && !/id="jugar30"/.test(html) && !/>30s</.test(html));
   chk('DURACIONES ya no es una tabla con 30 escrito a mano', !/'30': 30 \* 1000/.test(main));
-  chk('el ranking (servidor) abandonó el 30: MODOS = [15, 60]', /const MODOS = \['15', '60'\];/.test(rankjs) && !/const DUR_MS = \{ '15': 15000, '30'/.test(rankjs));
+  chk('el ranking (servidor) NO incluye el 30 (abandonado): MODOS/DUR_MS sin 30', !/'30'/.test((rankjs.match(/const MODOS = \[[^\]]*\];/) || [''])[0]) && !/'30':/.test(rankjs) && /const MODOS = \['15', '60'/.test(rankjs));
 }
 
 console.log('=== El récord del 30 NO se migra: su llave queda HUÉRFANA y documentada (2.2) ===');

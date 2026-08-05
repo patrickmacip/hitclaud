@@ -138,7 +138,7 @@ console.log('=== Integración: hitscan de ShotClaud, Big Claude apagado, SW ==='
 {
   chk('dispararHitscan deriva a dispararHitscanShot cuando esShot()', /if \(esShot\(\)\) \{ dispararHitscanShot\(mx, my, ahora\); return; \}/.test(main));
   chk('Big Claude NO se lanza en ShotClaud (guard SIN_GRANDE)', /if \(!\(esShot\(\) && SHOT\.SIN_GRANDE\) && targets\.length < capEnPantalla\(\) && t >= proximoGrande/.test(main));
-  chk('el service worker subió a v81', /hitclaud-shell-v81/.test(sw));
+  chk('el service worker subió a v82', /hitclaud-shell-v82/.test(sw));
 }
 
 console.log('=== V4 REGRESIÓN de HitClaud — su camino queda intacto ===');

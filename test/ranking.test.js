@@ -121,10 +121,10 @@ function limpiarPend() { R.MODOS.forEach(function (m) { R._borrarPendiente(m); }
     chk('main.js NO llama fetch directamente', !/[^.\w]fetch\(/.test(main));
     chk('record.terminar corre ANTES del envío', main.indexOf('record.terminar(scoreFinal') < main.indexOf('enviarAlServidor(porTiempo'));
     chk('el envío va en try/catch (la red nunca rompe el fin)', /try \{ enviarAlServidor\(porTiempo\); \} catch/.test(main));
-    chk('/partida siempre; /score SIEMPRE que sea porTiempo (ya no depende del récord)', /Ranking\.enviarPartida\(Ranking\.armarDatosPartida\(/.test(main) && /if \(porTiempo\) \{[\s\S]{0,260}Ranking\.enviarPuntaje\(/.test(main));
-    chk('el /score ya NO pasa superaRecord en el cuerpo', !/Ranking\.enviarPuntaje\(\{[^}]*superaRecord/.test(main));
+    chk('/partida siempre; /score por tiempo (HitClaud) o SIEMPRE en ShotClaud (muere por rojo)', /Ranking\.enviarPartida\(Ranking\.armarDatosPartida\(/.test(main) && /if \(porTiempo \|\| esShot\(\)\) \{[\s\S]{0,320}Ranking\.enviarPuntaje\(/.test(main));
+    chk('el /score ya NO pasa superaRecord en el cuerpo del envío', !/const envio = \{[^}]*superaRecord/.test(main) && !/Ranking\.enviarPuntaje\(\{[^}]*superaRecord/.test(main));
     chk('vía A: resolverNombre relee localStorage y reconcilia IDB', /function resolverNombre\(cb\)[\s\S]{0,320}nombreStore\.valor[\s\S]{0,200}nombreStore\.reconciliar\(\)/.test(main));
-    chk('el envío del puntaje resuelve el nombre ANTES de mandar', /resolverNombre\(function \(nombre\) \{[\s\S]{0,200}Ranking\.enviarPuntaje\(\{ nombre: nombre/.test(main));
+    chk('el envío del puntaje resuelve el nombre ANTES de mandar', /resolverNombre\(function \(nombre\) \{[\s\S]{0,240}const envio = \{ nombre: nombre[\s\S]{0,200}Ranking\.enviarPuntaje\(envio\)/.test(main));
     chk('confirmación sólo si entró y el fin sigue visible', /function mostrarConfirmacionRanking\(posicion\)[\s\S]{0,160}elGameOver\.classList\.contains\('oculto'\)/.test(main) && /reg\.estado === 'ok' && reg\.entro\) mostrarConfirmacionRanking/.test(main));
     chk('reintento de pendientes al arrancar', /Ranking\.reintentarPendientes\(\)/.test(main));
     chk('elemento go-rank en el overlay de fin, oculto por defecto', /<p class="go-rank oculto"><\/p>/.test(html));

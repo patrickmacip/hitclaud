@@ -55,7 +55,7 @@ console.log('=== CAMBIO 5: número SIEMPRE; medalla 1-12; hueco reservado 13-20 
   chk('iconoPuesto: 1-12 → medalla; 13+ → null', typeof iconoPuesto === 'function' && iconoPuesto(1) === 'assets/podio-1.svg' && iconoPuesto(12) === 'assets/podio-12.svg' && iconoPuesto(13) === null && iconoPuesto(0) === null);
   chk('cada fila lleva NÚMERO (rank-num) SIEMPRE, con texto del puesto', /num\.className = 'rank-num';[\s\S]{0,60}num\.textContent = String\(puesto\)/.test(main));
   chk('la medalla usa iconoPuesto (1-12), y su columna se reserva (rank-medalla) aunque no haya', /med\.className = 'rank-medalla';[\s\S]{0,120}iconoPuesto\(puesto\)/.test(main));
-  chk('orden de la fila: número · medalla · nombre · puntos', /appendChild\(num\); fila\.appendChild\(med\); fila\.appendChild\(nom\); fila\.appendChild\(pts\)/.test(main));
+  chk('orden de la fila: número · medalla · nombre · (efectividad opcional) · puntos', /appendChild\(num\); fila\.appendChild\(med\); fila\.appendChild\(nom\);[\s\S]{0,800}fila\.appendChild\(pts\)/.test(main) && main.indexOf('fila.appendChild(nom)') < main.indexOf('fila.appendChild(pts)'));
   chk('el número tiene ancho fijo (cifras tabulares: 1 y 2 cifras no desalinean)', /\.rank-num \{[\s\S]{0,140}font-variant-numeric: tabular-nums/.test(css));
   chk('el número es menor y tenue', /\.rank-num \{[\s\S]{0,120}color: var\(--texto-apagado/.test(css));
 }

@@ -14,11 +14,11 @@
   // Tiempo límite por llamada. Si se pasa, se ABANDONA sin error visible. 5 s es holgado
   // para una respuesta normal y corto para no dejar nada colgado si la red está caída.
   const TIMEOUT_MS = 5000;
-  // Modos que el SERVIDOR acepta HOY para HitClaud (el modo 30 se abandonó). Cuando el
-  // servidor acepte modos con prefijo de juego ('shotclaud:20', 'pushclaud:15', …) habrá que
-  // ampliar esta lista y DUR_MS; hasta entonces sólo se envía/consulta HitClaud 15 y 60.
-  const MODOS = ['15', '60'];
-  const DUR_MS = { '15': 15000, '60': 60000 };
+  // Modos que el juego ENVÍA/CONSULTA y que el servidor acepta. HitClaud manda la duración
+  // PELADA ('15'/'60') — sus tablas dependen de eso, no se toca. ShotClaud manda con prefijo
+  // de juego ('shotclaud:20'/'shotclaud:60'). El modo 30 se abandonó; pushclaud aún no juega.
+  const MODOS = ['15', '60', 'shotclaud:20', 'shotclaud:60'];
+  const DUR_MS = { '15': 15000, '60': 60000, 'shotclaud:20': 20000, 'shotclaud:60': 60000 };
   const ICONOS = { 1: 'assets/podio-1.svg', 2: 'assets/podio-2.svg', 3: 'assets/podio-3.svg' };
   const PEND_PREFIX = 'hitclaud.pendiente.v1.'; // llave del pendiente por modo (best-effort)
 
@@ -97,7 +97,10 @@
     const modo = String(cuerpo.modo);
     const prev = leerPendiente(modo);
     if (prev && prev.puntos >= cuerpo.puntos) return; // ya hay uno igual o mejor
-    try { _lsSet(PEND_PREFIX + modo, JSON.stringify({ nombre: cuerpo.nombre, puntos: cuerpo.puntos, modo: modo })); } catch (e) {}
+    const p = { nombre: cuerpo.nombre, puntos: cuerpo.puntos, modo: modo };
+    const efc = _efc(cuerpo.efectividad);
+    if (efc !== null) p.efectividad = efc; // se conserva para el reintento (ShotClaud)
+    try { _lsSet(PEND_PREFIX + modo, JSON.stringify(p)); } catch (e) {}
   }
   function borrarPendiente(modo) { _lsDel(PEND_PREFIX + String(modo)); }
   function pendientes() { const out = []; for (let i = 0; i < MODOS.length; i++) { const p = leerPendiente(MODOS[i]); if (p) out.push(p); } return out; }
@@ -119,6 +122,12 @@
 
   // ── Helpers PUROS ──────────────────────────────────────────────────────────────
   const _ent = function (v) { const n = Math.floor(Number(v)); return Number.isFinite(n) && n > 0 ? n : 0; };
+  // Efectividad OPCIONAL para el servidor: entero 0..100 o null (ausente). ShotClaud la manda.
+  const _efc = function (v) {
+    if (v === undefined || v === null) return null;
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
+  };
 
   // Motivo por el que NO se manda el puntaje, o null si SÍ se manda. Orden: por tiempo
   // → hay nombre → puntaje > 0. YA NO se exige superar el récord local: el envío estaba
@@ -129,27 +138,37 @@
   function motivoNoEnvio(o) {
     o = o || {};
     const nombre = typeof o.nombre === 'string' ? o.nombre.trim() : '';
-    if (!o.porTiempo) return 'cloudover';       // 1.2: CloudOver no compite
+    // CloudOver no compite… SALVO que el juego permita competir por CloudOver (ShotClaud: su
+    // récord también cuenta el CloudOver, así que su puntaje se manda igual — punto 6).
+    if (!o.porTiempo && !o.permiteCloudover) return 'cloudover';
     if (nombre.length === 0) return 'sin-nombre'; // 1.3: sin nombre no se puede rankear
     if (_ent(o.puntos) <= 0) return 'cero';       // 1.4: cero o negativo no se manda
     return null;                                  // 1.5: supere o no el récord, se manda
   }
   function decidirEnviarPuntaje(o) { return motivoNoEnvio(o) === null; }
 
-  // Envía un puntaje al ranking. `o` = { nombre, puntos, modo, porTiempo, superaRecord }.
-  // Si no corresponde, REGISTRA el motivo (no lanza). Devuelve Promise<registro>.
+  // Envía un puntaje al ranking. `o` = { nombre, puntos, modo, porTiempo, permiteCloudover?, efectividad? }.
+  // Si no corresponde, REGISTRA el motivo (no lanza). Devuelve Promise<registro>. La efectividad
+  // (0..100) es OPCIONAL: se incluye sólo si viene (ShotClaud); HitClaud no la manda.
   function enviarPuntaje(o) {
     o = o || {};
     const motivo = motivoNoEnvio(o);
     if (motivo) return Promise.resolve(registrar({ estado: 'no-intentado', motivo: motivo }));
-    return _postScore({ nombre: o.nombre.trim(), puntos: _ent(o.puntos), modo: String(o.modo) });
+    const cuerpo = { nombre: o.nombre.trim(), puntos: _ent(o.puntos), modo: String(o.modo) };
+    const efc = _efc(o.efectividad);
+    if (efc !== null) cuerpo.efectividad = efc;
+    return _postScore(cuerpo);
   }
 
   // Reintenta los pendientes guardados (al arrancar el juego). En segundo plano.
   function reintentarPendientes() {
     for (let i = 0; i < MODOS.length; i++) {
       const p = leerPendiente(MODOS[i]);
-      if (p) _postScore({ nombre: p.nombre, puntos: p.puntos, modo: MODOS[i] });
+      if (p) {
+        const cuerpo = { nombre: p.nombre, puntos: p.puntos, modo: MODOS[i] };
+        if (_efc(p.efectividad) !== null) cuerpo.efectividad = _efc(p.efectividad);
+        _postScore(cuerpo);
+      }
     }
   }
 
@@ -160,13 +179,16 @@
     const modo = MODOS.indexOf(String(d.modo)) !== -1 ? String(d.modo) : '60';
     const topeDur = DUR_MS[modo] + 30000;
     const tiros = _ent(d.tiros);
-    return {
+    const out = {
       modo: modo, puntos: _ent(d.puntos), duracionReal: Math.min(_ent(d.duracionReal), topeDur),
       termino: d.termino === 'cloudover' ? 'cloudover' : 'tiempo',
       tiros: tiros, aciertos: Math.min(_ent(d.aciertos), tiros), rachaMax: _ent(d.rachaMax),
       carambolas: Math.min(_ent(d.carambolas), tiros),
       plataforma: d.plataforma === 'escritorio' ? 'escritorio' : 'movil',
     };
+    const efc = _efc(d.efectividad);
+    if (efc !== null) out.efectividad = efc; // opcional: sólo ShotClaud la manda
+    return out;
   }
   // Manda el resumen anónimo de una partida (segundo plano, sin keepalive, sin log).
   function enviarPartida(datos) { _postUna('/partida', datos); }
