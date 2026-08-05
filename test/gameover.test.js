@@ -4,17 +4,23 @@ const P = require('../js/puntuacion.js');
 const U = require('../js/util.js');
 const fs = require('fs');
 
-console.log('=== Overlay de fin con los botones de modo (15/30/60, sin Relax) ===');
+console.log('=== Overlay de fin actual: Inicio · Ranking · Cambiar duración · Jugar de nuevo ===');
 {
+  // El fin ya NO elige modo con botones 15/30/60 (eso murió cuando llegó el menú de juegos y,
+  // luego, el home por juego). Hoy vuelve al HOME del juego ("Inicio") y ofrece Ranking,
+  // Cambiar duración y Jugar de nuevo. Esta prueba fija esa estructura ya publicada.
   const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
   const n = (html.match(/id="gameover"/g) || []).length;
-  const b15 = (html.match(/id="jugar15"/g) || []).length;
-  const b30 = (html.match(/id="jugar30"/g) || []).length;
-  const b60 = (html.match(/id="jugar60"/g) || []).length;
-  const bLibre = (html.match(/id="jugarLibre"/g) || []).length;
-  console.log(`  #gameover:${n} #jugar15:${b15} #jugar30:${b30} #jugar60:${b60} #jugarLibre:${bLibre} (Relax=0)  ${n === 1 && b15 === 1 && b30 === 1 && b60 === 1 && bLibre === 0 ? 'OK ✓' : 'NO ✗'}`);
-  const et60 = /id="jugar60"[^>]*>([^<]+)</.exec(html);
-  console.log(`  etiqueta 60: "${et60 && et60[1]}"  ${et60 && et60[1] === '60s' ? 'OK ✓' : 'NO ✗'}`);
+  const menu = (html.match(/id="finMenu"/g) || []).length;
+  const rank = (html.match(/id="verRankingFin"/g) || []).length;
+  const cambiar = (html.match(/id="finCambiarDuracion"/g) || []).length;
+  const jugar = (html.match(/id="finJugarDeNuevo"/g) || []).length;
+  console.log(`  #gameover:${n} #finMenu:${menu} #verRankingFin:${rank} #finCambiarDuracion:${cambiar} #finJugarDeNuevo:${jugar}  ${n === 1 && menu === 1 && rank === 1 && cambiar === 1 && jugar === 1 ? 'OK ✓' : 'NO ✗'}`);
+  // Los viejos botones de modo NO deben reaparecer en el DOM.
+  const viejos = (html.match(/id="jugar15"|id="jugar30"|id="jugar60"|id="jugarLibre"/g) || []).length;
+  console.log(`  los viejos #jugar15/30/60/Libre están fuera (${viejos})  ${viejos === 0 ? 'OK ✓' : 'NO ✗'}`);
+  const etMenu = /id="finMenu"[^>]*><span>([^<]+)</.exec(html);
+  console.log(`  el botón de volver dice "Inicio": "${etMenu && etMenu[1]}"  ${etMenu && etMenu[1] === 'Inicio' ? 'OK ✓' : 'NO ✗'}`);
 }
 
 console.log('\n=== #pausa ELIMINADO: el botón de salir abandona la partida ===');
