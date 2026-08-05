@@ -24,6 +24,7 @@
     <symbol id="ic-lapiz" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.84 1.83 3.75 3.75 1.84-1.83z"/></symbol>
     <symbol id="ic-compartir" viewBox="0 0 24 24"><path d="M12 2.6l4 4-1.4 1.4L13 6.4V15h-2V6.4L9.4 8l-1.4-1.4 4-4z"/><path d="M5 10h3v2H6v8h12v-8h-2v-2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1z"/></symbol>
     <symbol id="ic-atras" viewBox="0 0 24 24"><path d="M14.6 4.6 7.2 12l7.4 7.4 1.6-1.6L10.4 12l5.8-5.8z"/></symbol>
+    <symbol id="ic-adelante" viewBox="0 0 24 24"><path d="M9.4 4.6 16.8 12l-7.4 7.4-1.6-1.6L13.6 12l-5.8-5.8z"/></symbol>
     <symbol id="ic-cerrar" viewBox="0 0 24 24"><path d="M6.4 4.8 12 10.4l5.6-5.6 1.6 1.6L13.6 12l5.6 5.6-1.6 1.6L12 13.6l-5.6 5.6-1.6-1.6L10.4 12 4.8 6.4z"/></symbol>
   </svg>
 
@@ -60,49 +61,49 @@
     </div>
   </div>
 
-  <!-- PANTALLA 1 — ELEGIR JUEGO (arranque). Título del proyecto, saludo editable, y una
-       tarjeta por juego (se generan desde la estructura JUEGOS de main.js, fuente única).
-       El ranking pertenece a CADA juego, así que NO vive aquí (se abre desde la pantalla 2
-       o desde el fin). Abajo sólo queda Actualizaciones. -->
-  <div id="inicio" class="oculto" role="dialog" aria-modal="true">
-    <div class="go-panel">
-      <p class="ini-titulo">HitClaud</p>
-      <!-- Saludo pulsable (saludo + lápiz): abre editar-nombre. Área táctil ≥44px. -->
-      <button class="ini-saludo" id="iniSaludo" type="button">
-        <span id="iniSaludoTexto">Ponte un nombre</span>
-        <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-lapiz"></use></svg>
-      </button>
-      <!-- Tarjetas de juego (una por entrada de JUEGOS). Se llenan desde main.js. -->
-      <div class="juego-lista" id="juegoLista"></div>
-      <button id="verActualizaciones" class="ini-actu" type="button">Actualizaciones</button>
-    </div>
-  </div>
-
-  <!-- PANTALLA 2 — ELEGIR DURACIÓN. Orden: flecha de atrás + nombre del juego · nombre del
-       jugador (sólo lectura, discreto — se edita en la pantalla 1) · récord del jugador en
-       ese juego y duración (con corona, cambia con la duración) · selector de duraciones
-       (oculto si sólo hay una; la más corta viene marcada al entrar) · Ranking (del juego,
-       en la duración seleccionada) · JUGAR. -->
+  <!-- HOME DE CADA JUEGO (nivel ÚNICO; ya no hay pantalla de selección). Arriba, la FILA DE
+       NAVEGACIÓN: flecha izquierda · nombre del juego · flecha derecha. Las flechas CICLAN entre
+       juegos (HitClaud → ShotClaud → PushClaud → …), no salen a ningún lado. Debajo, según la
+       disponibilidad del juego en esta plataforma: si es jugable, su saludo + récord + duraciones
+       + Ranking + JUGAR; si no, una imagen del juego y una leyenda ("Disponible solo en…" o
+       "Pronto"). Al pie, Actualizaciones (igual en todos). La app SIEMPRE abre en HitClaud. -->
   <div id="duracion" class="oculto" role="dialog" aria-modal="true">
     <div class="go-panel">
-      <div class="ov-cabecera">
-        <button id="durAtras" class="hdr-icono" type="button" aria-label="Atrás">
+      <!-- 2.1 FILA DE NAVEGACIÓN: flechas discretas, el nombre del juego es lo que pesa. -->
+      <div class="ov-cabecera home-nav">
+        <button id="homeIzq" class="hdr-icono" type="button" aria-label="Juego anterior">
           <svg class="icono" aria-hidden="true"><use href="#ic-atras"></use></svg>
         </button>
         <span class="nivel-titulo" id="durJuego">HitClaud</span>
-        <span class="hdr-spacer" aria-hidden="true"></span>
+        <button id="homeDer" class="hdr-icono" type="button" aria-label="Juego siguiente">
+          <svg class="icono" aria-hidden="true"><use href="#ic-adelante"></use></svg>
+        </button>
       </div>
-      <p class="nivel-nombre" id="durNombre"></p>
-      <div class="ini-record" aria-label="Récord del juego">
-        <span id="durRecordIcono"><svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg></span>
-        <span class="valor" id="durRecord">0</span>
+      <!-- 2.4 JUEGO DISPONIBLE: saludo (editable), récord+medalla, duraciones, Ranking, JUGAR. -->
+      <div id="homeJugable">
+        <button class="ini-saludo" id="iniSaludo" type="button">
+          <span id="iniSaludoTexto">Ponte un nombre</span>
+          <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-lapiz"></use></svg>
+        </button>
+        <div class="ini-record" aria-label="Récord del juego">
+          <span id="durRecordIcono"><svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg></span>
+          <span class="valor" id="durRecord">0</span>
+        </div>
+        <div class="ini-modos" id="durModos" role="group" aria-label="Duración"></div>
+        <button id="durRanking" class="ini-ranking" type="button">
+          <img src="assets/podio-1.svg" alt="" aria-hidden="true">
+          <span>Ranking</span>
+        </button>
+        <button id="durJugar" class="go-reiniciar ini-jugar">JUGAR</button>
       </div>
-      <div class="ini-modos" id="durModos" role="group" aria-label="Duración"></div>
-      <button id="durRanking" class="ini-ranking" type="button">
-        <img src="assets/podio-1.svg" alt="" aria-hidden="true">
-        <span>Ranking</span>
-      </button>
-      <button id="durJugar" class="go-reiniciar ini-jugar">JUGAR</button>
+      <!-- 2.5/2.6 JUEGO NO DISPONIBLE (otra plataforma) o SIN TERMINAR (Pronto): imagen + leyenda,
+           nada pulsable salvo las flechas. La leyenda es información con dignidad, no un error. -->
+      <div id="homeNoJugable" class="oculto">
+        <canvas id="homeImagen" class="home-imagen" aria-hidden="true"></canvas>
+        <p class="home-leyenda" id="homeLeyenda"></p>
+      </div>
+      <!-- 2.7 Actualizaciones, discreto, al pie, igual en todos los homes. -->
+      <button id="verActualizaciones" class="ini-actu" type="button">Actualizaciones</button>
     </div>
   </div>
 
@@ -171,7 +172,7 @@
         <p class="go-precision oculto"><span id="finPrecision">0%</span> de precisión</p>
         <p class="go-record oculto"><svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg> ¡Nuevo récord!</p>
         <p class="go-rank oculto"></p>
-        <button id="finMenu" class="ini-ranking" type="button"><span>Menú de juegos</span></button>
+        <button id="finMenu" class="ini-ranking" type="button"><span>Inicio</span></button>
         <button id="verRankingFin" class="ini-ranking" type="button">
           <img src="assets/podio-1.svg" alt="" aria-hidden="true">
           <span>Ranking</span>

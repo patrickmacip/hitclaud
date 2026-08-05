@@ -112,7 +112,7 @@ console.log('=== CAMBIO 5 — Juegos por plataforma (regla en la estructura, no 
   chk('fuera de plataforma → aviso de plataforma, NO "Pronto" (distintos, 5.4)', /aviso: j\.plataforma === 'escritorio' \? 'Disponible en computadora' : 'Disponible en móvil'/.test(main));
   chk('en plataforma pero sin terminar → pronto:true, aviso "Pronto"', /if \(!j\.jugable\) return \{ jugable: false, pronto: true, aviso: 'Pronto' \};/.test(main));
   chk('la tarjeta usa disponibilidad() (no reglas sueltas)', /const disp = disponibilidad\(j, esDesktop\);/.test(main));
-  chk('sólo navega si disp.jugable', /if \(disp\.jugable\) \{ mostrarPantallaDuracion\(j\.id, true\); return; \}/.test(main));
+  chk('el home muestra el cuerpo jugable o el no-jugable según disponibilidad()', /const disp = disponibilidad\(j, esDesktop\);[\s\S]{0,200}elHomeJugable\.classList\.toggle\('oculto', !disp\.jugable\)/.test(main));
 
   // Comportamiento de la regla (replicada desde la estructura JUEGOS parseada de main.js).
   const bloque = (main.match(/const JUEGOS = \[([\s\S]*?)\];/) || ['', ''])[1];
@@ -120,25 +120,25 @@ console.log('=== CAMBIO 5 — Juegos por plataforma (regla en la estructura, no 
     const m = s.match(/id: '(\w+)'[\s\S]*?jugable: (true|false)[\s\S]*?plataforma: '(\w+)'/);
     return { id: m[1], jugable: m[2] === 'true', plataforma: m[3] };
   });
-  function disp(j, desktop) {
+  function disp(j, desktop) { // MISMO orden que disponibilidad(): "Pronto" manda sobre la plataforma
+    if (!j.jugable) return { jugable: false, aviso: 'Pronto' };
     const en = j.plataforma === 'ambas' || (j.plataforma === 'escritorio' && desktop) || (j.plataforma === 'tactil' && !desktop);
     if (!en) return { jugable: false, aviso: j.plataforma === 'escritorio' ? 'Disponible en computadora' : 'Disponible en móvil' };
-    if (!j.jugable) return { jugable: false, aviso: 'Pronto' };
     return { jugable: true, aviso: null };
   }
   const byId = {}; juegos.forEach(function (j) { byId[j.id] = j; });
   chk('en COMPUTADORA solo ShotClaud es jugable', disp(byId.shotclaud, true).jugable && !disp(byId.hitclaud, true).jugable && !disp(byId.pushclaud, true).jugable);
   chk('en TÁCTIL ShotClaud NO es jugable', !disp(byId.shotclaud, false).jugable);
-  chk('en TÁCTIL HitClaud sí es jugable (su lógica intacta, 5.6)', disp(byId.hitclaud, false).jugable);
+  chk('en TÁCTIL HitClaud sí es jugable (su lógica intacta)', disp(byId.hitclaud, false).jugable);
   chk('HitClaud en computadora dice "Disponible en móvil", no "Pronto"', disp(byId.hitclaud, true).aviso === 'Disponible en móvil');
-  chk('PushClaud en táctil sigue en "Pronto"; en computadora dice plataforma', disp(byId.pushclaud, false).aviso === 'Pronto' && disp(byId.pushclaud, true).aviso === 'Disponible en móvil');
+  chk('PushClaud (sin terminar) dice "Pronto" en AMBAS plataformas ("Pronto" manda, 2.6)', disp(byId.pushclaud, false).aviso === 'Pronto' && disp(byId.pushclaud, true).aviso === 'Pronto');
 }
 
 console.log('=== Integración: hitscan de ShotClaud, Big Claude apagado, SW ===');
 {
   chk('dispararHitscan deriva a dispararHitscanShot cuando esShot()', /if \(esShot\(\)\) \{ dispararHitscanShot\(mx, my, ahora\); return; \}/.test(main));
   chk('Big Claude NO se lanza en ShotClaud (guard SIN_GRANDE)', /if \(!\(esShot\(\) && SHOT\.SIN_GRANDE\) && targets\.length < capEnPantalla\(\) && t >= proximoGrande/.test(main));
-  chk('el service worker subió a v83', /hitclaud-shell-v83/.test(sw));
+  chk('el service worker subió a v84', /hitclaud-shell-v84/.test(sw));
 }
 
 console.log('=== V4 REGRESIÓN de HitClaud — su camino queda intacto ===');

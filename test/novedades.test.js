@@ -28,7 +28,7 @@ console.log('=== La lógica del aviso salió de main.js ===');
   chk('sin novedadesStore (no se lee ni escribe la llave)', !/novedadesStore/.test(main));
   chk('sin irAInicioOAviso / cerrarNovedades', !/irAInicioOAviso|cerrarNovedades/.test(main));
   chk('main.js ya no llama a U.decidirAviso', !/U\.decidirAviso/.test(main));
-  chk('el arranque va directo al inicio (nombre → inicio)', /if \(nombreUsuario\) mostrarPantallaInicio\(\);/.test(main));
+  chk('el arranque va directo al inicio (nombre → inicio)', /if \(nombreUsuario\) mostrarHome\('hitclaud', true\);/.test(main));
 }
 
 console.log('=== SELLADO: la función pura y la llave NO se borraron ===');

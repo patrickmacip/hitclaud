@@ -39,29 +39,28 @@ console.log('=== CAMBIO 2: migración de récords 15/60; el 30 no; el nombre sob
   chk('la vieja v3.15 NO se borra (queda intacta)', U.parseEntrada(local._d[vieja]).record === 1234);
 }
 
-console.log('=== CAMBIO 3/5: navegación en dos niveles; nunca se sale del juego ===');
+console.log('=== NIVEL ÚNICO (home por juego); nunca se sale del juego ===');
 {
   chk('iniciarPartida sólo permite juegos JUGABLES y combos válidos', /function iniciarPartida\(juego, modo\) \{[\s\S]{0,180}if \(!j \|\| !j\.jugable \|\| j\.duraciones\.indexOf\(String\(modo\)\) === -1\) return;/.test(main));
-  chk('tarjeta NO jugable AQUÍ: avisa y NO navega ni inicia partida', /if \(disp\.jugable\) \{ mostrarPantallaDuracion\(j\.id, true\); return; \}[\s\S]{0,180}aviso\.classList\.remove\('oculto'\)/.test(main));
-  chk('flecha de atrás de la pantalla 2 sube a la pantalla 1 (3.3)', /btnDurAtras\.addEventListener\('click', mostrarPantallaInicio\)/.test(main));
-  chk('el botón de casa vuelve a la PANTALLA 2 del juego, no a la 1 (5.1)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarPantallaDuracion\(juegoActivo, false\)/.test(main));
-  chk('JUGAR de la pantalla 2 arranca (juegoSel, modoInicioSel)', /btnDurJugar[\s\S]{0,120}iniciarPartida\(juegoSel, modoInicioSel\)/.test(main));
+  chk('juego no disponible: el home muestra su cuerpo NO jugable (imagen + leyenda), sin JUGAR', /elHomeNoJugable\.classList\.toggle\('oculto', disp\.jugable\)/.test(main) && /ponerImagenJuego\(j\.id\)/.test(main));
+  chk('las FLECHAS ciclan de juego (no salen): homeIzq avanza, homeDer retrocede', /btnHomeIzq\.addEventListener\('click', function \(\) \{ mostrarHome\(juegoVecino\(juegoSel, 1\), true\); \}\)/.test(main) && /btnHomeDer\.addEventListener\('click', function \(\) \{ mostrarHome\(juegoVecino\(juegoSel, -1\), true\); \}\)/.test(main));
+  chk('el botón de casa vuelve al HOME de su juego (4.1)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarHome\(juegoActivo, false\)/.test(main));
+  chk('JUGAR del home arranca (juegoSel, modoInicioSel)', /btnDurJugar[\s\S]{0,120}iniciarPartida\(juegoSel, modoInicioSel\)/.test(main));
 }
 
 console.log('=== CAMBIO 4: fin de partida — jugar de nuevo / cambiar duración ===');
 {
   chk('"Jugar de nuevo": mismo juego y misma duración (4.4)', /finJugarDeNuevo[\s\S]{0,120}iniciarPartida\(juegoActivo, modoJuego\)/.test(main));
-  chk('"Cambiar duración" vuelve a la pantalla 2 del mismo juego (4.5)', /finCambiarDuracion[\s\S]{0,220}mostrarPantallaDuracion\(juegoActivo, false\)/.test(main));
+  chk('"Cambiar duración" vuelve al HOME del mismo juego (4.5)', /finCambiarDuracion[\s\S]{0,220}mostrarHome\(juegoActivo, false\)/.test(main));
   chk('"Cambiar duración" se OCULTA si el juego tiene una sola duración', /function pintarFin[\s\S]{0,1100}btnFinCambiar\.classList\.toggle\('oculto', unaSola\)/.test(main));
-  chk('"Menú de juegos" vuelve a la pantalla 1 (4.7)', /finMenu[\s\S]{0,160}mostrarPantallaInicio/.test(main));
+  chk('"Inicio" vuelve al HOME de su juego (4.2)', /finMenu[\s\S]{0,160}mostrarHome\(juegoActivo, false\)/.test(main));
   chk('orden en el HTML: puntaje → récord → puesto → Jugar de nuevo', /go-score[\s\S]*?go-record[\s\S]*?go-rank[\s\S]*?id="finJugarDeNuevo"/.test(html));
 }
 
 console.log('=== P4: todo elemento pulsable declara ≥44px de área táctil ===');
 {
   const reglas = {
-    '.btn-atras (44×44)': /\.hdr-icono \{[\s\S]{0,80}width: 44px; height: 44px;/,
-    '.juego-card (≥88)': /\.juego-card \{[\s\S]{0,260}min-height: 88px/,
+    '.hdr-icono / flechas del home (44×44)': /\.hdr-icono \{[\s\S]{0,80}width: 44px; height: 44px;/,
     '.ini-sel (≥56)': /\.ini-sel \{[\s\S]{0,160}min-height: 56px/,
     '.ini-jugar (≥56)': /\.ini-jugar \{[\s\S]{0,120}min-height: 56px/,
     '.ini-ranking (≥52)': /\.ini-ranking \{[\s\S]{0,200}min-height: 52px/,

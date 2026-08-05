@@ -106,9 +106,15 @@ function crearApp(opts) {
 
   function step(ms) { fakeNow += ms; if (rafCb) { const cb = rafCb; rafCb = null; cb(fakeNow); } }
   function disparar(x, y) { const c = byId['juego']; if (c) c.dispatch('pointerdown', { preventDefault: function () {}, clientX: x, clientY: y, pointerId: 1 }); }
-  function cardDeJuego(id) { const l = byId['juegoLista']; return l && l.children.find(function (c) { return c._attrs['data-juego'] === id; }); }
+  // Navega al HOME de `id` con las flechas (el home arranca en HitClaud; la flecha IZQUIERDA
+  // avanza en el orden HitClaud→ShotClaud→PushClaud). Sustituye a las tarjetas eliminadas.
+  function irAJuego(id) {
+    const orden = ['hitclaud', 'shotclaud', 'pushclaud'];
+    const veces = Math.max(0, orden.indexOf(id));
+    for (let k = 0; k < veces; k++) { const b = byId['homeIzq']; if (b) b.dispatch('click'); }
+  }
 
-  return { byId: byId, mem: mem, step: step, disparar: disparar, cardDeJuego: cardDeJuego, window: window, document: document };
+  return { byId: byId, mem: mem, step: step, disparar: disparar, irAJuego: irAJuego, window: window, document: document };
 }
 
 module.exports = { crearApp: crearApp };

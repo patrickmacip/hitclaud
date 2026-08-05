@@ -124,13 +124,15 @@
   // El aviso de plataforma y el de "Pronto" son cosas DISTINTAS (5.4): un juego no
   // disponible por plataforma NO dice "Pronto".
   function disponibilidad(j, desktop) {
+    // "Pronto" MANDA sobre la plataforma (2.6): si el juego no está terminado, ése es su estado
+    // en cualquier plataforma, antes de mirar dónde se juega.
+    if (!j.jugable) return { jugable: false, pronto: true, aviso: 'Pronto' };
     const enPlataforma = j.plataforma === 'ambas'
       || (j.plataforma === 'escritorio' && desktop)
       || (j.plataforma === 'tactil' && !desktop);
     if (!enPlataforma) {
       return { jugable: false, pronto: false, aviso: j.plataforma === 'escritorio' ? 'Disponible en computadora' : 'Disponible en móvil' };
     }
-    if (!j.jugable) return { jugable: false, pronto: true, aviso: 'Pronto' };
     return { jugable: true, pronto: false, aviso: null };
   }
   const duracionMs = function (dur) { return Number(dur) * 1000; }; // 15→15000, 20→20000, 60→60000
@@ -161,8 +163,8 @@
   }); });
   function recordDe(juego, dur) { return recordStores[juego + ':' + dur] || null; }
   let juegoActivo = 'hitclaud';   // juego de la PARTIDA en curso
-  let juegoSel = 'hitclaud';      // juego elegido en la pantalla 2 (elegir duración)
-  let modoInicioSel = '60';       // duración elegida en la pantalla 2
+  let juegoSel = 'hitclaud';      // juego del HOME actual (nivel único)
+  let modoInicioSel = '15';       // duración elegida en el home (arranca en la más corta de HitClaud)
   let record = recordDe('hitclaud', '60'); // récord de la PARTIDA activa (se fija al iniciar)
   const elRecord = document.getElementById('barraRecord');
   function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record ? record.valor : 0); }
@@ -236,8 +238,7 @@
     jugando = true;
     actualizarTiempo();                          // muestra el tiempo completo desde el arranque
     elGameOver.classList.add('oculto');
-    if (elInicio) elInicio.classList.add('oculto');
-    if (elDuracion) elDuracion.classList.add('oculto');
+    if (elDuracion) elDuracion.classList.add('oculto'); // cierra el home
     if (elRanking) elRanking.classList.add('oculto'); // D2: al arrancar desde el ranking, cerrar su overlay (si no, tapa el juego)
     cascEvento('iniciarPartida', 'juego:' + juego + ' modo:' + modo);
   }
@@ -328,14 +329,14 @@
   // (elegir duración) DEL JUEGO que se estaba jugando — no a la pantalla 1. NO guarda récord
   // ni manda /score; SÍ registra la partida en stats con termino 'cloudover'.
   function abandonarPartida() {
-    if (!jugando) { mostrarPantallaDuracion(juegoActivo, false); return; } // sin partida → a la pantalla 2
+    if (!jugando) { mostrarHome(juegoActivo, false); return; } // sin partida → a la pantalla 2
     jugando = false;
     actualizarTiempo();                 // limpia el temporizador
     pPuntosFin = marcador.puntos;        // puntaje al abandonar → /partida (stats)
     secuencia = null; sacudidaCloudover = null;
     try { enviarAlServidor(false); } catch (e) { /* la red nunca rompe el abandono */ }
     cascEvento('abandonarPartida', 'score:' + pPuntosFin);
-    mostrarPantallaDuracion(juegoActivo, false); // sube UN nivel (pantalla 2 del juego)
+    mostrarHome(juegoActivo, false); // sube UN nivel (pantalla 2 del juego)
   }
   // Resuelve el nombre más fiable SIN esperar a la red: memoria → localStorage (síncrono)
   // → reconciliar IDB (local, no es red) si sigue vacío. Adopta el nombre si aparece.
@@ -425,13 +426,15 @@
     secuencia = null;
   }
   // ── NAVEGACIÓN EN DOS NIVELES (CAMBIO 3) ────────────────────────────────────────────
-  // Pantalla 1 = #inicio (elegir juego). Pantalla 2 = #duracion (elegir duración). La flecha
-  // de atrás sube UN nivel; volver a jugar está a un toque. Ambas pantallas tienen salida.
-  const elInicio = document.getElementById('inicio');
+  // NIVEL ÚNICO: el HOME de cada juego (#duracion). Ya no hay pantalla de selección. Las flechas
+  // de la fila superior CICLAN entre juegos (no salen). El home muestra el cuerpo jugable o, si el
+  // juego no está disponible/terminado, su imagen y leyenda. Toda pantalla tiene salida.
   const elDuracion = document.getElementById('duracion');
-  const elJuegoLista = document.getElementById('juegoLista');
+  const elHomeJugable = document.getElementById('homeJugable');
+  const elHomeNoJugable = document.getElementById('homeNoJugable');
+  const elHomeImagen = document.getElementById('homeImagen');
+  const elHomeLeyenda = document.getElementById('homeLeyenda');
   const elDurJuego = document.getElementById('durJuego');
-  const elDurNombre = document.getElementById('durNombre');
   const elDurModos = document.getElementById('durModos');
   const elDurRecord = document.getElementById('durRecord');
   const elDurRecordIcono = document.getElementById('durRecordIcono');
@@ -484,49 +487,70 @@
 
   // Oculta TODOS los overlays de navegación (para mostrar uno solo). No toca el juego.
   function ocultarNav() {
-    [elInicio, elDuracion, elGameOver, elRanking].forEach(function (el) { if (el) el.classList.add('oculto'); });
+    [elDuracion, elGameOver, elRanking].forEach(function (el) { if (el) el.classList.add('oculto'); });
   }
 
-  // PANTALLA 1 — tarjetas de juego, generadas desde JUEGOS (fuente única). Las no jugables
-  // van atenuadas con "Pronto" y no navegan; al tocarlas avisan brevemente. ShotClaud en
-  // pantalla táctil indica que es para computadora.
-  function construirJuegos() {
-    if (!elJuegoLista) return;
-    elJuegoLista.textContent = '';
-    JUEGOS.forEach(function (j) {
-      // Disponibilidad DERIVADA de la estructura (disponibilidad()): decide si se juega aquí
-      // y, si no, con qué aviso (plataforma vs "Pronto"). Nada de reglas sueltas por el código.
-      const disp = disponibilidad(j, esDesktop);
-      const card = document.createElement('button');
-      card.type = 'button';
-      card.className = 'juego-card' + (disp.jugable ? '' : ' juego-pronto');
-      card.setAttribute('data-juego', j.id);
-      const nom = document.createElement('span'); nom.className = 'juego-nombre'; nom.textContent = j.nombre;
-      const desc = document.createElement('span'); desc.className = 'juego-desc'; desc.textContent = j.desc;
-      card.appendChild(nom); card.appendChild(desc);
-      if (disp.pronto) { // en su plataforma pero aún no terminado → etiqueta "Pronto"
-        const tag = document.createElement('span'); tag.className = 'juego-tag'; tag.textContent = 'Pronto';
-        card.appendChild(tag);
-      } else if (disp.aviso) { // de OTRA plataforma → nota persistente (distinta de "Pronto")
-        const nota = document.createElement('span'); nota.className = 'juego-nota'; nota.textContent = disp.aviso;
-        card.appendChild(nota);
+  // ── IMÁGENES DE JUEGO (CAMBIO 3): escenas ESTÁTICAS dibujadas con los elementos reales, en un
+  // lienzo offscreen, CACHEADAS una vez (no se leen archivos ni hay costo de arranque). Se
+  // muestran cuando el juego NO está disponible en esta plataforma o aún no está terminado. SIN
+  // shadowBlur. Los targets no se tocan: aquí sólo se PINTA una escena representativa. ──
+  const imagenesJuego = {};
+  function construirImagenJuego(id) {
+    const AW = 200, AH = 140;
+    const cv = document.createElement('canvas'); cv.width = AW; cv.height = AH;
+    const g = cv.getContext('2d');
+    function target(cx, cy, cubo) { // grilla 5×4 de cubos naranjas con dos ojos (como el juego)
+      const cols = 5, filas = 4;
+      g.fillStyle = ACENTO.base;
+      for (let f = 0; f < filas; f++) for (let c = 0; c < cols; c++) {
+        g.beginPath(); g.roundRect(cx + (c - cols / 2) * cubo, cy + (f - filas / 2) * cubo, cubo - 1.5, cubo - 1.5, 2); g.fill();
       }
-      const aviso = document.createElement('span'); aviso.className = 'juego-aviso oculto';
-      aviso.textContent = disp.aviso || ''; // el mismo motivo, al tocar la tarjeta no jugable
-      card.appendChild(aviso);
-      card.addEventListener('click', function () {
-        if (disp.jugable) { mostrarPantallaDuracion(j.id, true); return; } // desde el MENÚ → reinicia a la más corta
-        // No jugable aquí (otra plataforma o aún no terminado): avisa breve y NO navega.
-        aviso.classList.remove('oculto');
-        setTimeout(function () { try { aviso.classList.add('oculto'); } catch (e) {} }, 1400);
-      });
-      elJuegoLista.appendChild(card);
-    });
+      g.fillStyle = COLOR.negro;
+      g.fillRect(cx + (1 - cols / 2) * cubo + 3, cy + (1 - filas / 2) * cubo + 3, 4, 4);
+      g.fillRect(cx + (3 - cols / 2) * cubo + 3, cy + (1 - filas / 2) * cubo + 3, 4, 4);
+    }
+    if (id === 'shotclaud') {                 // un target y la MIRA blanca sobre él
+      const mx = AW / 2, my = AH / 2; target(mx, my, 14);
+      g.strokeStyle = '#FFFFFF'; g.lineWidth = 3; g.lineCap = 'round';
+      g.beginPath(); g.arc(mx, my, 17, 0, Math.PI * 2); g.stroke();
+      g.beginPath();
+      g.moveTo(mx - 24, my); g.lineTo(mx - 9, my); g.moveTo(mx + 9, my); g.lineTo(mx + 24, my);
+      g.moveTo(mx, my - 24); g.lineTo(mx, my - 9); g.moveTo(mx, my + 9); g.lineTo(mx, my + 24);
+      g.stroke();
+      g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(mx, my, 3, 0, Math.PI * 2); g.fill();
+    } else if (id === 'pushclaud') {          // aplastar con el dedo: disco presionando + ondas
+      const mx = AW / 2, my = AH / 2 + 6; target(mx, my, 14);
+      g.globalAlpha = 0.9; g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(mx, my - 8, 13, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = 0.35; g.strokeStyle = '#FFFFFF'; g.lineWidth = 2;
+      g.beginPath(); g.arc(mx, my - 8, 22, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.arc(mx, my - 8, 30, 0, Math.PI * 2); g.stroke();
+      g.globalAlpha = 1;
+    } else {                                   // hitclaud: la bola (coral) y un target
+      target(AW * 0.64, AH * 0.42, 13);
+      g.fillStyle = ACENTO.vivo; g.beginPath(); g.arc(AW * 0.30, AH * 0.66, 12, 0, Math.PI * 2); g.fill();
+    }
+    return cv;
   }
-  function mostrarPantallaInicio() {
-    jugando = false;
-    ocultarNav();
-    if (elInicio) elInicio.classList.remove('oculto');
+  function imagenJuego(id) { return imagenesJuego[id] || (imagenesJuego[id] = construirImagenJuego(id)); }
+  function ponerImagenJuego(id) {
+    if (!elHomeImagen) return;
+    try {
+      const img = imagenJuego(id);
+      elHomeImagen.width = img.width; elHomeImagen.height = img.height;
+      const c = elHomeImagen.getContext('2d');
+      c.clearRect(0, 0, img.width, img.height); c.drawImage(img, 0, 0);
+    } catch (e) { /* nunca rompe el home */ }
+  }
+
+  // ── FLECHAS: ciclo INFINITO entre juegos, en AMBAS direcciones (2.3). El orden es el de JUEGOS
+  // (HitClaud, ShotClaud, PushClaud). La flecha IZQUIERDA avanza (Hit→Shot→Push→Hit); la DERECHA
+  // retrocede. Nunca se acaba, nunca se apaga una flecha. Al cambiar, la duración vuelve a la más
+  // corta de ese juego (4.4).
+  const ORDEN_JUEGOS = JUEGOS.map(function (j) { return j.id; });
+  function juegoVecino(id, delta) {
+    const n = ORDEN_JUEGOS.length;
+    const i = ORDEN_JUEGOS.indexOf(id);
+    return ORDEN_JUEGOS[(((i < 0 ? 0 : i) + delta) % n + n) % n];
   }
 
   // PANTALLA 2 — récord del juego en la duración elegida (cambia al cambiar de duración) y
@@ -557,25 +581,44 @@
       elDurModos.appendChild(b);
     });
   }
-  // Muestra la pantalla 2 del `juego`. `reiniciar`=true (entrada desde el MENÚ) fuerza la
-  // duración MÁS CORTA (D4/5.3); si no, conserva la duración elegida (5.1/5.2), validándola
-  // contra las del juego. Muestra también el nombre del jugador (sólo lectura, D2/2.2).
-  function mostrarPantallaDuracion(juego, reiniciar) {
+  // HOME de `juego` (nivel ÚNICO). `reiniciar`=true fuerza la duración MÁS CORTA; si no, conserva
+  // la elegida validándola contra las del juego. Según disponibilidad(): si es JUGABLE muestra el
+  // cuerpo (saludo + récord + duraciones + Ranking + JUGAR); si NO (otra plataforma o "Pronto")
+  // muestra su imagen + leyenda y NADA pulsable salvo las flechas (2.4/2.5/2.6). "Pronto" manda
+  // sobre la plataforma. El nombre del juego va en la fila de navegación (entre las flechas).
+  function mostrarHome(juego, reiniciar) {
     const j = juegoPorId(juego); if (!j) return;
     juegoSel = juego;
     if (reiniciar || j.duraciones.indexOf(modoInicioSel) === -1) modoInicioSel = duracionMasCorta(j);
     if (elDurJuego) elDurJuego.textContent = j.nombre;
-    if (elDurNombre) elDurNombre.textContent = nombreUsuario ? ('Hola, ' + nombreUsuario) : ''; // CAMBIO 3
-    construirDuraciones();
-    actualizarRecordDuracion();
-    actualizarMedallaRecord(); // corona ya; medalla si el jugador está en el top 12 (6.x)
+    const disp = disponibilidad(j, esDesktop);
+    if (elHomeJugable) elHomeJugable.classList.toggle('oculto', !disp.jugable);
+    if (elHomeNoJugable) elHomeNoJugable.classList.toggle('oculto', disp.jugable);
+    if (disp.jugable) {
+      actualizarSaludo();                 // "Hola, <nombre>" pulsable (editar nombre)
+      construirDuraciones();
+      actualizarRecordDuracion();
+      actualizarMedallaRecord();          // corona ya; medalla si está en el top 12
+    } else {
+      ponerImagenJuego(j.id);             // escena representativa del juego
+      // "Pronto" manda sobre la plataforma (2.6). Leyenda con dignidad (2.5), no un error.
+      if (elHomeLeyenda) elHomeLeyenda.textContent = disp.pronto
+        ? 'Pronto'
+        : (j.plataforma === 'escritorio' ? 'Disponible solo en computadora' : 'Disponible solo en móvil');
+    }
     jugando = false;
     ocultarNav();
     if (elDuracion) elDuracion.classList.remove('oculto');
   }
-  const btnDurAtras = document.getElementById('durAtras');
-  if (btnDurAtras) btnDurAtras.addEventListener('click', mostrarPantallaInicio); // 3.3: sube a pantalla 1
-  const btnDurRanking = document.getElementById('durRanking'); // 2.5: ranking DE ESE juego, duración seleccionada
+  // Compatibilidad interna: "ir al inicio" = mostrar el home del juego actual (siempre HitClaud al
+  // arrancar). Ya no hay pantalla de selección.
+  function mostrarPantallaInicio() { mostrarHome(juegoSel || 'hitclaud', false); }
+  // FLECHAS de la fila de navegación: ciclan de juego (reinician a la duración más corta).
+  const btnHomeIzq = document.getElementById('homeIzq');
+  if (btnHomeIzq) btnHomeIzq.addEventListener('click', function () { mostrarHome(juegoVecino(juegoSel, 1), true); });
+  const btnHomeDer = document.getElementById('homeDer');
+  if (btnHomeDer) btnHomeDer.addEventListener('click', function () { mostrarHome(juegoVecino(juegoSel, -1), true); });
+  const btnDurRanking = document.getElementById('durRanking'); // ranking DE ESE juego, duración seleccionada
   if (btnDurRanking) btnDurRanking.addEventListener('click', function () { abrirRanking(juegoSel, 'duracion'); });
   const btnDurJugar = document.getElementById('durJugar');
   if (btnDurJugar) btnDurJugar.addEventListener('click', function () { iniciarPartida(juegoSel, modoInicioSel); });
@@ -584,10 +627,9 @@
   const btnFinJugar = document.getElementById('finJugarDeNuevo');   // mismo juego, misma duración (4.4)
   if (btnFinJugar) btnFinJugar.addEventListener('click', function () { iniciarPartida(juegoActivo, modoJuego); });
   const btnFinCambiar = document.getElementById('finCambiarDuracion'); // vuelve a la pantalla 2, conserva la duración (4.5/5.1)
-  if (btnFinCambiar) btnFinCambiar.addEventListener('click', function () { mostrarPantallaDuracion(juegoActivo, false); });
-  const btnFinMenu = document.getElementById('finMenu');            // vuelve a la pantalla 1 (4.7)
-  if (btnFinMenu) btnFinMenu.addEventListener('click', mostrarPantallaInicio);
-  // (construirJuegos() se llama en el arranque, DESPUÉS de definir esDesktop, que usa.)
+  if (btnFinCambiar) btnFinCambiar.addEventListener('click', function () { mostrarHome(juegoActivo, false); });
+  const btnFinMenu = document.getElementById('finMenu');            // "Inicio": vuelve al HOME de ese juego (4.2)
+  if (btnFinMenu) btnFinMenu.addEventListener('click', function () { mostrarHome(juegoActivo, false); });
 
   // ── ENTRADA DE NOMBRE (FASE 21): overlay que se pide UNA sola vez (primera carga).
   // Bloquea el juego hasta tener nombre. Sin autofocus: el teclado se abre al tocar el
@@ -607,7 +649,7 @@
   const elIniSaludo = document.getElementById('iniSaludo');
   function abrirEditarNombre() {
     if (nombreInput) { nombreInput.value = nombreUsuario || ''; try { nombreInput.select(); } catch (e) {} }
-    if (elInicio) elInicio.classList.add('oculto');
+    if (elDuracion) elDuracion.classList.add('oculto'); // cierra el home
     if (elNombre) elNombre.classList.remove('oculto'); // NO .focus(): teclado bajo demanda
   }
   if (elIniSaludo) elIniSaludo.addEventListener('click', abrirEditarNombre);
@@ -680,7 +722,7 @@
   }
   construirBitacora();
   function abrirActualizaciones() {
-    if (elInicio) elInicio.classList.add('oculto');
+    if (elDuracion) elDuracion.classList.add('oculto'); // cierra el home
     if (elActualizaciones) { elActualizaciones.scrollTop = 0; elActualizaciones.classList.remove('oculto'); }
     if (elActuLista) elActuLista.scrollTop = 0; // arranca arriba de la lista
   }
@@ -832,7 +874,7 @@
   function cerrarRanking() {
     if (elRanking) elRanking.classList.add('oculto');
     if (rankOrigen === 'fin') { if (elGameOver) elGameOver.classList.remove('oculto'); }
-    else mostrarPantallaDuracion(juegoSel, false);
+    else mostrarHome(juegoSel, false);
   }
   const btnVerRankingFin = document.getElementById('verRankingFin'); // Ranking desde el fin (3.2)
   if (btnVerRankingFin) btnVerRankingFin.addEventListener('click', function () { abrirRanking(juegoActivo, 'fin'); });
@@ -2545,14 +2587,12 @@
   actualizarSaludo();   // pinta el saludo del inicio con el nombre guardado (si existe)
   marcarActividad();     // inicia el reloj de inactividad (evita cobro al arrancar)
   escalada = P.crearEscalada(performance.now(), Math.random); // estado inicial válido
-  construirJuegos();     // arma las tarjetas de la pantalla 1 (ya está definido esDesktop)
-  // Primera pantalla (FASE 21+26): si ya hay nombre → inicio; si no y el almacén sirve
-  // → pedir nombre (confirmar/omitir llevan al inicio); si el almacén está roto → jugar
-  // sin nombre (directo al inicio). El bucle corre congelado detrás. Sin aviso emergente:
-  // las actualizaciones se ven en su propia pantalla desde el inicio.
-  if (nombreUsuario) mostrarPantallaInicio();
+  // ARRANQUE: la app SIEMPRE abre en el HOME de HitClaud (1.2). Si ya hay nombre → home; si no y
+  // el almacén sirve → pedir nombre (confirmar/omitir llevan al home); si el almacén está roto →
+  // al home sin nombre. El bucle corre congelado detrás.
+  if (nombreUsuario) mostrarHome('hitclaud', true);
   else if (puedeGuardarNombre) mostrarPantallaNombre();
-  else mostrarPantallaInicio();
+  else mostrarHome('hitclaud', true);
   arrancarBucle();       // el bucle corre (congelado hasta tocar JUGAR)
 
   if ('serviceWorker' in navigator) {

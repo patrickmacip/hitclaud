@@ -22,17 +22,16 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 18 versiones', B.versiones.length === 18);
-  chk('la primera entrada es la 2.3 (más reciente primero)', B.versiones[0].version === '2.3');
-  chk('la 2.3 trae sus cuatro puntos literales (contador + mira + dorado + contornos)', (function () {
+  chk('hay exactamente 19 versiones', B.versiones.length === 19);
+  chk('la primera entrada es la 2.4 (más reciente primero)', B.versiones[0].version === '2.4');
+  chk('la 2.4 trae sus tres puntos literales (home por juego + flechas + arranque)', (function () {
     const v = B.versiones[0];
-    return v.version === '2.3' && v.fecha === '3 de agosto' && v.puntos.length === 4 &&
-      v.puntos[0].texto === 'El contador de tiempo ahora domina la pantalla' &&
-      v.puntos[1].texto === 'La mira de ShotClaud se ve sobre cualquier fondo' &&
-      v.puntos[2].texto === 'Acertar al centro se celebra en dorado' &&
-      v.puntos[3].texto === 'Fuera los contornos sucios de los números';
+    return v.version === '2.4' && v.fecha === '3 de agosto' && v.puntos.length === 3 &&
+      v.puntos[0].texto === 'Cada juego tiene su propia pantalla de inicio' &&
+      v.puntos[1].texto === 'Cambia de juego con las flechas, sin salir a ningún menú' &&
+      v.puntos[2].texto === 'El juego siempre abre en HitClaud';
   })());
-  chk('la segunda entrada sigue siendo la 2.2', B.versiones[1].version === '2.2');
+  chk('la segunda entrada sigue siendo la 2.3', B.versiones[1].version === '2.3');
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });

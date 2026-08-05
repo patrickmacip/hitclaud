@@ -38,7 +38,7 @@ function appCon(opts) {
   return app;
 }
 function jugar(app, juego, dur) {
-  app.cardDeJuego(juego).dispatch('click');
+  app.irAJuego(juego);
   if (dur) { const b = app.byId['durModos'].children.find(function (x) { return x._attrs['data-dur'] === dur; }); if (b) b.dispatch('click'); }
   app.byId['durJugar'].dispatch('click');
 }
@@ -116,7 +116,7 @@ console.log('=== V3 — decisión de envío en ranking.js: ShotClaud compite por
     { nombre: 'CIN', puntos: 500, fecha: 'f', efectividad: 0 }, // 0% es un valor válido
   ];
   const app = appCon({ topFalso: top });
-  app.cardDeJuego('shotclaud').dispatch('click'); // pantalla de duración
+  app.irAJuego('shotclaud'); // pantalla de duración
   app.byId['durRanking'].dispatch('click');       // abre ranking → cargarRanking → pintarTabla
   await new Promise(function (r) { setImmediate(r); }); // deja correr el .then de pedirTop
   const filas = app.byId['rankCuerpo'].children;

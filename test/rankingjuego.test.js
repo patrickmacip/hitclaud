@@ -8,19 +8,19 @@ const css = fs.readFileSync(__dirname + '/../css/main.css', 'utf8');
 let ok = 0, ko = 0;
 function chk(n, c) { console.log(`  ${n}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) ok++; else ko++; }
 
-console.log('=== CAMBIO 1: la pantalla 1 NO tiene botón de ranking ===');
+console.log('=== El HOME (nivel único) tiene su saludo y Actualizaciones; el ranking se abre desde él ===');
 {
-  const inicio = (html.match(/<div id="inicio"[\s\S]*?<\/div>\s*<\/div>/) || [''])[0];
-  chk('sin #verRanking en la pantalla 1', !/id="verRanking"/.test(inicio) && !/id="verRanking"/.test(html));
-  chk('el saludo editable se queda', /id="iniSaludo"/.test(inicio));
-  chk('Actualizaciones se queda', /id="verActualizaciones"/.test(inicio));
+  const home = (html.match(/<div id="duracion"[\s\S]*?<\/div>\s*<\/div>/) || [''])[0];
+  chk('el ranking no vive en el home (se abre con su botón)', !/id="verRanking"/.test(html));
+  chk('el saludo editable se queda (en el cuerpo jugable del home)', /id="iniSaludo"/.test(home));
+  chk('Actualizaciones se queda (al pie del home)', /id="verActualizaciones"/.test(home));
 }
 
-console.log('=== CAMBIO 2: la pantalla 2 muestra nombre, récord, selector, ranking y JUGAR ===');
+console.log('=== CAMBIO 2: el home muestra saludo, récord, selector, ranking y JUGAR ===');
 {
   const dur = (html.match(/<div id="duracion"[\s\S]*?<\/div>\s*<\/div>/) || [''])[0];
-  chk('orden: cabecera → nombre → récord → selector → Ranking → JUGAR', /ov-cabecera[\s\S]*?id="durNombre"[\s\S]*?id="durRecord"[\s\S]*?id="durModos"[\s\S]*?id="durRanking"[\s\S]*?id="durJugar"/.test(dur));
-  chk('el nombre del jugador se pinta en la pantalla 2 (sólo lectura)', /elDurNombre\.textContent = nombreUsuario \? \('Hola, ' \+ nombreUsuario\)/.test(main));
+  chk('orden: nav → saludo → récord → selector → Ranking → JUGAR', /home-nav[\s\S]*?id="iniSaludo"[\s\S]*?id="durRecord"[\s\S]*?id="durModos"[\s\S]*?id="durRanking"[\s\S]*?id="durJugar"/.test(dur));
+  chk('el saludo del home se pinta con el nombre (actualizarSaludo en mostrarHome)', /function mostrarHome\(juego, reiniciar\)[\s\S]{0,600}actualizarSaludo\(\)/.test(main));
   chk('el nombre NO se edita en la pantalla 2 (no abre editar-nombre desde durNombre)', !/durNombre[\s\S]{0,80}abrirEditarNombre/.test(main));
   chk('botón Ranking en la pantalla 2, con el podio', /id="durRanking"[\s\S]{0,120}podio-1\.svg/.test(html));
   chk('el Ranking de la pantalla 2 abre el ranking de ESE juego (contexto duracion)', /btnDurRanking[\s\S]{0,120}abrirRanking\(juegoSel, 'duracion'\)/.test(main));
@@ -30,7 +30,7 @@ console.log('=== CAMBIO 2: la pantalla 2 muestra nombre, récord, selector, rank
 console.log('=== D4/5.3: al entrar desde el menú, la duración MÁS CORTA viene marcada ===');
 {
   chk('duracionMasCorta = mínimo numérico', /function duracionMasCorta\(j\) \{ return j\.duraciones\.slice\(\)\.sort\(function \(a, b\) \{ return Number\(a\) - Number\(b\); \}\)\[0\]; \}/.test(main));
-  chk('tocar una tarjeta entra con reiniciar=true (fuerza la más corta)', /mostrarPantallaDuracion\(j\.id, true\)/.test(main));
+  chk('las flechas entran con reiniciar=true (fuerza la más corta)', /mostrarHome\(juegoVecino\(juegoSel, 1\), true\)/.test(main) && /mostrarHome\(juegoVecino\(juegoSel, -1\), true\)/.test(main));
   chk('mostrarPantallaDuracion con reiniciar → duración más corta', /if \(reiniciar \|\| j\.duraciones\.indexOf\(modoInicioSel\) === -1\) modoInicioSel = duracionMasCorta\(j\)/.test(main));
   chk('el selector marca la duración seleccionada (sel-activo en modoInicioSel)', /dur === modoInicioSel \? ' sel-activo' : ''/.test(main));
 }
@@ -42,7 +42,7 @@ console.log('=== CAMBIO 3: el ranking es por juego (sin selector de juego) ===')
   chk('el ranking muestra el NOMBRE del juego del contexto (3.3)', /id="rankJuegoNombre"/.test(html) && /elRankJuegoNombre\.textContent = j\.nombre/.test(main));
   chk('el selector de duración usa las duraciones del juego del contexto', /function construirRankModos\(\)[\s\S]{0,120}juegoPorId\(juegoSel\)/.test(main));
   chk('abrir desde el fin usa el juego jugado y el origen "fin"', /verRankingFin[\s\S]{0,120}abrirRanking\(juegoActivo, 'fin'\)/.test(main));
-  chk('Cerrar vuelve al ORIGEN: al fin, o a la pantalla 2 (3.5)', /function cerrarRanking\(\)[\s\S]{0,200}rankOrigen === 'fin'[\s\S]{0,120}elGameOver\.classList\.remove\('oculto'\)[\s\S]{0,80}mostrarPantallaDuracion\(juegoSel, false\)/.test(main));
+  chk('Cerrar vuelve al ORIGEN: al fin, o al HOME del juego (4.3)', /function cerrarRanking\(\)[\s\S]{0,200}rankOrigen === 'fin'[\s\S]{0,120}elGameOver\.classList\.remove\('oculto'\)[\s\S]{0,80}mostrarHome\(juegoSel, false\)/.test(main));
 }
 
 console.log('=== CAMBIO 4: botón JUGAR en el ranking, antes de Compartir; usa la duración de la tabla ===');
@@ -55,8 +55,8 @@ console.log('=== CAMBIO 4: botón JUGAR en el ranking, antes de Compartir; usa l
 console.log('=== CAMBIO 5: la duración es coherente entre pantalla 2, ranking y fin ===');
 {
   chk('cambiar la duración en el ranking mueve modoInicioSel (compartida)', /function elegirModoRank\(modo\) \{ modoInicioSel = modo;/.test(main));
-  chk('Cerrar sin jugar refleja la duración en la pantalla 2 (mostrarPantallaDuracion conserva, reiniciar=false)', /else mostrarPantallaDuracion\(juegoSel, false\)/.test(main));
-  chk('volver al menú y entrar reinicia a la más corta (tarjeta → reiniciar=true)', /mostrarPantallaDuracion\(j\.id, true\)/.test(main));
+  chk('Cerrar sin jugar refleja la duración en el HOME (mostrarHome conserva, reiniciar=false)', /else mostrarHome\(juegoSel, false\)/.test(main));
+  chk('cambiar de juego con la flecha reinicia a la más corta (reiniciar=true)', /mostrarHome\(juegoVecino\(juegoSel, 1\), true\)/.test(main));
 }
 
 console.log('=== Estilos nuevos ===');

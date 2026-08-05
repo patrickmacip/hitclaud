@@ -14,6 +14,14 @@
 
   const versiones = [
     {
+      version: '2.4', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Cada juego tiene su propia pantalla de inicio' },
+        { texto: 'Cambia de juego con las flechas, sin salir a ningún menú' },
+        { texto: 'El juego siempre abre en HitClaud' },
+      ],
+    },
+    {
       version: '2.3', fecha: '3 de agosto',
       puntos: [
         { texto: 'El contador de tiempo ahora domina la pantalla' },

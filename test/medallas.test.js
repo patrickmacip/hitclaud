@@ -23,7 +23,7 @@ console.log('=== CAMBIO 1: TODAS las ventanas acotadas al alto visible, mismo ma
 {
   chk('un ÚNICO margen definido (--ventana-margen)', /--ventana-margen:\s*\d+px;/.test(css));
   chk('altura máxima única definida con dvh + safe-area (--ventana-max)', /--ventana-max:\s*calc\(100dvh - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\) - 2 \* var\(--ventana-margen\)\)/.test(css));
-  chk('los overlays usan ese margen en el padding (mismo valor para todos)', /#gameover, #inicio, #duracion, #nombre, #actualizaciones, #ranking \{[\s\S]{0,320}padding:[\s\S]{0,120}var\(--ventana-margen\)/.test(css));
+  chk('los overlays usan ese margen en el padding (mismo valor para todos)', /#gameover, #duracion, #nombre, #actualizaciones, #ranking \{[\s\S]{0,320}padding:[\s\S]{0,120}var\(--ventana-margen\)/.test(css));
   chk('.go-panel (nombre/inicio/duración/fin) acotado a la ventana', /\.go-panel \{[\s\S]{0,260}max-height: var\(--ventana-max\)/.test(css));
   chk('.actu-panel (actualizaciones) acotado a la ventana', /\.actu-panel \{[\s\S]{0,260}max-height: var\(--ventana-max\)/.test(css));
   chk('.rank-panel (ranking) acotado a la ventana', /\.rank-panel \{[\s\S]{0,120}height: min\(620px, var\(--ventana-max\)\)/.test(css));
@@ -34,8 +34,8 @@ console.log('=== CAMBIO 2/3: cabecera unificada; Actualizaciones sin Cerrar gran
 {
   const actu = html.slice(html.indexOf('<div id="actualizaciones"'), html.indexOf('<div id="ranking"'));
   chk('Actualizaciones ya NO tiene botón grande "Cerrar" al pie', !/>Cerrar<\/button>/.test(actu) && /id="actuCerrar" class="hdr-icono"/.test(actu));
-  chk('la flecha de atrás de la pantalla 2 es icono esquinado (hdr-icono)', /<button id="durAtras" class="hdr-icono"[\s\S]{0,120}#ic-atras/.test(html));
-  chk('cabecera de duración: icono a la izquierda, título centrado, hueco a la derecha', /ov-cabecera[\s\S]*?id="durAtras"[\s\S]*?nivel-titulo[\s\S]*?hdr-spacer/.test(html));
+  chk('las flechas del home son iconos esquinados (hdr-icono)', /<button id="homeIzq" class="hdr-icono"[\s\S]{0,120}#ic-atras/.test(html) && /<button id="homeDer" class="hdr-icono"[\s\S]{0,120}#ic-adelante/.test(html));
+  chk('cabecera del home: flecha izq · nombre centrado · flecha der', /ov-cabecera home-nav[\s\S]*?id="homeIzq"[\s\S]*?nivel-titulo[\s\S]*?id="homeDer"/.test(html));
   chk('dice "Hola," y NO "Juegas como"', /'Hola, ' \+ nombreUsuario/.test(main) && !/Juegas como/.test(main));
 }
 

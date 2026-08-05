@@ -27,7 +27,7 @@ console.log('=== CAMBIO 1.3: SALIR abandona la partida sin guardar récord ni ma
   chk('abandonarPartida NO manda /score (enviarAlServidor(false): sólo /partida)', /function abandonarPartida\(\)[\s\S]{0,400}enviarAlServidor\(false\)/.test(main));
   chk('el /score sale por tiempo (HitClaud) o siempre en ShotClaud (enviarAlServidor)', /function enviarAlServidor\(porTiempo\)[\s\S]*?if \(porTiempo \|\| esShot\(\)\) \{[\s\S]{0,320}enviarPuntaje/.test(main));
   chk('abandono → stats con termino cloudover (el abandono cuenta como caída)', /termino: porTiempo \? 'tiempo' : 'cloudover'/.test(main));
-  chk('abandonar sube a la pantalla 2 del juego (siempre hay salida, 5.1)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarPantallaDuracion\(juegoActivo, false\)/.test(main));
+  chk('abandonar vuelve al HOME del juego (siempre hay salida, 4.1)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarHome\(juegoActivo, false\)/.test(main));
   chk('salir no interrumpe la secuencia de CloudOver', /botonSalir\.addEventListener\([\s\S]{0,120}if \(secuencia\) return;/.test(main));
 }
 
@@ -76,7 +76,7 @@ console.log('=== CAMBIO 4: fin de partida sin la palabra "Score" ni la línea de
   chk('récord nuevo con la corona (4.2)', /<p class="go-record oculto"><svg class="icono icono-mini"[\s\S]{0,80}#ic-corona/.test(html));
   chk('sin la línea de diagnóstico del envío (go-envio) en el HTML/CSS/JS', !/go-envio/.test(html) && !/go-envio/.test(css) && !/go-envio/.test(main));
   chk('sin las funciones del diagnóstico (estadoEnvioTexto/pintarEstadoEnvio)', !/estadoEnvioTexto/.test(main) && !/pintarEstadoEnvio/.test(main));
-  chk('botón "Menú de juegos" con contorno en el fin (ya no texto suelto)', /id="finMenu" class="ini-ranking" type="button"><span>Menú de juegos<\/span><\/button>/.test(html));
+  chk('botón "Inicio" con contorno en el fin (ya no "Menú de juegos")', /id="finMenu" class="ini-ranking" type="button"><span>Inicio<\/span><\/button>/.test(html));
 }
 
 console.log(`\n== RESUMEN interfaz: ${ok} OK, ${ko} NO ==`);

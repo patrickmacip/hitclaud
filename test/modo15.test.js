@@ -44,7 +44,7 @@ console.log('=== Pantalla 2: selector con SÓLO las duraciones del juego, genera
   chk('una sola duración → selector oculto (3.2)', /elDurModos\.classList\.toggle\('oculto', j\.duraciones\.length <= 1\)/.test(main));
   chk('JUGAR de la pantalla 2 arranca (juegoSel, modoInicioSel)', /iniciarPartida\(juegoSel, modoInicioSel\)/.test(main));
   chk('el récord de la pantalla 2 sigue a la duración', /function actualizarRecordDuracion\(\)[\s\S]{0,220}recordDe\(juegoSel, modoInicioSel\)/.test(main));
-  chk('sin selector de modo escrito a mano en el inicio (se generan las tarjetas de juego)', !/id="sel15"/.test(html) && /id="juegoLista"/.test(html));
+  chk('sin selector de modo escrito a mano (el home genera sus duraciones en #durModos)', !/id="sel15"/.test(html) && /id="durModos"/.test(html));
 }
 
 console.log(`\n== RESUMEN modo15: ${ok} OK, ${ko} NO ==`);

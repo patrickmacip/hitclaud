@@ -26,7 +26,7 @@ console.log('=== ORDEN de los botones (arriba→abajo): Menú · Ranking · Camb
   chk('orden exacto', /id="finMenu"[\s\S]*?id="verRankingFin"[\s\S]*?id="finCambiarDuracion"[\s\S]*?id="finJugarDeNuevo"/.test(fin));
   chk('"Jugar de nuevo" es el ÚLTIMO', fin.indexOf('id="finJugarDeNuevo"') > fin.indexOf('id="finCambiarDuracion"') && fin.indexOf('id="finJugarDeNuevo"') > fin.indexOf('id="finMenu"'));
   chk('"Jugar de nuevo" es el ÚNICO con relleno sólido (.go-reiniciar) del overlay', (fin.match(/class="[^"]*go-reiniciar/g) || []).length === 1 && /<button id="finJugarDeNuevo" class="go-reiniciar ini-jugar fin-jugar">/.test(fin));
-  chk('"Menú de juegos" es BOTÓN con contorno (ini-ranking), ya no texto suelto (D3)', /<button id="finMenu" class="ini-ranking" type="button"><span>Menú de juegos<\/span><\/button>/.test(fin) && !/class="ini-actu"[^>]*>Menú de juegos/.test(fin));
+  chk('"Inicio" es BOTÓN con contorno (ini-ranking), ya no "Menú de juegos" (4.2)', /<button id="finMenu" class="ini-ranking" type="button"><span>Inicio<\/span><\/button>/.test(fin) && !/Menú de juegos/.test(fin));
   chk('Ranking y Cambiar duración con contorno (ini-ranking)', /id="verRankingFin" class="ini-ranking"/.test(fin) && /id="finCambiarDuracion" class="ini-ranking"/.test(fin));
 }
 
@@ -50,9 +50,9 @@ console.log('=== Área táctil y ocultar "Cambiar duración" con una sola duraci
 console.log('=== V5 regresión: cada botón hace EXACTAMENTE lo mismo (solo cambió posición/estilo) ===');
 {
   chk('Jugar de nuevo → iniciarPartida(juegoActivo, modoJuego)', /finJugarDeNuevo[\s\S]{0,120}iniciarPartida\(juegoActivo, modoJuego\)/.test(main));
-  chk('Menú de juegos → mostrarPantallaInicio', /finMenu[\s\S]{0,120}mostrarPantallaInicio/.test(main));
+  chk('Inicio → mostrarHome(juegoActivo, false)', /finMenu[\s\S]{0,140}mostrarHome\(juegoActivo, false\)/.test(main));
   chk('Ranking → abrirRanking(juegoActivo, "fin")', /verRankingFin[\s\S]{0,120}abrirRanking\(juegoActivo, 'fin'\)/.test(main));
-  chk('Cambiar duración → mostrarPantallaDuracion(juegoActivo, false)', /finCambiarDuracion[\s\S]{0,220}mostrarPantallaDuracion\(juegoActivo, false\)/.test(main));
+  chk('Cambiar duración → mostrarPantallaDuracion(juegoActivo, false)', /finCambiarDuracion[\s\S]{0,220}mostrarHome\(juegoActivo, false\)/.test(main));
 }
 
 console.log(`\n== RESUMEN fin-layout: ${ok} OK, ${ko} NO ==`);

@@ -18,7 +18,7 @@ function conSeed(seed, fn) {
 }
 function rec(app, clave) { const v = app.mem.get(clave); return v ? JSON.parse(v).record : null; }
 function jugarShot(app, dur) {
-  app.cardDeJuego('shotclaud').dispatch('click');           // → pantalla de duración (20 por defecto)
+  app.irAJuego('shotclaud');           // → pantalla de duración (20 por defecto)
   if (dur) { const b = app.byId['durModos'].children.find(function (x) { return x._attrs['data-dur'] === dur; }); if (b) b.dispatch('click'); }
   app.byId['durJugar'].dispatch('click');                   // → iniciarPartida(shotclaud, dur)
 }
@@ -54,7 +54,7 @@ conSeed(11, function () {
     F.celdaEnPunto = function (t) { if (t && t.rojo) return -1; return cep.apply(this, arguments); };
   };
   const app = crearApp({ antesDeMain: wrap });
-  app.cardDeJuego('shotclaud').dispatch('click');           // pantalla de duración
+  app.irAJuego('shotclaud');           // pantalla de duración
   app.byId['durRanking'].dispatch('click');                 // abre el RANKING (origen 'duracion')
   chk('el ranking quedó abierto', !app.byId['ranking'].classList.contains('oculto'));
   const b60 = app.byId['rankModos'].children.find(function (x) { return x._attrs['data-modo'] === '60'; });
@@ -63,7 +63,7 @@ conSeed(11, function () {
   app.byId['rankJugar'].dispatch('click');                  // JUGAR desde el ranking
   chk('al pulsar JUGAR, el overlay del ranking se CIERRA (arreglo D2)', app.byId['ranking'].classList.contains('oculto'));
   chk('los demás overlays también están cerrados (la partida está en curso)',
-    app.byId['inicio'].classList.contains('oculto') && app.byId['duracion'].classList.contains('oculto') && app.byId['gameover'].classList.contains('oculto'));
+    app.byId['duracion'].classList.contains('oculto') && app.byId['gameover'].classList.contains('oculto'));
   // Corre hasta el time-up (60s): guardó el récord en 60 (la duración de la tabla), NO en 20.
   for (let i = 0; i < 2100; i++) { app.disparar(400, 300); app.step(32); if (!app.byId['gameover'].classList.contains('oculto')) break; }
   chk('la partida arrancó con la duración de la TABLA (récord guardado en 60)', rec(app, 'hitclaud.record.v4.shotclaud.60') > 0);

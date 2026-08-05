@@ -147,7 +147,7 @@ body {
 .oculto { display: none; }
 /* Una clase utilitaria (0-0-1-0) NO puede anular #gameover{display:flex}
    (ID, 0-1-0-0). Regla ID+clase (0-1-1-0) para que ocultar gane. */
-#gameover.oculto, #inicio.oculto, #duracion.oculto, #nombre.oculto, #actualizaciones.oculto, #ranking.oculto { display: none; }
+#gameover.oculto, #duracion.oculto, #nombre.oculto, #actualizaciones.oculto, #ranking.oculto { display: none; }
 /* Elementos con display:flex propio (declarado DESPUÉS de .oculto) necesitan la regla
    COMPUESTA para que ocultar gane: la línea de récord del fin (4.2, se oculta si no hubo
    récord) y el selector de duración (3.2, se oculta si el juego tiene una sola). */
@@ -160,7 +160,7 @@ body {
   --ventana-margen: 16px;
   --ventana-max: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2 * var(--ventana-margen));
 }
-#gameover, #inicio, #duracion, #nombre, #actualizaciones, #ranking {
+#gameover, #duracion, #nombre, #actualizaciones, #ranking {
   position: fixed;
   inset: 0;
   z-index: 3;
@@ -208,45 +208,22 @@ body {
 /* Icono del récord: corona por defecto; medalla si el jugador está entre los 12 primeros. */
 .ini-record .rec-medalla { width: 20px; height: 20px; display: block; }
 
-/* ── PANTALLA 1: tarjetas de juego (grandes, tocables ≥88px). Una por juego. ─────────── */
-.juego-lista { display: flex; flex-direction: column; gap: var(--esp-3); width: 100%; margin: var(--esp-3) 0 var(--esp-4); }
-.juego-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  width: 100%;
-  min-height: 88px;              /* tarjetas grandes y tocables (3.1) */
-  padding: var(--esp-4) var(--esp-5);
-  border: 2px solid var(--acento, #E8704E);
-  border-radius: var(--radio);
-  background: transparent;
-  color: var(--acento-vivo, #FF8764);
-  text-align: left;
-  cursor: pointer;
+/* ── HOME DE CADA JUEGO: fila de navegación entre juegos + cuerpo (jugable / no jugable) ──── */
+/* Las flechas son DISCRETAS: el nombre del juego (nivel-titulo, centrado) es lo que pesa. */
+.home-nav .hdr-icono { color: var(--texto-apagado, #8989B1); } /* flechas tenues, no dominantes */
+@media (hover: hover) { .home-nav .hdr-icono:hover { color: var(--acento-vivo, #FF8764); } }
+/* Cuerpo JUGABLE (saludo + récord + duraciones + Ranking + JUGAR) apilado y centrado. */
+#homeJugable { display: flex; flex-direction: column; align-items: center; width: 100%; }
+/* Cuerpo NO JUGABLE: imagen del juego + leyenda con dignidad (no un aviso de error). */
+#homeNoJugable { display: flex; flex-direction: column; align-items: center; width: 100%; gap: var(--esp-4); margin: var(--esp-4) 0; }
+.home-imagen {
+  width: 200px; max-width: 80%; height: auto; aspect-ratio: 10 / 7;
+  border-radius: var(--radio); opacity: 0.92;
 }
-.juego-card:active { transform: scale(0.99); }
-@media (hover: hover) { .juego-card:not(.juego-pronto):hover { border-color: var(--acento-vivo, #FF8764); } }
-.juego-nombre { font: var(--texto-l); font-weight: 800; color: var(--blanco, #FFFFFF); }
-.juego-desc { font: var(--texto-s); color: var(--texto-apagado, #8989B1); }
-/* Juegos aún no jugables: atenuados, con la etiqueta "Pronto". */
-.juego-card.juego-pronto { opacity: 0.55; border-color: var(--texto-apagado, #8989B1); }
-.juego-tag {
-  position: absolute; top: var(--esp-3); right: var(--esp-4);
-  font-size: 12px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
-  color: var(--coral, #E8704E);
+.home-leyenda {
+  font: var(--texto-l); font-weight: 700; color: var(--blanco, #FFFFFF);
+  text-align: center; letter-spacing: 0.2px; margin: 0; text-wrap: balance;
 }
-.juego-nota { font-size: 12px; color: var(--texto-apagado, #8989B1); margin-top: 2px; }
-/* Aviso breve al tocar un juego que no llega aún. */
-.juego-aviso {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  border-radius: var(--radio); background: rgba(232, 112, 78, 0.14);
-  font: var(--texto-m); color: var(--acento-vivo, #FF8764);
-}
-/* .juego-aviso trae display:flex → una .oculto genérica (misma especificidad, declarada
-   antes) NO alcanza a ocultarla. Regla COMPUESTA para que ocultar gane (como los overlays). */
-.juego-aviso.oculto { display: none; }
 
 /* ── CABECERA UNIFICADA (CAMBIO 2): misma estructura en duración, ranking y actualizaciones —
    iconos esquinados a izquierda/derecha y título centrado entre ellos. Los iconos son sólo
