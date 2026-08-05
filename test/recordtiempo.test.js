@@ -63,10 +63,17 @@ console.log('\n=== ULTIMO camino de escritura del récord: sólo terminar (grep)
   // record avanza SOLO dentro de terminar(): única asignación `record = ` fuera de init/reconciliar.
   const asignaEnTerminar = /if \(subeRecord && ultimoScore > record\) record = ultimoScore;/.test(util);
   chk('util.js: record sube SÓLO si subeRecord (dentro de terminar)', asignaEnTerminar);
-  // main.js: el único record.terminar pasa el flag porTiempo.
-  chk('main.js: record.terminar(scoreFinal, ahora, !!porTiempo) — único cierre', /record\.terminar\(scoreFinal, ahora, !!porTiempo\)/.test(main));
+  // main.js: el único record.terminar pasa el flag cuentaRecord (que gobierna si sube el récord).
+  chk('main.js: record.terminar(scoreFinal, ahora, cuentaRecord) — único cierre', /record\.terminar\(scoreFinal, ahora, cuentaRecord\)/.test(main));
   chk('main.js: time-up llama terminarPartida(true)', /terminarPartida\(true\)/.test(main));
   chk('main.js: CloudOver llama terminarPartida(false)', /terminarPartida\(false\)/.test(main));
+
+  // CAMBIO 1 (bug del récord de ShotClaud): ShotClaud sube récord también por CloudOver
+  // (con pPuntosFin); HitClaud NO (su CloudOver sigue sin récord). cuentaRecord lo decide.
+  chk('shotCloud = ShotClaud terminado por CloudOver', /const shotCloud = esShot\(\) && !porTiempo;/.test(main));
+  chk('cuentaRecord = por tiempo O ShotClaud-CloudOver', /const cuentaRecord = porTiempo \|\| shotCloud;/.test(main));
+  chk('en CloudOver el puntaje de la corrida es pPuntosFin (antes del vaciado)', /const puntajeRun = porTiempo \? marcador\.puntos : pPuntosFin;/.test(main));
+  chk('HitClaud por CloudOver NO cuenta récord (shotCloud es false → cuentaRecord=false)', /esShot\(\) && !porTiempo/.test(main));
 }
 
 console.log(`\n== RESUMEN record-tiempo: ${ok} OK, ${ko} NO ==`);

@@ -243,6 +243,7 @@
     elGameOver.classList.add('oculto');
     if (elInicio) elInicio.classList.add('oculto');
     if (elDuracion) elDuracion.classList.add('oculto');
+    if (elRanking) elRanking.classList.add('oculto'); // D2: al arrancar desde el ranking, cerrar su overlay (si no, tapa el juego)
     cascEvento('iniciarPartida', 'juego:' + juego + ' modo:' + modo);
   }
   // Fin de partida. `porTiempo`=true → cierre por AGOTARSE EL TIEMPO: el récord
@@ -255,13 +256,22 @@
     jugando = false;
     actualizarTiempo(); // fuera de partida → limpia el temporizador de la barra
     const ahora = performance.now();
-    // superaRecord ANTES de escribir (record.valor es el récord viejo). esRecord añade
-    // el requisito de que sea por tiempo (regla: el récord sólo cuenta si se cumplió).
-    const superaRecord = marcador.puntos >= record.valor && marcador.puntos > 0;
-    const esRecord = porTiempo && superaRecord;
-    const scoreFinal = porTiempo ? marcador.puntos : 0; // CloudOver = vaciado a 0
+    // CAMBIO 1 (bug del récord de ShotClaud): ShotClaud es un ENTRENADOR de puntería y sus
+    // corridas TERMINAN casi siempre por CloudOver (al dispararle a un rojo), no por tiempo.
+    // Antes el récord sólo subía por TIEMPO (regla dura de HitClaud: el CloudOver cuesta la
+    // partida entera), así que ShotClaud nunca guardaba récord. AHORA, en ShotClaud, la
+    // corrida SUBE RÉCORD también por CloudOver, con el puntaje de ANTES del vaciado
+    // (pPuntosFin, capturado en golpeCloudover). HitClaud NO cambia: su CloudOver sigue sin
+    // guardar. Mismo ESQUEMA de llaves (juego+duración) para ambos; sólo cambia CUÁNDO cuenta.
+    const shotCloud = esShot() && !porTiempo;            // ShotClaud terminado por CloudOver
+    const cuentaRecord = porTiempo || shotCloud;         // ¿esta corrida sube récord?
+    const puntajeRun = porTiempo ? marcador.puntos : pPuntosFin; // puntaje real de la corrida
+    // superaRecord ANTES de escribir (record.valor es el récord viejo).
+    const superaRecord = puntajeRun >= record.valor && puntajeRun > 0;
+    const esRecord = cuentaRecord && superaRecord;
+    const scoreFinal = cuentaRecord ? puntajeRun : 0; // HitClaud por CloudOver sigue mostrando 0
     // RÉCORD LOCAL: se guarda como siempre, ANTES y con independencia del envío (sellado).
-    record.terminar(scoreFinal, ahora, !!porTiempo);
+    record.terminar(scoreFinal, ahora, cuentaRecord);
     actualizarRecord();
     pintarFin(scoreFinal, esRecord);
     // ── SERVIDOR (segundo plano, blindado: la red JAMÁS bloquea ni rompe el fin) ──
@@ -357,6 +367,13 @@
     elGameOver.querySelector('.go-score').classList.remove('oculto');
     elGameOver.querySelector('.go-score .valor').textContent = U.abreviarNumero(score);
     elGameOver.querySelector('.go-record').classList.toggle('oculto', !esRecord);
+    // CAMBIO 5.7 — efectividad junto al puntaje: SÓLO ShotClaud. HitClaud la deja oculta.
+    const prec = elGameOver.querySelector('.go-precision');
+    if (prec) {
+      const pct = esShot() ? efectividadPct(pAciertos, pTiros) : null;
+      prec.classList.toggle('oculto', pct === null);
+      if (pct !== null) { const sp = document.getElementById('finPrecision'); if (sp) sp.textContent = pct + '%'; }
+    }
     const gr = elGameOver.querySelector('.go-rank');
     if (gr) gr.classList.add('oculto'); // se muestra sólo si el envío confirma que entró
     const j = juegoPorId(juegoActivo);
@@ -1070,14 +1087,25 @@
       { mult: 1.2, prob: 0.3 },   // 30% un 20% más rápidos
       { mult: 1.4, prob: 0.1 },   // 10% un 40% más rápidos
     ],
-    // CAMBIO 4 — Rojos: 5× MÁS que la ShotClaud previa (que iba ×0.25 = 4× HitClaud) →
-    // ×0.05. TOPE DURO aparte (en el spawn): los rojos NUNCA superan en número a los
-    // naranjas. Más objetos ⇒ cupos propios mayores para que la pantalla se llene sin
-    // reventar los topes de dibujo.
-    ROJO_FACTOR: 0.05,
+    // Rojos: se acorta su intervalo (×ROJO_FACTOR). AHORA el DOBLE que la ShotClaud previa
+    // (CAMBIO 3): iba ×0.05, ahora ×0.025 → el doble de rojos. TOPE DURO aparte (en el spawn):
+    // los rojos NUNCA superan en número a los naranjas (se mantiene, CAMBIO 3.2). Más objetos
+    // ⇒ cupos propios mayores para que la pantalla se llene sin reventar los topes de dibujo.
+    ROJO_FACTOR: 0.025,
     MAX_EN_PANTALLA: 6,   // cupo de spawn de ShotClaud (HitClaud sigue en MAX_EN_PANTALLA=2)
     MAX_VIVOS: 16,        // tope duro de dibujo de ShotClaud (HitClaud sigue en MAX_TARGETS_VIVOS=10)
     SPAWN_GAP_MAX: 380,   // naranjas más seguidas → hay cupo para tantos rojos (HitClaud 800)
+    // CAMBIO 4 — Caída en PICADA: un target golpeado FUERA del centro pierde su trayectoria.
+    // La velocidad horizontal se corta casi por completo (VX_FACTOR), arranca hacia abajo
+    // (VY_MIN) y la gravedad de caída se intensifica (GRAV_MULT × la lunar) → se lee como un
+    // derribo, no como un objeto que sigue viajando. Conserva/asegura rotación (VEL_ROT) para
+    // que se vea el impacto. Sigue golpeable y sigue dando 50. Sólo ShotClaud.
+    DERRIBO: {
+      VX_FACTOR: 0.06,  // conserva sólo el 6% de la velocidad horizontal
+      VY_MIN: 0.12,     // px/ms: velocidad mínima hacia abajo (no queda flotando ni subiendo)
+      GRAV_MULT: 2.2,   // la gravedad de caída se multiplica → picada, no flote lunar
+      VEL_ROT: 0.004,   // rad/ms: giro de respaldo si el trozo no tenía rotación
+    },
     SIN_GRANDE: true,     // ShotClaud NO lanza Big Claude
   };
   const esShot = function () { return juegoActivo === 'shotclaud'; };
@@ -1134,6 +1162,19 @@
   let miraDisparoEn = -Infinity;   // timestamp del último tiro (anima el retroceso)
   let miraFlashEn = -Infinity;     // timestamp del último acierto (anima el destello)
   let miraFlashCentro = false;     // ¿el último acierto fue al centro? (destello distinto)
+
+  // CAMBIO 5 — MEDIDOR DE EFECTIVIDAD (sólo ShotClaud): % de aciertos sobre disparos.
+  // ESQUINA INFERIOR IZQUIERDA: la zona MENOS transitada — los targets nacen en los 4 bordes
+  // y convergen al centro (donde vive la mira), y la barra de puntaje/tiempo ocupa el borde
+  // SUPERIOR; la esquina inferior izquierda queda casi siempre despejada. Es SÓLO DIBUJO en el
+  // canvas: no hay elemento ni listener, así que NUNCA captura toques/clics (5.4) — un target
+  // que pase por debajo se dispara igual. SIN shadowBlur. Sin valor hasta el primer disparo
+  // (un 100% previo engañaría: no has disparado). No toca puntaje ni récord (5.9).
+  const MEDIDOR_TAM = 76;        // px del número grande (translúcido)
+  const MEDIDOR_ETIQUETA = 17;   // px de la etiqueta "precisión"
+  const MEDIDOR_MARGEN = 22;     // px de separación desde el borde inferior-izquierdo
+  const MEDIDOR_ALFA_NUM = 0.17; // translucidez del número (no compite con el juego)
+  const MEDIDOR_ALFA_ET = 0.42;  // translucidez de la etiqueta
 
   let W = 0;
   let H = 0;
@@ -1609,7 +1650,23 @@
     if (tg.vivos <= 0) { targets.splice(ti, 1); return; } // no quedó nada → se retira
     tg.tocado = true;
     quizasPartir(tg, mx, my, 1.0);          // el pedazo que sobrevive cae (islas: gravedad, giro, empuje)
-    for (let k = 0; k < targets.length; k++) if (targets[k].fragmento) targets[k].tocado = true; // los trozos son debris
+    derribarShot(tg);                       // CAMBIO 4: el pedazo principal CAE EN PICADA
+    for (let k = 0; k < targets.length; k++) {
+      if (targets[k].fragmento) { targets[k].tocado = true; derribarShot(targets[k]); } // trozos = debris que también cae en picada
+    }
+  }
+
+  // CAMBIO 4 — CAÍDA EN PICADA (sólo ShotClaud): un target golpeado fuera del centro PIERDE su
+  // trayectoria. Corta casi toda la velocidad horizontal (SHOT.DERRIBO.VX_FACTOR), arranca
+  // hacia abajo (VY_MIN) y la gravedad de caída se intensifica (GRAV_MULT) → derribo, no un
+  // objeto que sigue viajando. Conserva/asegura rotación (se ve el impacto). Sigue golpeable y
+  // sigue dando 50 (eso lo decide dispararHitscanShot). No toca al motor: sólo props del target.
+  function derribarShot(t) {
+    const d = SHOT.DERRIBO;
+    t.vx *= d.VX_FACTOR;                                  // horizontal casi anulada
+    if (t.vy < d.VY_MIN) t.vy = d.VY_MIN;                 // arranca la picada (nunca queda subiendo/flotando)
+    t.gravedad = F.FISICA.G_TARGET * d.GRAV_MULT;         // gravedad de caída intensificada (picada)
+    if (!t.velRot) t.velRot = d.VEL_ROT;                  // conserva rotación (impacto visible)
   }
 
   // Ejecuta la suelta desde la posición del dedo. forzar=true (frenos) siempre
@@ -1926,6 +1983,30 @@
    }
   }
 
+  // Porcentaje de efectividad (PURO): aciertos sobre disparos, 0..100 entero. Sin disparos
+  // devuelve null (no hay valor hasta el primer disparo). No afecta puntaje ni récord.
+  function efectividadPct(aciertos, tiros) {
+    if (!tiros || tiros <= 0) return null;
+    return Math.round((Math.max(0, aciertos) / tiros) * 100);
+  }
+  // Dibuja el MEDIDOR de efectividad en la esquina inferior izquierda (sólo ShotClaud, en el
+  // canvas → nunca captura input). Grande y translúcido. Sin valor hasta el primer disparo.
+  function dibujarMedidorShot() {
+    const pct = efectividadPct(pAciertos, pTiros);
+    if (pct === null) return;                    // sin valor hasta el primer disparo (5.5)
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.fillStyle = ACENTO.vivo;
+    ctx.globalAlpha = MEDIDOR_ALFA_ET;           // etiqueta arriba del número
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = '600 ' + MEDIDOR_ETIQUETA + 'px ' + COLOR.fuente;
+    ctx.fillText('precisión', MEDIDOR_MARGEN, H - MEDIDOR_MARGEN - MEDIDOR_TAM);
+    ctx.globalAlpha = MEDIDOR_ALFA_NUM;          // número grande translúcido
+    ctx.font = '800 ' + MEDIDOR_TAM + 'px ' + COLOR.fuente;
+    ctx.fillText(pct + '%', MEDIDOR_MARGEN, H - MEDIDOR_MARGEN);
+    ctx.restore();
+  }
+
   // RETÍCULA de ShotClaud (desktop): cruz de 4 trazos con hueco central y punto al
   // centro, que SIGUE al cursor. RETROCESO: al disparar los 4 brazos se abren y se
   // cierran en MIRA_RETROCESO_MS. DESTELLO de acierto: anillo que crece y se apaga,
@@ -2036,7 +2117,8 @@
     if (elActual) elActual.style.color = (enVaciado || ahoraB < contadorRojoHasta) ? ROJO_CONTADOR : PUNTAJE_BLANCO;
 
     if (esDesktop && esShot()) {
-      // ShotClaud: retícula de precisión propia (retroceso + destello centro/no, sin shadowBlur).
+      // ShotClaud: medidor de efectividad (esquina inf-izq, sólo dibujo) + retícula de precisión.
+      dibujarMedidorShot();
       dibujarReticulaShot(ahoraB);
     } else if (esDesktop) {
       // Destello del disparo HITSCAN: una hitball chica que aparece y se apaga.

@@ -14,6 +14,15 @@
 
   const versiones = [
     {
+      version: '2.1', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'ShotClaud ahora guarda tu récord en las dos duraciones' },
+        { texto: 'El botón de jugar del ranking ya funciona' },
+        { texto: 'Los targets golpeados caen en picada' },
+        { texto: 'Nuevo medidor de efectividad y todavía más rojos' },
+      ],
+    },
+    {
       version: '2.0', fecha: '3 de agosto',
       puntos: [
         { texto: 'En ShotClaud un disparo ahora demuele medio target y se ve caer' },

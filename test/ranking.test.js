@@ -128,7 +128,7 @@ function limpiarPend() { R.MODOS.forEach(function (m) { R._borrarPendiente(m); }
     chk('confirmación sólo si entró y el fin sigue visible', /function mostrarConfirmacionRanking\(posicion\)[\s\S]{0,160}elGameOver\.classList\.contains\('oculto'\)/.test(main) && /reg\.estado === 'ok' && reg\.entro\) mostrarConfirmacionRanking/.test(main));
     chk('reintento de pendientes al arrancar', /Ranking\.reintentarPendientes\(\)/.test(main));
     chk('elemento go-rank en el overlay de fin, oculto por defecto', /<p class="go-rank oculto"><\/p>/.test(html));
-    chk('go-rank se re-oculta en cada fin (pintarFin)', /function pintarFin[\s\S]{0,400}go-rank[\s\S]{0,60}add\('oculto'\)/.test(main));
+    chk('go-rank se re-oculta en cada fin (pintarFin)', /function pintarFin[\s\S]{0,1100}go-rank[\s\S]{0,60}add\('oculto'\)/.test(main));
   }
 
   console.log(`\n== RESUMEN ranking: ${ok} OK, ${ko} NO ==`);

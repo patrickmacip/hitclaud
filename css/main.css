@@ -546,6 +546,15 @@ body {
   font-variant-numeric: tabular-nums; /* P6 */
 }
 
+/* CAMBIO 5.7 — efectividad de ShotClaud, junto al puntaje (informativa, secundaria). Sólo
+   ShotClaud la muestra; HitClaud la deja oculta. Es texto, sin sombra. */
+.go-precision {
+  font: var(--texto-m);
+  color: var(--acento-vivo, #FF8764);
+  margin: 0 0 var(--esp-3);
+}
+.go-precision span { font-weight: 800; font-variant-numeric: tabular-nums; }
+
 /* Récord nuevo (4.2): celebración con la corona. */
 .go-record {
   display: flex;

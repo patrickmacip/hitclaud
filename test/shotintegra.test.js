@@ -56,7 +56,7 @@ console.log('=== CAMBIO 1 — Demolición: fuera del centro destruye ~la mitad; 
   chk('el disparo fuera del centro llama a demolerMitadShot', /FUERA del centro \(target INTACTO\)[\s\S]{0,200}demolerMitadShot\(tg, ti, mx, my, ahora\)/.test(main));
   chk('demolerMitadShot arranca ceil(vivos×FRAC), explota y sacude', /function demolerMitadShot\([\s\S]{0,260}Math\.ceil\(tg\.vivos \* SHOT\.DEMOLE_FRAC\)[\s\S]{0,600}explotarCubos\([\s\S]{0,120}sacudidaHasta = ahora \+ SACUDIDA_MS/.test(main));
   chk('reutiliza quizasPartir (islas de Big Claude), no reescribe la lógica', /function demolerMitadShot\([\s\S]{0,750}quizasPartir\(tg, mx, my, 1\.0\)/.test(main));
-  chk('marca el resto y los trozos como caído/debris (valen 50, no 200)', /tg\.tocado = true;\s*quizasPartir[\s\S]{0,140}if \(targets\[k\]\.fragmento\) targets\[k\]\.tocado = true/.test(main));
+  chk('marca el resto y los trozos como caído/debris (valen 50, no 200)', /tg\.tocado = true;\s*quizasPartir[\s\S]{0,320}if \(targets\[k\]\.fragmento\) \{ targets\[k\]\.tocado = true/.test(main));
 
   // El pedazo sobreviviente hereda gravedad, velocidad y rotación (partirTarget = islas).
   const g = F.crearTarget({ w: 800, h: 600 }, COLS, FILAS);
@@ -70,9 +70,9 @@ console.log('=== CAMBIO 1 — Demolición: fuera del centro destruye ~la mitad; 
   chk('el disparo al CENTRO sigue destruyendo el target ENTERO (splice)', /S\.enZonaCentral\(tg, mx, my\)\) \{[\s\S]{0,140}S\.anotarCentro\(marcador\)[\s\S]{0,360}targets\.splice\(ti, 1\)/.test(main));
 }
 
-console.log('=== CAMBIO 4 — Rojos: 5× la ShotClaud previa + TOPE DURO (rojos ≤ naranjas) ===');
+console.log('=== CAMBIO 3 — Rojos: el DOBLE que la ShotClaud previa + TOPE DURO (rojos ≤ naranjas) ===');
 {
-  chk('ROJO_FACTOR = 0.05 (5× la previa de 0.25)', ROJO_FACTOR === 0.05);
+  chk('ROJO_FACTOR = 0.025 (el doble de rojos que la previa de 0.05)', ROJO_FACTOR === 0.025);
   chk('cupos propios mayores para llenar la pantalla (spawn 6, vivos 16)', MAX_EN_PANTALLA === 6 && MAX_VIVOS === 16);
   chk('el spawn de rojos exige rojos < naranjas en ShotClaud', /const c = contarTargets\(\);\s*const puedeRojo = !esShot\(\) \|\| c\.rojos < c\.naranjas;/.test(main));
   chk('contarTargets separa rojos de naranjas (todo lo no-rojo)', /function contarTargets\(\) \{[\s\S]{0,200}if \(targets\[i\]\.rojo\) rojos\+\+; else naranjas\+\+;/.test(main));
@@ -138,7 +138,7 @@ console.log('=== Integración: hitscan de ShotClaud, Big Claude apagado, SW ==='
 {
   chk('dispararHitscan deriva a dispararHitscanShot cuando esShot()', /if \(esShot\(\)\) \{ dispararHitscanShot\(mx, my, ahora\); return; \}/.test(main));
   chk('Big Claude NO se lanza en ShotClaud (guard SIN_GRANDE)', /if \(!\(esShot\(\) && SHOT\.SIN_GRANDE\) && targets\.length < capEnPantalla\(\) && t >= proximoGrande/.test(main));
-  chk('el service worker subió a v80', /hitclaud-shell-v80/.test(sw));
+  chk('el service worker subió a v81', /hitclaud-shell-v81/.test(sw));
 }
 
 console.log('=== V4 REGRESIÓN de HitClaud — su camino queda intacto ===');

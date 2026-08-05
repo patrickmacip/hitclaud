@@ -22,17 +22,17 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 15 versiones', B.versiones.length === 15);
-  chk('la primera entrada es la 2.0 (más reciente primero)', B.versiones[0].version === '2.0');
-  chk('la 2.0 trae sus cuatro puntos literales (demolición + plataformas)', (function () {
+  chk('hay exactamente 16 versiones', B.versiones.length === 16);
+  chk('la primera entrada es la 2.1 (más reciente primero)', B.versiones[0].version === '2.1');
+  chk('la 2.1 trae sus cuatro puntos literales (récord + jugar + picada + medidor)', (function () {
     const v = B.versiones[0];
-    return v.version === '2.0' && v.fecha === '3 de agosto' && v.puntos.length === 4 &&
-      v.puntos[0].texto === 'En ShotClaud un disparo ahora demuele medio target y se ve caer' &&
-      v.puntos[1].texto === 'Targets más grandes y con velocidades variadas' &&
-      v.puntos[2].texto === 'Muchos más rojos: la pantalla se llena' &&
-      v.puntos[3].texto === 'Cada juego se ofrece solo donde se juega bien';
+    return v.version === '2.1' && v.fecha === '3 de agosto' && v.puntos.length === 4 &&
+      v.puntos[0].texto === 'ShotClaud ahora guarda tu récord en las dos duraciones' &&
+      v.puntos[1].texto === 'El botón de jugar del ranking ya funciona' &&
+      v.puntos[2].texto === 'Los targets golpeados caen en picada' &&
+      v.puntos[3].texto === 'Nuevo medidor de efectividad y todavía más rojos';
   })());
-  chk('la segunda entrada sigue siendo la 1.9', B.versiones[1].version === '1.9');
+  chk('la segunda entrada sigue siendo la 2.0', B.versiones[1].version === '2.0');
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });

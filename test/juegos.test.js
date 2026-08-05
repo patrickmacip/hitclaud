@@ -52,7 +52,7 @@ console.log('=== CAMBIO 4: fin de partida — jugar de nuevo / cambiar duración
 {
   chk('"Jugar de nuevo": mismo juego y misma duración (4.4)', /finJugarDeNuevo[\s\S]{0,120}iniciarPartida\(juegoActivo, modoJuego\)/.test(main));
   chk('"Cambiar duración" vuelve a la pantalla 2 del mismo juego (4.5)', /finCambiarDuracion[\s\S]{0,220}mostrarPantallaDuracion\(juegoActivo, false\)/.test(main));
-  chk('"Cambiar duración" se OCULTA si el juego tiene una sola duración', /function pintarFin[\s\S]{0,700}btnFinCambiar\.classList\.toggle\('oculto', unaSola\)/.test(main));
+  chk('"Cambiar duración" se OCULTA si el juego tiene una sola duración', /function pintarFin[\s\S]{0,1100}btnFinCambiar\.classList\.toggle\('oculto', unaSola\)/.test(main));
   chk('"Menú de juegos" vuelve a la pantalla 1 (4.7)', /finMenu[\s\S]{0,160}mostrarPantallaInicio/.test(main));
   chk('orden en el HTML: puntaje → récord → puesto → Jugar de nuevo', /go-score[\s\S]*?go-record[\s\S]*?go-rank[\s\S]*?id="finJugarDeNuevo"/.test(html));
 }
