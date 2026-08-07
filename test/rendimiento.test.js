@@ -59,9 +59,13 @@ console.log('\n=== Nada más cambió: colores, tamaños y posiciones idénticos 
   chk('FRANJA_PX = 28 (ancho de borde intacto)', /const FRANJA_PX = 28;/.test(main));
   chk('colores de borde/contador intactos', /ROJO_BORDE = '#FF0055', ROJO_CONTADOR = '#FF4583'/.test(main));
   chk('contador = marca de agua en canvas CACHEADA (drawImage por cuadro, se re-rasteriza al cambiar)', /function dibujarContadorTiempo\(\)/.test(main) && /contadorCache\.txt !== txt \|\| contadorCache\.urgente !== urgente/.test(main) && /ctx\.drawImage\(contadorCache\.canvas/.test(main));
-  // FASE 29: badge de tamaño FIJO 42 (MULT_ASIENTO), sin crecer con la racha; posición
-  // por mx/my (W/2, max(158,H*0.16)) sin translate (dibuja en coords absolutas).
-  chk('badge: tamaño fijo 42 (MULT_ASIENTO) y posición (W/2, max(158,H*0.16)) intactas', /const MULT_ASIENTO = 42;/.test(main) && /mx = W \/ 2, my = Math\.max\(158, H \* 0\.16\)/.test(main) && !/26 \+ Math\.min\(20, marcador\.racha\)/.test(main));
+  // CAMBIO 2.3: el asiento del badge CRECE con el valor (multAsiento: 42 en ×1 → 78 en ×5); base
+  // MULT_ASIENTO=42 intacta. Posición por mx/my (W/2, max(158,H*0.16)) sin translate (coords
+  // absolutas) intacta. El halo sigue cacheado y escalado por (fs/MULT_ASIENTO), sin shadowBlur.
+  chk('badge: base 42 (MULT_ASIENTO), asiento por multAsiento(mult) y posición (W/2, max(158,H*0.16)) intactas',
+    /const MULT_ASIENTO = 42;/.test(main) && /const MULT_ASIENTO_MAX = 78;/.test(main) &&
+    /const asiento = multAsiento\(mult\);/.test(main) && /mx = W \/ 2, my = Math\.max\(158, H \* 0\.16\)/.test(main) &&
+    /discoMult\.r \* \(fs \/ MULT_ASIENTO\)/.test(main));
   chk('bolita: disco RADIO-1.5 y stroke intactos (tamaño no cambió)', /arc\(cx, cy, RADIO - 1\.5,/.test(cuerpoBolita));
   chk('flotante: fuente 700 fl.tam intacta', /ctx\.font = '700 ' \+ fl\.tam \+ 'px '/.test(main));
   // El dpr/resolución del canvas NO se tocó en este commit.

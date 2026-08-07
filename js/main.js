@@ -167,6 +167,8 @@
   let modoInicioSel = '15';       // duración elegida en el home (arranca en la más corta de HitClaud)
   let record = recordDe('hitclaud', '60'); // récord de la PARTIDA activa (se fija al iniciar)
   const elRecord = document.getElementById('barraRecord');
+  const elBarraIcono = document.getElementById('barraRecordIcono'); // corona ↔ medalla (CAMBIO 4)
+  const elBarraPuesto = document.getElementById('barraPuesto');     // "#N" del ranking (CAMBIO 4)
   function actualizarRecord() { elRecord.textContent = U.abreviarNumero(record ? record.valor : 0); }
   // RECONCILIACIÓN al arrancar (async): funde localStorage e IndexedDB por cada récord.
   Object.keys(recordStores).forEach(function (k) {
@@ -233,6 +235,7 @@
     modoJuego = modo;
     record = recordDe(juego, modo) || recordDe('hitclaud', '60'); // récord de ese juego+duración
     actualizarRecord();
+    actualizarMedallaBarra(); // CAMBIO 4: corona ya; medalla/puesto si está en el ranking (no espera a la red)
     reiniciarEstado();
     tiempoRestante = DURACIONES[modo] || 0;      // 15→15000, 60→60000
     jugando = true;
@@ -482,6 +485,53 @@
         if (token !== recordIconoToken || juego !== juegoSel || dur !== modoInicioSel) return; // cambió el contexto
         if (res && res.ok) { rankTopActual = res.top || []; rankTopClave = clave; const p = mejorPuestoDe(rankTopActual, nombreUsuario); if (p) ponerIconoRecord(p); }
       }, function () { /* falla → se queda la corona (6.4) */ });
+    } catch (e) { /* nunca rompe */ }
+  }
+
+  // CAMBIO 4 — la BARRA de juego muestra, junto a la corona y el récord: la MEDALLA si el jugador
+  // está entre los 12 primeros (4.1) y su NÚMERO DE PUESTO si está en el top 20; si no está en el
+  // ranking, sólo corona + récord. ponerMedallaBarra pinta ese estado a partir del puesto. Reutiliza
+  // iconoPuesto (mismo criterio de medalla que el home, 4.2). Discreto, no desborda (4.5): el número
+  // hereda el tono tenue y las cifras tabulares del récord (CSS). Puro DOM; no espera a la red.
+  function ponerMedallaBarra(puesto) {
+    if (elBarraIcono) {
+      elBarraIcono.textContent = '';
+      const src = iconoPuesto(puesto);       // 1-12 → medalla; si no, corona
+      if (src) {
+        const img = document.createElement('img');
+        img.className = 'rec-medalla'; img.src = src; img.alt = 'Puesto ' + puesto; img.setAttribute('aria-hidden', 'true');
+        elBarraIcono.appendChild(img);
+      } else {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'icono icono-mini'); svg.setAttribute('aria-hidden', 'true');
+        const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#ic-corona');
+        svg.appendChild(use); elBarraIcono.appendChild(svg);
+      }
+    }
+    if (elBarraPuesto) {
+      const enTop = typeof puesto === 'number' && puesto >= 1 && puesto <= 20; // número si top 20
+      elBarraPuesto.textContent = enTop ? ('#' + puesto) : '';
+      elBarraPuesto.classList.toggle('oculto', !enTop);
+    }
+  }
+  // Pone la corona de INMEDIATO (4.3, el juego NUNCA espera a la red) y, si el jugador está en el
+  // ranking de ESE juego+duración, cambia a su medalla/puesto al llegar el dato. Reutiliza el top que
+  // el home/ranking ya trajo si es del mismo contexto (4.4, no pide dos veces); si no, lo pide una
+  // vez. Un fallo de red deja la corona (4.3) sin lanzar. Vale para HitClaud y ShotClaud (4.6).
+  let barraMedallaToken = 0;
+  function actualizarMedallaBarra() {
+    ponerMedallaBarra(null); // corona ya, sin puesto (no espera a la red, 4.3)
+    if (typeof Ranking === 'undefined' || !nombreUsuario) return;
+    const juego = juegoActivo, dur = modoJuego, clave = juego + ':' + dur;
+    if (!dur) return;
+    if (rankTopClave === clave) { ponerMedallaBarra(mejorPuestoDe(rankTopActual, nombreUsuario)); return; } // reusa (4.4)
+    const token = ++barraMedallaToken;
+    try {
+      Ranking.pedirTop(modoServidor(juego, dur)).then(function (res) {
+        if (token !== barraMedallaToken || juego !== juegoActivo || dur !== modoJuego) return; // cambió el contexto
+        if (res && res.ok) { rankTopActual = res.top || []; rankTopClave = clave; ponerMedallaBarra(mejorPuestoDe(rankTopActual, nombreUsuario)); }
+      }, function () { /* falla → se queda la corona (4.3) */ });
     } catch (e) { /* nunca rompe */ }
   }
 
@@ -991,8 +1041,10 @@
   const BONO_VIDA = 1100;       // ms de vida (única)
   const BONO_SUBE = 56;         // px que sube (con frenado)
   const MULT_COLOR = '#FFB25C'; // color del badge de multiplicador (literal, con respaldo)
-  const MULT_ASIENTO = 42;      // px: tamaño FIJO del multiplicador
-  const MULT_PICO = 52;         // px: pico del rebote al cambiar de valor
+  const MULT_ASIENTO = 42;      // px: tamaño de asiento del multiplicador a ×1 (base)
+  const MULT_ASIENTO_MAX = 78;  // px: tamaño de asiento a ×5 (tope). CAMBIO 2.3: el número CRECE
+  //                               con el valor — progresión clara y perceptible entre ×1 y ×5.
+  const MULT_REBOTE = 10;       // px que brinca el rebote al CAMBIAR de valor (52−42 previo, conservado)
   function hexRgb(h) {
     h = String(h).replace('#', '');
     return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
@@ -1020,6 +1072,13 @@
     const A = hexRgb(a), B = hexRgb(b);
     return 'rgb(' + Math.round(A.r + (B.r - A.r) * t) + ',' + Math.round(A.g + (B.g - A.g) * t) + ',' + Math.round(A.b + (B.b - A.b) * t) + ')';
   }
+  // CAMBIO 2.3 — tamaño de ASIENTO del badge SEGÚN el valor del multiplicador: interpola lineal de
+  // MULT_ASIENTO (×1) a MULT_ASIENTO_MAX (×RACHA_TOPE=5). A mayor multiplicador, más grande el
+  // número. Sólo cambia el TAMAÑO; color, peso, halo y rebote no cambian (2.4). SIN shadowBlur (2.5).
+  function multAsiento(mult) {
+    const k = Math.max(0, Math.min(1, (mult - 1) / (P.RACHA_TOPE - 1)));
+    return MULT_ASIENTO + k * (MULT_ASIENTO_MAX - MULT_ASIENTO);
+  }
   // Discos cacheados UNA sola vez (blindado): bono, multiplicador y FLOTANTE (glow sin
   // strokeText — reemplaza al contorno del halo de texto, CAMBIO 2). Radios por su tamaño.
   const FLOTANTE_GLOW = ACENTO.vivo; // los flotantes con glow siempre son del acento vivo
@@ -1036,6 +1095,11 @@
   // offscreen y sólo se re-rasteriza cuando cambia el texto o el estado (≈1 vez/seg, no por
   // cuadro): cada cuadro es un drawImage barato con su alfa/escala. SIN shadowBlur (1.9).
   const CONTADOR_TAM = 105;             // px (7 × 15 del temporizador anterior)
+  // CAMBIO 3 — centro vertical del contador. Antes 0.50 (H/2, centrado). Un 20% MÁS ARRIBA
+  // respecto a esa posición: 0.50 × 0.80 = 0.40 (3.1). Sólo se mueve: tamaño/opacidad/color/
+  // últimos-5s intactos (3.2). No se sale de pantalla en ningún alto: el contador mide ≈137px
+  // (105 × 1.3), su mitad ≈68px < 0.40·H para cualquier H jugable (3.3). Igual en HitClaud y ShotClaud.
+  const CONTADOR_Y_FRAC = 0.40;
   const CONTADOR_ALFA = 0.12;           // opacidad normal (marca de agua, 1.3)
   const CONTADOR_ALFA_URG = 0.20;       // opacidad en los últimos 5 s (urge un poco más, 1.7)
   const CONTADOR_ROJO = tk('--tiempo-urgente', '#FF4D4D'); // rojo de alarma (mismo token que el DOM antes)
@@ -1076,7 +1140,7 @@
     const w = contadorCache.w * pulso, h = contadorCache.h * pulso;
     ctx.save();
     ctx.globalAlpha = alfa;
-    ctx.drawImage(contadorCache.canvas, W / 2 - w / 2, H / 2 - h / 2, w, h);
+    ctx.drawImage(contadorCache.canvas, W / 2 - w / 2, H * CONTADOR_Y_FRAC - h / 2, w, h);
     ctx.restore();
   }
   // Estado del badge de multiplicador: para detectar el CAMBIO de valor (rebote+destello).
@@ -1674,7 +1738,7 @@
       if (g >= 50) popMarcador();
       actualizarMarcador();
       if (tg.vivos <= 0) { targets.splice(ti, 1); sacudidaHasta = ahora + SACUDIDA_MS; }
-      else quizasPartir(tg, mx, my, 1.0); // ¿quedó partido? desprende trozos (vImpact nominal)
+      else { quizasPartir(tg, mx, my, 1.0); derribarHit(tg); } // sobrevive → ¿partido? + CAMBIO 1: cae en picada
       return; // un tiro impacta un solo target
     }
     // No tocó ningún cubo → FALLO.
@@ -1778,18 +1842,36 @@
     }
   }
 
-  // CAMBIO 4 — CAÍDA EN PICADA (sólo ShotClaud): un target golpeado fuera del centro PIERDE su
-  // trayectoria. Corta casi toda la velocidad horizontal (SHOT.DERRIBO.VX_FACTOR), arranca
-  // hacia abajo (VY_MIN) y la gravedad de caída se intensifica (GRAV_MULT) → derribo, no un
-  // objeto que sigue viajando. Conserva/asegura rotación (se ve el impacto). Sigue golpeable y
-  // sigue dando 50 (eso lo decide dispararHitscanShot). No toca al motor: sólo props del target.
-  function derribarShot(t) {
-    const d = SHOT.DERRIBO;
+  // CAÍDA EN PICADA: un target golpeado que sobrevive PIERDE su trayectoria. Corta casi toda la
+  // velocidad horizontal (d.VX_FACTOR), arranca hacia abajo (d.VY_MIN) y la gravedad de caída se
+  // intensifica (d.GRAV_MULT × la lunar) → derribo, no un objeto que sigue viajando. Conserva/
+  // asegura rotación (se ve el impacto). No toca al motor (fisica.js sellado): sólo props del
+  // target — la caída se resuelve DESDE FUERA. Mecánica ÚNICA para los dos juegos: `d` es el juego
+  // de constantes (SHOT.DERRIBO para ShotClaud —comportamiento intacto— o HIT_DERRIBO para HitClaud,
+  // CAMBIO 1). Sigue golpeable y sigue puntuando igual (eso lo deciden los llamadores).
+  function derribarShot(t, d) {
+    d = d || SHOT.DERRIBO;                                // ShotClaud por defecto: no cambia su comportamiento
     t.vx *= d.VX_FACTOR;                                  // horizontal casi anulada
     if (t.vy < d.VY_MIN) t.vy = d.VY_MIN;                 // arranca la picada (nunca queda subiendo/flotando)
     t.gravedad = F.FISICA.G_TARGET * d.GRAV_MULT;         // gravedad de caída intensificada (picada)
     if (!t.velRot) t.velRot = d.VEL_ROT;                  // conserva rotación (impacto visible)
   }
+
+  // CAMBIO 1 (HitClaud) — un target PEQUEÑO golpeado que NO se destruye se DESPLOMA: reutiliza la
+  // misma mecánica (derribarShot) con constantes PROPIAS de HitClaud (HIT_DERRIBO). Pueden diferir
+  // de las de ShotClaud: es otro juego (1.6). Mismos ejes que SHOT.DERRIBO.
+  const HIT_DERRIBO = {
+    VX_FACTOR: 0.06,  // conserva sólo el 6% de la velocidad horizontal → pierde la trayectoria (1.1)
+    VY_MIN: 0.10,     // px/ms: velocidad mínima hacia abajo (nunca queda flotando ni subiendo)
+    GRAV_MULT: 2.0,   // la gravedad de caída se duplica → picada, no el flote lunar de HitClaud
+    VEL_ROT: 0.004,   // rad/ms: giro de respaldo si no tenía rotación → se lee el impacto (1.2)
+  };
+  // ¿este target se DESPLOMA al ser golpeado sin destruirse? SÓLO los pequeños de HitClaud. Big
+  // Claude (grande) y cualquier isla/fragmento conservan su comportamiento actual, con su flote
+  // lunar (1.5). Puro: no toca nada. La caída (1.3: sigue golpeable y puntúa igual) no la decide aquí.
+  function seDesploma(tg) { return !tg.grande && !tg.fragmento; }
+  // Aplica la picada a un target de HitClaud que sobrevivió al golpe, si le corresponde (1.5).
+  function derribarHit(tg) { if (seDesploma(tg)) derribarShot(tg, HIT_DERRIBO); }
 
   // Ejecuta la suelta desde la posición del dedo. forzar=true (frenos) siempre
   // dispara y respeta la velocidad de suelta real (tiro rápido = tiro real;
@@ -2013,8 +2095,9 @@
         if (r.muerto) {
           sacudidaHasta = t + SACUDIDA_MS;     // micro-sacudida solo en muerte
           targets.splice(ti, 1);
-        } else if (r.destruidos > 0) {
-          quizasPartir(tg, r.px, r.py, r.vImpact); // ¿quedó partido? desprende trozos
+        } else {
+          if (r.destruidos > 0) quizasPartir(tg, r.px, r.py, r.vImpact); // ¿quedó partido? desprende trozos
+          derribarHit(tg);                     // CAMBIO 1: el que sobrevive al golpe cae en picada
         }
       }
     }
@@ -2376,16 +2459,19 @@
     // racha, bordes, monto, temporizador y medidor v41-fps → tamaño normal, sin cámara.
 
     // BADGE del multiplicador de racha "×N" (UI, arriba-centro, NO se transforma con la
-    // cámara/sacudida). Aparece con mult>1. SIN contorno ni latido: halo por disco
-    // cacheado (máx 30%), tamaño FIJO 42px que sólo REBOTA (→52px) y DESTELLA
-    // (blanco→color) al CAMBIAR de valor; fuera de ese momento queda quieto en 42px.
+    // cámara/sacudida). Aparece con mult>1. SIN contorno ni latido: halo por disco cacheado
+    // (máx 30%). CAMBIO 2.3: el asiento CRECE con el valor (multAsiento: 42px en ×1 → 78px en ×5);
+    // sobre ese asiento, REBOTA (+MULT_REBOTE) y DESTELLA (blanco→color) al CAMBIAR de valor; fuera
+    // de ese momento queda quieto en su asiento. Sólo cambia el tamaño: color/peso/halo/rebote igual.
     const mult = P.multRacha(marcador.racha);
     const nowM = performance.now();
     if (mult !== multAnterior) { multCambioEn = nowM; multAnterior = mult; } // detecta el cambio
     if (mult > 1) {
       const dc = nowM - multCambioEn; // ms desde el último cambio de valor
-      // REBOTE al cambiar: brinca a 52px y regresa a 42px en 220ms (suavizado); luego quieto.
-      const fs = dc < 220 ? MULT_PICO + suave(dc / 220) * (MULT_ASIENTO - MULT_PICO) : MULT_ASIENTO;
+      const asiento = multAsiento(mult);   // asiento SEGÚN el valor (crece de 42 a 78, CAMBIO 2.3)
+      const pico = asiento + MULT_REBOTE;  // el rebote conserva su amplitud (+10px, 2.4)
+      // REBOTE al cambiar: brinca al pico y regresa al asiento en 220ms (suavizado); luego quieto.
+      const fs = dc < 220 ? pico + suave(dc / 220) * (asiento - pico) : asiento;
       // DESTELLO: 0–80ms blanco; 80–180ms blanco→color; luego color.
       let col;
       if (dc < 80) col = '#FFFFFF';

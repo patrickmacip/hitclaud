@@ -29,7 +29,9 @@ console.log('=== La barra NO tiene etiquetas de texto (D1/P1): ni "Record" ni "A
 
 console.log('=== Tres zonas: récord (corona+número), centro (puntaje+tiempo), salir (casa) ===');
 {
-  chk('récord: corona + #barraRecord', /barra-record[\s\S]{0,120}#ic-corona[\s\S]{0,90}id="barraRecord"/.test(barra));
+  // CAMBIO 4: la corona vive en #barraRecordIcono (para poder cambiar a medalla) y entre ella y el
+  // récord aparece el nº de puesto #barraPuesto (oculto por defecto). Corona + récord siguen presentes.
+  chk('récord: corona (en #barraRecordIcono) + #barraPuesto + #barraRecord', /barra-record[\s\S]{0,160}id="barraRecordIcono"[\s\S]{0,80}#ic-corona[\s\S]{0,120}id="barraPuesto"[\s\S]{0,120}id="barraRecord"/.test(barra));
   chk('centro: puntaje #barraActual (el tiempo se movió a la marca de agua del canvas)', /barra-centro[\s\S]{0,120}id="barraActual"/.test(barra) && !/id="barraTiempo"/.test(barra));
   chk('salir: botón con icono de casa y área táctil 44×44', /id="botonSalir"[\s\S]{0,120}#ic-casa/.test(barra) && /\.barra-salir \{[\s\S]{0,120}width: 44px;[\s\S]{0,60}height: 44px;/.test(css));
   chk('el récord y el salir son tenues (bajo contraste, referencia)', /\.barra-record \{[\s\S]{0,120}color: var\(--texto-apagado/.test(css) && /\.barra-salir \{[\s\S]{0,300}color: var\(--texto-apagado/.test(css));

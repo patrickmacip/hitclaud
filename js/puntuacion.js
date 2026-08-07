@@ -14,10 +14,16 @@
   const FALLO = 50;       // un fallo resta 50 (plano)
 
   // Multiplicador de RACHA CONTINUA: un hit = la hitball destruye ≥1 cubo; se
-  // rompe con un fallo. Desde el 3er hit, ×1.2, 4º ×1.4… +0.2/hit, tope ×3.
+  // rompe con un fallo. PROGRESIÓN (CAMBIO 2, tope subido de ×3 a ×5): ×1 hasta el
+  // 2º hit; desde el 3er hit +0.2/hit sin cambiar el paso previo (3º ×1.2, 4º ×1.4,
+  // 5º ×1.6 …), hasta el TOPE ×5. Con paso 0.2, la cima ×5 se alcanza en el 22º hit
+  // seguido (1 + (22-2)·0.2 = 5.0): la escalada se GANA, no se regala (2.2). El
+  // tramo bajo NO cambia (mismos ×1.2/×1.4 de antes), sólo se estira el techo.
   const RACHA_DESDE = 3;
   const RACHA_PASO = 0.2;
-  const RACHA_TOPE = 3.0;
+  // CAMBIO 2: el tope pasó de `const RACHA_TOPE = 3.0;` a 5.0 (se anota el valor previo aquí,
+  // literal, porque la cascada decorativa del fondo —util.js, sellado— aún lo cita).
+  const RACHA_TOPE = 5.0;
 
   // Ritmo progresivo del SPAWN (no toca la economía): el retardo entre spawns
   // interpola de BASE (0 pts) a TOPE (SCORE_RITMO_MAX). Más score = más frecuencia.

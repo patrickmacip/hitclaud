@@ -56,6 +56,10 @@ body {
   color: var(--texto-apagado, #8989B1);
   font-variant-numeric: tabular-nums; /* P6: cifras de ancho fijo, no bailan */
 }
+/* CAMBIO 4 — medalla en la barra: mismo tamaño que la corona (icono-mini, 16px), discreta. */
+.barra-record .rec-medalla { width: 16px; height: 16px; display: block; }
+/* CAMBIO 4 — nº de puesto: información SECUNDARIA, tono tenue del récord, sin desbordar (4.5). */
+.barra-puesto { color: var(--texto-apagado, #8989B1); }
 
 /* CENTRO — puntaje (grande, blanco, dominante) y tiempo (mitad, tenue), apilados. */
 .barra-centro {

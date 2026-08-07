@@ -28,7 +28,7 @@ console.log('=== anotarCarambola: 500 una sola vez, sin multiplicar por racha ==
   // NO se multiplica por la racha: con racha altísima el bono sigue siendo 500.
   const m0 = { puntos: 0, racha: 0 }, m9 = { puntos: 0, racha: 50 };
   chk('con racha 0 y racha alta el bono es idéntico (500, limpio)', P.anotarCarambola(m0, 4) === 500 && P.anotarCarambola(m9, 4) === 500);
-  chk('multRacha(50)=3.0 pero el bono NO lo aplica', P.multRacha(50) === 3.0 && P.bonoCarambola(4) === 500);
+  chk('multRacha(50)=5.0 (tope, CAMBIO 2) pero el bono NO lo aplica', P.multRacha(50) === 5.0 && P.bonoCarambola(4) === 500);
 }
 
 console.log('=== Cableado: se cobra Y se muestra en el 2º golpe, JUNTOS, una vez por bola ===');

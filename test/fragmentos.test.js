@@ -116,15 +116,16 @@ console.log('=== EXCEPCIÓN: sólo el CloudOver ENTERO mata; un trozo NUNCA ==='
   // pasa a resolverImpacto y sólo puntúa. Se verifica en el código.
   chk('el guard de rojo excluye fragmentos: if (tg.rojo && !tg.fragmento)', /if \(tg\.rojo && !tg\.fragmento\)/.test(mainSrc));
   chk('partirTarget NUNCA marca un fragmento como rojo (no copia el flag)', !/rojo:\s*(true|t\.rojo)/.test(fisicaSrc));
-  chk('los rojos no se parten: quizasPartir sólo corre tras resolverImpacto (naranjas)', /r\.destruidos > 0\) \{[\s\S]{0,80}quizasPartir/.test(mainSrc));
+  chk('los rojos no se parten: quizasPartir sólo corre tras resolverImpacto (naranjas)', /r\.destruidos > 0\) quizasPartir/.test(mainSrc));
 }
 
 console.log('=== DETECCIÓN sólo en golpes que destruyen celda, NUNCA por cuadro ===');
 {
   // quizasPartir se llama tras un golpe con destruidos>0 (bolita) o tras destruir
-  // en hitscan; NUNCA dentro del bucle de paso()/dibujar por cuadro.
-  chk('bolita: quizasPartir tras golpe con destruidos>0 (no muerto)', /r\.muerto\) \{[\s\S]{0,220}\} else if \(r\.destruidos > 0\) \{\s*quizasPartir/.test(mainSrc));
-  chk('hitscan: quizasPartir sólo si el target sobrevive al tiro', /else quizasPartir\(tg, mx, my, 1\.0\)/.test(mainSrc));
+  // en hitscan; NUNCA dentro del bucle de paso()/dibujar por cuadro. CAMBIO 1: en la rama
+  // de "sobrevive" ahora también corre derribarHit(tg) (la caída en picada), adyacente.
+  chk('bolita: quizasPartir tras golpe con destruidos>0 (no muerto)', /r\.muerto\) \{[\s\S]{0,220}\} else \{[\s\S]{0,80}if \(r\.destruidos > 0\) quizasPartir[\s\S]{0,80}derribarHit\(tg\)/.test(mainSrc));
+  chk('hitscan: quizasPartir sólo si el target sobrevive al tiro', /else \{ quizasPartir\(tg, mx, my, 1\.0\); derribarHit\(tg\); \}/.test(mainSrc));
   // No aparece en el bucle de movimiento de targets ni en dibujar().
   const iMov = mainSrc.indexOf('Targets: misma física');
   const finMov = mainSrc.indexOf('function colisionar', iMov);

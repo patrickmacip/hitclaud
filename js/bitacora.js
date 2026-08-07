@@ -14,6 +14,14 @@
 
   const versiones = [
     {
+      version: '2.5', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Los targets golpeados ahora se desploman en lugar de seguir volando' },
+        { texto: 'El multiplicador llega hasta cinco y crece con cada nivel' },
+        { texto: 'Tu récord muestra en qué puesto vas y tu medalla' },
+      ],
+    },
+    {
       version: '2.4', fecha: '3 de agosto',
       puntos: [
         { texto: 'Cada juego tiene su propia pantalla de inicio' },

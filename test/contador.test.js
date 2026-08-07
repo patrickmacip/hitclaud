@@ -24,7 +24,10 @@ console.log('=== Tamaño 7×, peso máximo, blanco, opacidad baja (1.1–1.3) ==
   chk('opacidad baja ~12% normal', /const CONTADOR_ALFA = 0\.12;/.test(main));
   chk('sube la opacidad en los últimos 5 s (~20%, urge más, 1.7)', /const CONTADOR_ALFA_URG = 0\.20;/.test(main));
   chk('color normal BLANCO puro', /rasterizarContador\(txt, urgente \? CONTADOR_ROJO : '#FFFFFF'\)/.test(main));
-  chk('centrado en el ÁREA DE JUEGO (W/2, H/2), no en la barra', /drawImage\(contadorCache\.canvas, W \/ 2 - w \/ 2, H \/ 2 - h \/ 2/.test(main));
+  // CAMBIO 3: centrado en X; en Y desplazado un 20% hacia ARRIBA respecto al centro (H·0.40 en
+  // vez de H/2). Tamaño/opacidad/color/últimos-5s sin cambios (sólo la posición vertical).
+  chk('centrado en X y a H·CONTADOR_Y_FRAC en Y (20% más arriba que H/2), no en la barra', /drawImage\(contadorCache\.canvas, W \/ 2 - w \/ 2, H \* CONTADOR_Y_FRAC - h \/ 2/.test(main));
+  chk('CONTADOR_Y_FRAC = 0.40 = 0.50 × 0.80 (un 20% arriba de la posición previa, CAMBIO 3.1)', /const CONTADOR_Y_FRAC = 0\.40;/.test(main) && (0.50 * 0.80).toFixed(2) === '0.40');
 }
 
 console.log('=== Se dibuja DETRÁS de todo: antes de targets, bola, cubos y efectos (1.4) ===');

@@ -28,6 +28,6 @@ console.log('\n=== El multiplicador de racha amplifica la ganancia ===');
 {
   const m = P.crearMarcador(); m.racha = 3;        // ×1.2
   chk('20 cubos con racha 3 → +120 (100 ×1.2)', P.anotarDestruidos(m, 20) === 120);
-  const m2 = P.crearMarcador(); m2.racha = 100;    // tope ×3
-  chk('20 cubos con racha enorme → +300 (tope ×3)', P.anotarDestruidos(m2, 20) === 300);
+  const m2 = P.crearMarcador(); m2.racha = 100;    // tope ×5 (CAMBIO 2)
+  chk('20 cubos con racha enorme → +500 (tope ×5)', P.anotarDestruidos(m2, 20) === 500);
 }
