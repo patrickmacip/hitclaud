@@ -124,8 +124,8 @@ console.log('=== DETECCIÓN sólo en golpes que destruyen celda, NUNCA por cuadr
   // quizasPartir se llama tras un golpe con destruidos>0 (bolita) o tras destruir
   // en hitscan; NUNCA dentro del bucle de paso()/dibujar por cuadro. CAMBIO 1: en la rama
   // de "sobrevive" ahora también corre derribarHit(tg) (la caída en picada), adyacente.
-  chk('bolita: quizasPartir tras golpe con destruidos>0 (no muerto)', /r\.muerto\) \{[\s\S]{0,220}\} else \{[\s\S]{0,80}if \(r\.destruidos > 0\) quizasPartir[\s\S]{0,80}derribarHit\(tg\)/.test(mainSrc));
-  chk('hitscan: quizasPartir sólo si el target sobrevive al tiro', /else \{ quizasPartir\(tg, mx, my, 1\.0\); derribarHit\(tg\); \}/.test(mainSrc));
+  chk('bolita: quizasPartir tras golpe con destruidos>0 (no muerto)', /r\.muerto\) \{[\s\S]{0,220}\} else \{[\s\S]{0,80}if \(r\.destruidos > 0\) quizasPartir[\s\S]{0,120}derribarHit\(tg, r\.px, r\.py, r\.vImpact\)/.test(mainSrc));
+  chk('hitscan: quizasPartir sólo si el target sobrevive al tiro', /else \{ quizasPartir\(tg, mx, my, 1\.0\); derribarHit\(tg, mx, my, 1\.0\); \}/.test(mainSrc));
   // No aparece en el bucle de movimiento de targets ni en dibujar().
   const iMov = mainSrc.indexOf('Targets: misma física');
   const finMov = mainSrc.indexOf('function colisionar', iMov);

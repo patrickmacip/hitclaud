@@ -14,6 +14,13 @@
 
   const versiones = [
     {
+      version: '2.6', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Los targets derribados ahora caen describiendo un arco, no en picada' },
+        { texto: 'El giro de la caída reacciona al golpe que recibieron' },
+      ],
+    },
+    {
       version: '2.5', fecha: '3 de agosto',
       puntos: [
         { texto: 'Los targets golpeados ahora se desploman en lugar de seguir volando' },

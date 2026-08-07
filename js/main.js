@@ -1738,7 +1738,7 @@
       if (g >= 50) popMarcador();
       actualizarMarcador();
       if (tg.vivos <= 0) { targets.splice(ti, 1); sacudidaHasta = ahora + SACUDIDA_MS; }
-      else { quizasPartir(tg, mx, my, 1.0); derribarHit(tg); } // sobrevive → ¿partido? + CAMBIO 1: cae en picada
+      else { quizasPartir(tg, mx, my, 1.0); derribarHit(tg, mx, my, 1.0); } // sobrevive → ¿partido? + CAMBIO 1: cae describiendo un arco
       return; // un tiro impacta un solo target
     }
     // No tocó ningún cubo → FALLO.
@@ -1859,19 +1859,49 @@
 
   // CAMBIO 1 (HitClaud) — un target PEQUEÑO golpeado que NO se destruye se DESPLOMA: reutiliza la
   // misma mecánica (derribarShot) con constantes PROPIAS de HitClaud (HIT_DERRIBO). Pueden diferir
-  // de las de ShotClaud: es otro juego (1.6). Mismos ejes que SHOT.DERRIBO.
+  // de las de ShotClaud: es otro juego. TODAS las constantes de la caída de HitClaud viven aquí.
+  //
+  // v2.6 — LA CAÍDA DESCRIBE UN ARCO, no un desplome (reporte de Pat tras validar a57cfa6). Antes
+  // cortaba casi toda la horizontal (0.06) y aplicaba mucha gravedad (2.0), así que la parábola se
+  // cerraba antes de verse. Ahora el target sale del golpe AÚN viajando (conserva el 55% de la
+  // horizontal) y la gravedad (×1.4 la lunar) lo va venciendo → arco visible, como un avión
+  // derribado. Además el GIRO reacciona al golpe (antes conservaba el que traía): ver giroDerribo.
   const HIT_DERRIBO = {
-    VX_FACTOR: 0.06,  // conserva sólo el 6% de la velocidad horizontal → pierde la trayectoria (1.1)
+    VX_FACTOR: 0.55,  // conserva el 55% de la horizontal → sale del golpe AÚN viajando (dibuja el arco)
     VY_MIN: 0.10,     // px/ms: velocidad mínima hacia abajo (nunca queda flotando ni subiendo)
-    GRAV_MULT: 2.0,   // la gravedad de caída se duplica → picada, no el flote lunar de HitClaud
-    VEL_ROT: 0.004,   // rad/ms: giro de respaldo si no tenía rotación → se lee el impacto (1.2)
+    GRAV_MULT: 1.4,   // gravedad de caída = 1.4 × la lunar → la vence de a poco, cerrando la parábola
+    VEL_ROT: 0.004,   // rad/ms: giro de respaldo (fallback) — hoy no se usa, giroDerribo siempre da magnitud
+    // GIRO REACTIVO al golpe (v2.6): la magnitud crece con la FUERZA del impacto (|vImpact|) y el
+    // SENTIDO sigue el LADO del impacto (a la derecha del centro → +, a la izquierda → −), para que
+    // la caída se vea DESCONTROLADA en vez de rígida. Acotado a [GIRO_MIN, GIRO_MAX] para que no
+    // parezca un trompo. (Rango propuesto por mí para el veto de Pat.)
+    GIRO_MIN: 0.006,        // rad/ms: piso (hasta un golpe flojo descontrola algo el giro)
+    GIRO_MAX: 0.030,        // rad/ms: techo (más allá se leería como trompo)
+    GIRO_POR_FUERZA: 0.018, // rad/ms por unidad de |vImpact| (golpe fuerte → gira más)
   };
   // ¿este target se DESPLOMA al ser golpeado sin destruirse? SÓLO los pequeños de HitClaud. Big
   // Claude (grande) y cualquier isla/fragmento conservan su comportamiento actual, con su flote
   // lunar (1.5). Puro: no toca nada. La caída (1.3: sigue golpeable y puntúa igual) no la decide aquí.
   function seDesploma(tg) { return !tg.grande && !tg.fragmento; }
-  // Aplica la picada a un target de HitClaud que sobrevivió al golpe, si le corresponde (1.5).
-  function derribarHit(tg) { if (seDesploma(tg)) derribarShot(tg, HIT_DERRIBO); }
+  // Giro que imprime el golpe a la caída (HitClaud, v2.6): SENTIDO por el lado del impacto (mx
+  // respecto al centro tg.x) y MAGNITUD por la fuerza (|vImpact|), acotada a [GIRO_MIN, GIRO_MAX].
+  // vImpact≈1 en el hitscan nominal; en la bolita es la rapidez real del golpe (golpe fuerte → gira
+  // más). Puro. Reemplaza la rotación previa: por eso la caída se ve descontrolada, no rígida.
+  function giroDerribo(tg, mx, my, vImpact) {
+    const d = HIT_DERRIBO;
+    const dir = (mx >= tg.x) ? 1 : -1;                       // lado del impacto → sentido del giro
+    const fuerza = Math.abs(vImpact || 1);
+    const mag = Math.min(d.GIRO_MAX, Math.max(d.GIRO_MIN, d.GIRO_MIN + fuerza * d.GIRO_POR_FUERZA));
+    return dir * mag;
+  }
+  // Aplica la picada a un target de HitClaud que sobrevivió al golpe, si le corresponde (1.5). El
+  // giro se fija ANTES de derribarShot (que sólo pone su fallback si velRot fuese 0) → prevalece el
+  // giro reactivo al golpe (v2.6).
+  function derribarHit(tg, mx, my, vImpact) {
+    if (!seDesploma(tg)) return;
+    tg.velRot = giroDerribo(tg, mx, my, vImpact);            // el giro REACCIONA al golpe (ya no conserva el previo)
+    derribarShot(tg, HIT_DERRIBO);
+  }
 
   // Ejecuta la suelta desde la posición del dedo. forzar=true (frenos) siempre
   // dispara y respeta la velocidad de suelta real (tiro rápido = tiro real;
@@ -2097,7 +2127,7 @@
           targets.splice(ti, 1);
         } else {
           if (r.destruidos > 0) quizasPartir(tg, r.px, r.py, r.vImpact); // ¿quedó partido? desprende trozos
-          derribarHit(tg);                     // CAMBIO 1: el que sobrevive al golpe cae en picada
+          derribarHit(tg, r.px, r.py, r.vImpact); // CAMBIO 1: el que sobrevive cae describiendo un arco (giro por el golpe)
         }
       }
     }

@@ -22,23 +22,29 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 20 versiones', B.versiones.length === 20);
-  chk('la primera entrada es la 2.5 (más reciente primero)', B.versiones[0].version === '2.5');
-  chk('la 2.5 trae sus tres puntos literales (picada + multiplicador ×5 + puesto/medalla)', (function () {
+  chk('hay exactamente 21 versiones', B.versiones.length === 21);
+  chk('la primera entrada es la 2.6 (más reciente primero)', B.versiones[0].version === '2.6');
+  chk('la 2.6 trae sus dos puntos literales (arco + giro reactivo)', (function () {
     const v = B.versiones[0];
+    return v.version === '2.6' && v.fecha === '3 de agosto' && v.puntos.length === 2 &&
+      v.puntos[0].texto === 'Los targets derribados ahora caen describiendo un arco, no en picada' &&
+      v.puntos[1].texto === 'El giro de la caída reacciona al golpe que recibieron';
+  })());
+  chk('la segunda entrada es la 2.5 (intacta: picada + multiplicador ×5 + puesto/medalla)', (function () {
+    const v = B.versiones[1];
     return v.version === '2.5' && v.fecha === '3 de agosto' && v.puntos.length === 3 &&
       v.puntos[0].texto === 'Los targets golpeados ahora se desploman en lugar de seguir volando' &&
       v.puntos[1].texto === 'El multiplicador llega hasta cinco y crece con cada nivel' &&
       v.puntos[2].texto === 'Tu récord muestra en qué puesto vas y tu medalla';
   })());
-  chk('la segunda entrada es la 2.4 (intacta: home por juego + flechas + arranque)', (function () {
-    const v = B.versiones[1];
+  chk('la tercera entrada es la 2.4 (intacta: home por juego + flechas + arranque)', (function () {
+    const v = B.versiones[2];
     return v.version === '2.4' && v.fecha === '3 de agosto' && v.puntos.length === 3 &&
       v.puntos[0].texto === 'Cada juego tiene su propia pantalla de inicio' &&
       v.puntos[1].texto === 'Cambia de juego con las flechas, sin salir a ningún menú' &&
       v.puntos[2].texto === 'El juego siempre abre en HitClaud';
   })());
-  chk('la tercera entrada sigue siendo la 2.3', B.versiones[2].version === '2.3');
+  chk('la cuarta entrada sigue siendo la 2.3', B.versiones[3].version === '2.3');
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });
