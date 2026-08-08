@@ -22,28 +22,34 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 26 versiones', B.versiones.length === 26);
-  chk('la primera entrada es la 3.1 (más reciente primero)', B.versiones[0].version === '3.1');
-  chk('la 3.1 trae sus tres puntos literales (ritmo + relámpago + sin encimar)', (function () {
+  chk('hay exactamente 27 versiones', B.versiones.length === 27);
+  chk('la primera entrada es la 3.2 (más reciente primero)', B.versiones[0].version === '3.2');
+  chk('la 3.2 trae sus dos puntos literales (caen desde arriba + más espacio, sin aparecer a medias)', (function () {
     const v = B.versiones[0];
+    return v.version === '3.2' && v.fecha === '3 de agosto' && v.puntos.length === 2 &&
+      v.puntos[0].texto === 'En Pushcloude los targets ahora caen desde arriba' &&
+      v.puntos[1].texto === 'Más espacio entre apariciones y ninguno aparece a medias';
+  })());
+  chk('la segunda entrada es la 3.1 (intacta)', (function () {
+    const v = B.versiones[1];
     return v.version === '3.1' && v.fecha === '3 de agosto' && v.puntos.length === 3 &&
       v.puntos[0].texto === 'Pushcloude sube el ritmo: targets más rápidos y desde todas partes' &&
       v.puntos[1].texto === 'Llegan los relámpago: aparecen un instante y valen 200 si los cazas' &&
       v.puntos[2].texto === 'Ya no se encima un target sobre otro';
   })());
-  chk('la segunda entrada es la 3.0 (intacta)', (function () {
-    const v = B.versiones[1];
+  chk('la tercera entrada es la 3.0 (intacta)', (function () {
+    const v = B.versiones[2];
     return v.version === '3.0' && v.puntos.length === 2 &&
       v.puntos[0].texto === 'En Pushcloude tu dedo ahora demuele de verdad' &&
       v.puntos[1].texto === 'Los targets cruzan la pantalla completos y por la zona de juego';
   })());
-  chk('la tercera entrada es la 2.9 (intacta)', B.versiones[2].version === '2.9' && B.versiones[2].puntos.length === 4 && B.versiones[2].puntos[0].texto === 'Llega Pushcloude: aplasta los targets con el dedo');
-  chk('la cuarta entrada es la 2.8 (intacta)', B.versiones[3].version === '2.8' && B.versiones[3].puntos[0].texto === 'Pushcloude entra en acceso anticipado para quien tenga la clave');
-  chk('la quinta entrada es la 2.7 (intacta)', B.versiones[4].version === '2.7' && B.versiones[4].puntos[0].texto === 'El juego se llama Hitcloude');
-  chk('la sexta entrada es la 2.6 (intacta)', B.versiones[5].version === '2.6' && B.versiones[5].puntos.length === 2);
-  chk('la séptima entrada es la 2.5 (intacta)', B.versiones[6].version === '2.5' && B.versiones[6].puntos.length === 3);
-  chk('la octava entrada es la 2.4 (intacta)', B.versiones[7].version === '2.4' && B.versiones[7].puntos[2].texto === 'El juego siempre abre en HitClaud');
-  chk('la novena entrada sigue siendo la 2.3', B.versiones[8].version === '2.3');
+  chk('la cuarta entrada es la 2.9 (intacta)', B.versiones[3].version === '2.9' && B.versiones[3].puntos.length === 4 && B.versiones[3].puntos[0].texto === 'Llega Pushcloude: aplasta los targets con el dedo');
+  chk('la quinta entrada es la 2.8 (intacta)', B.versiones[4].version === '2.8' && B.versiones[4].puntos[0].texto === 'Pushcloude entra en acceso anticipado para quien tenga la clave');
+  chk('la sexta entrada es la 2.7 (intacta)', B.versiones[5].version === '2.7' && B.versiones[5].puntos[0].texto === 'El juego se llama Hitcloude');
+  chk('la séptima entrada es la 2.6 (intacta)', B.versiones[6].version === '2.6' && B.versiones[6].puntos.length === 2);
+  chk('la octava entrada es la 2.5 (intacta)', B.versiones[7].version === '2.5' && B.versiones[7].puntos.length === 3);
+  chk('la novena entrada es la 2.4 (intacta)', B.versiones[8].version === '2.4' && B.versiones[8].puntos[2].texto === 'El juego siempre abre en HitClaud');
+  chk('la décima entrada sigue siendo la 2.3', B.versiones[9].version === '2.3');
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });

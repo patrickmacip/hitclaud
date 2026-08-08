@@ -1376,22 +1376,22 @@
     // cae dentro de radio × este factor del centro del target (antes exigía caer sobre una celda viva).
     TOQUE_FACTOR: 1.15,
     EMPUJON: 0.05,               // px/ms: leve empujón del golpe al resto (sigue su ruta, 3.3)
-    // LANZAMIENTO CONTROLADO: el target cruza en LÍNEA RECTA (gravedad ~0; el motor NO cambia, sólo se
-    // fijan props), SIEMPRE ENTERO, dentro de la BANDA central. v3.1: entra desde los 4 bordes (CAMBIO 4).
-    // CAMBIO 1 (v3.1) — 60% más rápido: 0.13 × 1.6 = 0.208. v3.2 (CAMBIO 3) — se DUPLICA: 0.208 × 2 =
-    // 0.416 px/ms. Un solo sitio; aplica a naranjas Y rojos (ambos pasan por lanzarPush).
+    // v3.3 (CAMBIO 1) — CAEN DESDE ARRIBA: todos nacen JUSTO debajo de la franja de la barra y caen en
+    // LÍNEA RECTA (velocidad constante; gravedad ~0, el motor NO cambia, sólo se fijan props) hasta salir
+    // por abajo, SIEMPRE ENTEROS y SIEMPRE dentro del ancho. VEL_PX es ahora la velocidad de CAÍDA.
+    // (Herencia: 60% más rápido 0.13 × 1.6 = 0.208; v3.2 se duplicó 0.208 × 2 = 0.416.) Un solo sitio; naranjas Y rojos.
     VEL_PX: 0.416,
     VEL_VARIA: [{ mult: 1.0, prob: 0.6 }, { mult: 1.2, prob: 0.3 }, { mult: 1.4, prob: 0.1 }],
-    ANG_FRAC: 0.9,               // fracción de la holgura de banda que puede usar la pendiente (variedad)
-    BANDA_FRAC: 0.65,            // los targets transitan por el 65% CENTRAL de la altura (banda vigente, 4.2)
+    DERIVA_TAN: 0.4,             // v3.3 (CAMBIO 1.2) — deriva lateral máx durante la caída: tan(≈22°) del vy (no lluvia recta)
+    BARRA_PX: 58,                // v3.3 (CAMBIO 1.3) — alto de la franja de la barra (= --barra-alto): nacen DEBAJO
     ROJO_FACTOR: 0.6,            // (heredado; el spawn de Pushcloude usa P_ROJO — ver spawnPush)
     P_ROJO: 0.28,               // prob. de que un normal sea ROJO (respeta el tope rojos ≤ naranjas)
-    // CAMBIO 2 (v3.1) — MÁS SEPARADOS: no aparece un normal nuevo hasta que el anterior lleve 1/3 de su
-    // recorrido (2.1); máximo 3 NORMALES vivos (naranja+rojo). Los RELÁMPAGO cuentan APARTE (su propio
-    // cupo). Cadencia mínima entre intentos y reintento corto si no cupo sin solaparse.
-    SEP_RECORRIDO: 1 / 3,
-    MAX_NORMALES: 3,             // tope de targets normales vivos (2.2)
-    SPAWN_MIN: 200,              // ms mínimos entre apariciones (piso de cadencia)
+    // CAMBIO 3 (v3.3) — MÁS AIRE: no aparece uno nuevo hasta que el anterior lleve el 60% de su CAÍDA
+    // (3.1) Y hayan pasado ≥ SPAWN_MIN ms (3.2) — se cumplen LAS DOS. Máx 3 NORMALES vivos (naranja+rojo);
+    // los RELÁMPAGO cuentan APARTE (su propio cupo). Reintento corto si no cupo sin solaparse.
+    SEP_RECORRIDO: 0.6,          // v3.3 (CAMBIO 3.1) — 60% de la caída del anterior
+    MAX_NORMALES: 3,             // tope de targets normales vivos (2.2/3.3)
+    SPAWN_MIN: 900,              // v3.3 (CAMBIO 3.2) — ms mínimos entre apariciones (piso de cadencia)
     SPAWN_REINTENTO: 120,        // ms para reintentar si un intento no cupo sin solaparse (3.3)
     // CAMBIO 3 (v3.1) — SIN CRUCES: antes de soltar, se comprueba que la trayectoria no se solape con las
     // de los vivos; si se solapa, se prueba otro ángulo/entrada hasta INTENTOS veces; si ninguno cabe, se
@@ -1686,39 +1686,26 @@
   // la FORMA COMPLETA transita siempre dentro de ella. La dirección se varía con esa pendiente (5.4).
   // No toca el motor: sólo fija props del target (misma técnica que aplicarVelocidadShot). Vale para
   // naranjas y rojos (4.3) porque generarRojo pasa por nuevoTarget.
-  // CAMBIO 4 (v3.1) — entra desde CUALQUIER borde. La banda del 65% central SIGUE VIGENTE (nada cruza la
-  // franja de la barra, 4.2) y todo target CRUZA ENTERO (4.3). Como un target no puede a la vez quedarse
-  // en la banda y salir por arriba/abajo, las 4 direcciones se expresan así, siempre con SALIDA LATERAL:
-  //   'izq'/'der' → cruce horizontal a media banda.  'arriba' → entra por el TOPE de la banda y baja en
-  //   diagonal hasta el fondo de la banda al salir.  'abajo' → entra por el fondo y sube.
-  // Recorre en LÍNEA RECTA (gravedad ~0). Registra metadatos para la separación temporal y de trayectorias.
+  // CAMBIO 1 (v3.3) — CAEN DESDE ARRIBA. TODOS los normales nacen JUSTO debajo de la franja de la barra
+  // (1.3) y caen en LÍNEA RECTA a velocidad constante (gravedad ~0; 0 sería falsy y el motor sellado caería
+  // con gravedad plena) hasta SALIR POR ABAJO. Con una DERIVA lateral acotada (1.2) para que no sea lluvia
+  // recta, PERO nunca sale del ancho (2.1): la x inicial deja margen para la forma AUNQUE gire (rRot, 2.4)
+  // y la deriva se limita también por la holgura restante. Metadatos para la separación temporal (3.1/3.2).
   function lanzarPush(t) {
-    const r = Math.max(PUSH.COLS, PUSH.FILAS) * 4;       // semi-tamaño del target (px)
-    const margen = (1 - PUSH.BANDA_FRAC) / 2;            // 0.175 arriba/abajo → 65% central
-    const top = H * margen + r;                          // la forma COMPLETA cabe dentro de la banda
-    const bot = H * (1 - margen) - r;
-    const banda = Math.max(1, bot - top);
-    const bordes = ['izq', 'der', 'arriba', 'abajo'];
-    const borde = bordes[(Math.random() * 4) | 0];       // 4.4: reparte las direcciones
-    const desdeIzq = (borde === 'arriba' || borde === 'abajo') ? (Math.random() < 0.5) : (borde === 'izq');
+    const rRot = Math.hypot(PUSH.COLS * 4, PUSH.FILAS * 4); // radio que cubre la forma AUNQUE esté girada (2.4)
+    const left = rRot, right = W - rRot;                    // 2.1/2.2: la forma ENTERA cabe en el ancho
+    const x0 = left + Math.random() * Math.max(1, right - left);
+    t.x = x0;
+    t.y = PUSH.BARRA_PX + rRot;                             // 1.3: nace debajo de la franja de la barra, forma entera
+    t.gravedad = 1e-9;
+    t.rot = 0; t.velRot = 0;                                // upright y estable (el margen rRot igual lo cubre si girara)
     const vBase = PUSH.VEL_PX * sortearVariacion(PUSH.VEL_VARIA);
-    t.x = desdeIzq ? -(r + 8) : W + (r + 8);
-    t.gravedad = 1e-9;                                   // recta: 0 sería falsy y el motor (sellado) caería con gravedad plena
-    t.rot = 0;
-    t.vx = desdeIzq ? vBase : -vBase;
-    const cruce = (W + 2 * (r + 8)) / Math.abs(t.vx);    // ms de borde a borde (salida lateral)
-    if (borde === 'arriba' || borde === 'abajo') {
-      // Diagonal de esquina a esquina de la BANDA: entra por el tope (arriba) o el fondo (abajo).
-      t.y = borde === 'arriba' ? top : bot;
-      t.vy = (borde === 'arriba' ? banda : -banda) / cruce; // recorre justo el alto de la banda en el cruce
-    } else {
-      // Lateral: media banda, con pendiente ACOTADA para no salirse de ella (variedad).
-      const y0 = top + Math.random() * banda;
-      t.y = y0;
-      const holgura = Math.min(y0 - top, bot - y0);
-      t.vy = (Math.random() * 2 - 1) * (holgura / cruce) * PUSH.ANG_FRAC;
-    }
-    t.__nace = performance.now(); t.__cruce = cruce; t.__muereEn = t.__nace + cruce; t.__borde = borde;
+    t.vy = vBase;                                           // 1.1: cae hacia ABAJO
+    const cruce = (H + rRot - t.y) / t.vy;                  // ms desde que nace hasta salir por abajo (su "caída")
+    const holgura = Math.min(x0 - left, right - x0);        // px libres al borde más cercano
+    const vxMax = Math.min(t.vy * PUSH.DERIVA_TAN, holgura / cruce); // deriva acotada por ángulo Y por el ancho (2.1)
+    t.vx = (Math.random() * 2 - 1) * vxMax;                 // 1.2: deriva lateral variada, nunca se sale
+    t.__nace = performance.now(); t.__cruce = cruce; t.__muereEn = t.__nace + cruce; t.__borde = 'arriba';
   }
 
   // ── SEPARACIÓN de trayectorias (CAMBIO 3): dos targets NUNCA se solapan. Como todos van en línea
@@ -1755,10 +1742,10 @@
   }
   // Intenta colocar un RELÁMPAGO quieto en la zona de juego, sin solaparse ni bajo la barra (5.5).
   function intentarRelampago(now) {
-    const r = Math.max(PUSH.COLS, PUSH.FILAS) * 4;
-    const margen = (1 - PUSH.BANDA_FRAC) / 2;
-    const top = H * margen + r, bot = H * (1 - margen) - r;
-    const left = r + 8, right = W - r - 8;
+    const rRot = Math.hypot(PUSH.COLS * 4, PUSH.FILAS * 4); // radio rotación-seguro (2.3/2.4)
+    const top = PUSH.BARRA_PX + rRot;                       // debajo de la franja de la barra (1.3/5.5)
+    const bot = H - rRot;                                   // 2.3: la forma entera dentro de la pantalla
+    const left = rRot, right = W - rRot;
     for (let intento = 0; intento < PUSH.INTENTOS; intento++) {
       const t = F.crearTarget({ w: W, h: H }, PUSH.COLS, PUSH.FILAS);
       t.radio = Math.max(PUSH.COLS, PUSH.FILAS) * 4 + 12;
@@ -1776,7 +1763,7 @@
   // reparte ~mitad relámpago (5.1). Todo sin solaparse (3).
   function spawnPush(now) {
     for (let i = targets.length - 1; i >= 0; i--) { if (targets[i].relampago && now >= targets[i].__muereEn) { targets[i].viva = false; targets.splice(i, 1); } } // caduca 800ms, sin castigo (5.4)
-    if (now < pushProxSpawn) return;
+    if (now < pushProxSpawn) return;                    // CAMBIO 3.2 — piso de 900 ms entre apariciones (SPAWN_MIN)
     let normales = 0, relamp = 0, ultNormal = null;
     for (let i = 0; i < targets.length; i++) { const t = targets[i]; if (t.relampago) { relamp++; } else { normales++; if (!ultNormal || t.__nace > ultNormal.__nace) ultNormal = t; } }
     // CAMBIO 5.1 — ~LA MITAD de las APARICIONES son relámpago. Como los relámpago viven 400ms y los
@@ -1787,7 +1774,7 @@
     if (preferRelamp) {
       if (relamp < PUSH.MAX_RELAMPAGOS && intentarRelampago(now)) { pushCountRelamp++; pushProxSpawn = now + PUSH.SPAWN_MIN; return; }
     } else if (normales < PUSH.MAX_NORMALES && (!ultNormal || (now - ultNormal.__nace) / ultNormal.__cruce >= PUSH.SEP_RECORRIDO)) {
-      // 1/3 del recorrido del anterior (2.1) + cupo de 3 normales (2.2)
+      // CAMBIO 3.1 — 60% de la CAÍDA del anterior (SEP_RECORRIDO) + cupo de 3 normales (3.3)
       if (intentarNormal(now)) { pushCountNormal++; pushProxSpawn = now + PUSH.SPAWN_MIN; return; }
     }
     pushProxSpawn = now + PUSH.SPAWN_REINTENTO; // no cupo / gateado → reintenta pronto sin romper el balance (3.3)

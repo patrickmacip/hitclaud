@@ -166,29 +166,51 @@ console.log('=== CAMBIO 1/2 — El hitmaker NO se dibuja en Pushcloude (sí en H
   chk('jugando Hitcloude: <html> NO tiene juego-push (el hitmaker se dibuja)', !hit.document.documentElement.classList.contains('juego-push'));
 }
 
-console.log('=== CAMBIO 4/5 — Los targets cruzan ENTEROS y transitan por la banda central (65%) ===');
+console.log('=== v3.3 CAMBIO 1/2 — Todos CAEN desde arriba, enteros y dentro del ancho; nada bajo la barra ===');
 {
-  // Recorre una partida y comprueba que NINGÚN target vivo/entrado sale de la banda ni cruza la barra.
+  // Recorre una partida: todo NORMAL entra por arriba y cae; nadie asoma fuera del ancho ni cruza la barra.
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
-  const H = app.window.innerHeight;                 // 600 en el arnés
-  const margen = 0.175, r = Math.max(7, 6) * 4;     // 65% central → 0.175 arriba/abajo; semi-tamaño
+  const H = app.window.innerHeight, W = app.window.innerWidth; // 600×800 en el arnés
+  const rRot = Math.hypot(7 * 4, 6 * 4);            // radio rotación-seguro (igual que la fuente)
   const barra = 58;
-  let fueraBanda = 0, cruzaBarra = 0, vistos = 0;
+  let porArriba = 0, otroBorde = 0, fueraAncho = 0, bajoBarra = 0, cayendo = 0, normVistos = 0, relVistos = 0;
   for (let i = 0; i < 500; i++) {
     app.step(16);
     app._cap.caps.forEach(function (t) {
-      if (t.viva === false || !t.haEntrado || t.x < -9000) return; // ignora muertos / apartados
-      if (Math.abs(t.x) > 99000) return;
-      vistos++;
-      if (t.y < H * margen - 1 || t.y > H * (1 - margen) + 1) fueraBanda++; // centro fuera de la banda
-      if (t.y - r < barra) cruzaBarra++;                                    // la forma toca la franja de la barra
+      if (!t.__enJuego || t.viva === false || !t.haEntrado || t.x < -9000 || Math.abs(t.x) > 99000) return;
+      if (t.x - rRot < -0.5 || t.x + rRot > W + 0.5) fueraAncho++;          // 2.1: parte de la forma fuera del ancho (rotada)
+      if (t.relampago) { relVistos++; if (t.y - rRot < barra - 0.5) bajoBarra++; return; }
+      normVistos++;
+      if (t.__borde === 'arriba') porArriba++; else otroBorde++;            // 1.1: sólo por arriba
+      if (t.y - rRot < barra - 0.5) bajoBarra++;                            // 1.3: no cruza la franja de la barra
+      if (t.vy > 0) cayendo++;                                              // 1.1: cae hacia abajo
     });
   }
-  chk('se observaron targets en juego', vistos > 20);
-  chk('NINGÚN target sale del 65% central de la altura (5.1)', fueraBanda === 0);
-  chk('NINGÚN target cruza por la franja de la barra (5.3)', cruzaBarra === 0);
-  chk('FUENTE: lanzarPush lanza en recta (gravedad ~0) por salida lateral → cruza entero (4/4.3)', /function lanzarPush\(t\) \{[\s\S]{0,1100}t\.x = desdeIzq \? -\(r \+ 8\) : W \+ \(r \+ 8\);\s*t\.gravedad = 1e-9;/.test(main));
-  chk('FUENTE: entra desde los CUATRO bordes (izq/der/arriba/abajo) y la pendiente se acota a la banda', /const bordes = \['izq', 'der', 'arriba', 'abajo'\];/.test(main) && /\(holgura \/ cruce\) \* PUSH\.ANG_FRAC/.test(main) && /BANDA_FRAC: 0\.65/.test(main));
+  chk('se observaron normales y relámpagos en juego', normVistos > 20 && relVistos > 5);
+  chk('TODOS los normales entran por ARRIBA; ninguno por los lados ni por abajo (1.1)', porArriba > 0 && otroBorde === 0);
+  chk('TODOS los normales caen hacia abajo (vy > 0, 1.1)', cayendo === normVistos);
+  chk('NINGÚN target asoma fuera del ancho, ni rotado (2.1/2.4)', fueraAncho === 0);
+  chk('NINGÚN target aparece bajo la franja de la barra (1.3)', bajoBarra === 0);
+  chk('FUENTE: lanzarPush nace debajo de la barra y cae en recta (vy = vBase, sin bordes laterales)', /t\.y = PUSH\.BARRA_PX \+ rRot;[\s\S]{0,500}t\.vy = vBase;/.test(main) && !/const bordes = \[/.test(main));
+  chk('FUENTE: la x deja margen rotación-seguro (rRot) a ambos lados → forma entera dentro del ancho (2.2/2.4)', /const rRot = Math\.hypot\(PUSH\.COLS \* 4, PUSH\.FILAS \* 4\);/.test(main) && /const left = rRot, right = W - rRot;/.test(main));
+}
+
+console.log('=== v3.3 CAMBIO 3 — Más aire: ≥900 ms entre apariciones y ≥60% de caída del anterior ===');
+{
+  const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
+  const naceVistos = [];
+  for (let i = 0; i < 1500; i++) {
+    app.step(16);
+    app._cap.caps.forEach(function (t) { if (t.__enJuego && naceVistos.indexOf(t.__nace) === -1) naceVistos.push(t.__nace); });
+  }
+  naceVistos.sort(function (a, b) { return a - b; });
+  let minGap = Infinity;
+  for (let k = 1; k < naceVistos.length; k++) minGap = Math.min(minGap, naceVistos[k] - naceVistos[k - 1]);
+  chk('hubo varias apariciones', naceVistos.length > 5);
+  chk('entre dos apariciones pasan al menos 900 ms (3.2)', minGap >= 900);
+  chk('FUENTE: SPAWN_MIN = 900 ms como piso de cadencia (3.2), un solo sitio', /SPAWN_MIN: 900,/.test(main));
+  chk('FUENTE: no aparece uno nuevo antes del 60% de la caída del anterior (SEP_RECORRIDO 0.6, 3.1)', /SEP_RECORRIDO: 0\.6,/.test(main) && /\(now - ultNormal\.__nace\) \/ ultNormal\.__cruce >= PUSH\.SEP_RECORRIDO/.test(main));
+  chk('FUENTE: los topes de vivos se conservan (3 normales + 3 relámpagos)', /MAX_NORMALES: 3,/.test(main) && /MAX_RELAMPAGOS: 3,/.test(main));
 }
 
 console.log('=== FUENTE — Rojo reinicia puntos/racha/ciclo/reloj; sólo el tiempo guarda récord; sin envío ===');

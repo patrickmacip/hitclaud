@@ -14,6 +14,13 @@
 
   const versiones = [
     {
+      version: '3.2', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'En Pushcloude los targets ahora caen desde arriba' },
+        { texto: 'Más espacio entre apariciones y ninguno aparece a medias' },
+      ],
+    },
+    {
       version: '3.1', fecha: '3 de agosto',
       puntos: [
         { texto: 'Pushcloude sube el ritmo: targets más rápidos y desde todas partes' },
