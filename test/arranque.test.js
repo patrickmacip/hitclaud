@@ -35,7 +35,7 @@ console.log('=== Botón "Actualizaciones" en el HOME (al pie), secundario y cabl
   chk('el estilo .ini-actu es secundario (sin relleno, texto chico apagado)', /\.ini-actu \{[\s\S]{0,160}background: transparent;/.test(css));
   chk('cableado: abre actualizaciones y oculta el home', /function abrirActualizaciones\(\) \{[\s\S]{0,200}elDuracion\.classList\.add\('oculto'\)[\s\S]{0,160}elActualizaciones\.classList\.remove\('oculto'\)/.test(main));
   chk('addEventListener del botón Actualizaciones', /btnVerActualizaciones\.addEventListener\('click', abrirActualizaciones\)/.test(main));
-  chk('el home tiene JUGAR (ini-jugar); ya no hay lista de juegos', /<button id="durJugar" class="go-reiniciar ini-jugar">JUGAR<\/button>/.test(html) && !/id="juegoLista"/.test(html));
+  chk('el home usa botones de duración (#durModos), sin botón JUGAR ni lista de juegos', /id="durModos"/.test(html) && !/id="durJugar"/.test(html) && !/id="juegoLista"/.test(html));
 }
 
 console.log('=== Botón "Cerrar" de #actualizaciones existe y devuelve al inicio ===');

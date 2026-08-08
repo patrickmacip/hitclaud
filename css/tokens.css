@@ -54,4 +54,20 @@
   --blanco: #FFFFFF;
   /* Temporizador en los últimos 5 s: rojo de alarma (distinto de los rojos del CloudOver). */
   --tiempo-urgente: #FF4D4D;
+
+  /* ── HOME REDISEÑADO (v2.7). Colores nombrados por FUNCIÓN, no por color. Sólo se AGREGAN;
+     ningún token previo cambia (CAMBIO 6.2). No se leen desde el canvas (sólo CSS del home). */
+  --home-fondo: #15151D;        /* fondo del contenedor del home (3.1) */
+  --home-juego: #FF7E5A;        /* nombre del juego, encendido (3.2) */
+  --home-flecha: #8989B4;       /* flechas de navegación (3.2 / 4.1: lo único vivo del apagado) */
+  --home-saludo: #FFC6B5;       /* saludo y número del récord, encendido (3.3 / 3.4) */
+  --home-etiqueta: #8989B4;     /* "Record personal", guía y cierre, encendido (3.4/3.6/3.8) */
+  --home-acento: #FF7E5A;       /* borde y texto de Ranking y de los botones de duración (3.5/3.7) */
+  /* HOME APAGADO (juego no disponible): todo quemado salvo las flechas y la línea de estado. */
+  --home-off-juego: #402D27;    /* nombre del juego, quemado (4.1) */
+  --home-off-estado: #FFD9B5;   /* línea de estado: lo único encendido del cuerpo (4.2) */
+  --home-off-etiqueta: #24242C; /* "Record personal" y guía, quemados (4.4/4.6) */
+  --home-off-record: #937E78;   /* número "0000" del récord, quemado (4.4) */
+  --home-off-borde: #5F4842;    /* borde del Ranking apagado (4.5) */
+  --home-off-texto: #5F4842;    /* texto del Ranking apagado (4.5) */
 }

@@ -110,9 +110,12 @@
   // plataforma y duraciones. Cuando su mecánica exista, pon jugable:true. Todo lo demás
   // (pantallas, récords versionados, tablas de ranking) aparece solo.
   const JUEGOS = [
-    { id: 'hitclaud',  nombre: 'HitClaud',  desc: 'Lanza la bola y demuele', jugable: true,  plataforma: 'tactil',     duraciones: ['15', '60'] },
-    { id: 'shotclaud', nombre: 'ShotClaud', desc: 'Apunta y dispara',        jugable: true,  plataforma: 'escritorio', duraciones: ['20', '60'] },
-    { id: 'pushclaud', nombre: 'PushClaud', desc: 'Aplasta con el dedo',     jugable: false, plataforma: 'tactil',     duraciones: ['15'] },
+    // CAMBIO 1: `nombre` es el TEXTO VISIBLE (Hitcloude/Shotcloude/Pushcloude). `id` NO cambia
+    // ('hitclaud'/'shotclaud'/'pushclaud'): es el identificador interno, las llaves de persistencia
+    // y el modo que espera el servidor de ranking. Cambiar el id rompería el ranking en producción.
+    { id: 'hitclaud',  nombre: 'Hitcloude',  desc: 'Lanza la bola y demuele', jugable: true,  plataforma: 'tactil',     duraciones: ['15', '60'] },
+    { id: 'shotclaud', nombre: 'Shotcloude', desc: 'Apunta y dispara',        jugable: true,  plataforma: 'escritorio', duraciones: ['20', '60'] },
+    { id: 'pushclaud', nombre: 'Pushcloude', desc: 'Aplasta con el dedo',     jugable: false, plataforma: 'tactil',     duraciones: ['15'] },
   ];
   function juegoPorId(id) { for (let i = 0; i < JUEGOS.length; i++) if (JUEGOS[i].id === id) return JUEGOS[i]; return null; }
   // DISPONIBILIDAD por plataforma, DERIVADA de la estructura de JUEGOS (fuente única, no
@@ -435,8 +438,7 @@
   const elDuracion = document.getElementById('duracion');
   const elHomeJugable = document.getElementById('homeJugable');
   const elHomeNoJugable = document.getElementById('homeNoJugable');
-  const elHomeImagen = document.getElementById('homeImagen');
-  const elHomeLeyenda = document.getElementById('homeLeyenda');
+  const elHomeEstado = document.getElementById('homeEstado'); // línea de estado del home apagado (CAMBIO 4.2)
   const elDurJuego = document.getElementById('durJuego');
   const elDurModos = document.getElementById('durModos');
   const elDurRecord = document.getElementById('durRecord');
@@ -540,57 +542,9 @@
     [elDuracion, elGameOver, elRanking].forEach(function (el) { if (el) el.classList.add('oculto'); });
   }
 
-  // ── IMÁGENES DE JUEGO (CAMBIO 3): escenas ESTÁTICAS dibujadas con los elementos reales, en un
-  // lienzo offscreen, CACHEADAS una vez (no se leen archivos ni hay costo de arranque). Se
-  // muestran cuando el juego NO está disponible en esta plataforma o aún no está terminado. SIN
-  // shadowBlur. Los targets no se tocan: aquí sólo se PINTA una escena representativa. ──
-  const imagenesJuego = {};
-  function construirImagenJuego(id) {
-    const AW = 200, AH = 140;
-    const cv = document.createElement('canvas'); cv.width = AW; cv.height = AH;
-    const g = cv.getContext('2d');
-    function target(cx, cy, cubo) { // grilla 5×4 de cubos naranjas con dos ojos (como el juego)
-      const cols = 5, filas = 4;
-      g.fillStyle = ACENTO.base;
-      for (let f = 0; f < filas; f++) for (let c = 0; c < cols; c++) {
-        g.beginPath(); g.roundRect(cx + (c - cols / 2) * cubo, cy + (f - filas / 2) * cubo, cubo - 1.5, cubo - 1.5, 2); g.fill();
-      }
-      g.fillStyle = COLOR.negro;
-      g.fillRect(cx + (1 - cols / 2) * cubo + 3, cy + (1 - filas / 2) * cubo + 3, 4, 4);
-      g.fillRect(cx + (3 - cols / 2) * cubo + 3, cy + (1 - filas / 2) * cubo + 3, 4, 4);
-    }
-    if (id === 'shotclaud') {                 // un target y la MIRA blanca sobre él
-      const mx = AW / 2, my = AH / 2; target(mx, my, 14);
-      g.strokeStyle = '#FFFFFF'; g.lineWidth = 3; g.lineCap = 'round';
-      g.beginPath(); g.arc(mx, my, 17, 0, Math.PI * 2); g.stroke();
-      g.beginPath();
-      g.moveTo(mx - 24, my); g.lineTo(mx - 9, my); g.moveTo(mx + 9, my); g.lineTo(mx + 24, my);
-      g.moveTo(mx, my - 24); g.lineTo(mx, my - 9); g.moveTo(mx, my + 9); g.lineTo(mx, my + 24);
-      g.stroke();
-      g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(mx, my, 3, 0, Math.PI * 2); g.fill();
-    } else if (id === 'pushclaud') {          // aplastar con el dedo: disco presionando + ondas
-      const mx = AW / 2, my = AH / 2 + 6; target(mx, my, 14);
-      g.globalAlpha = 0.9; g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(mx, my - 8, 13, 0, Math.PI * 2); g.fill();
-      g.globalAlpha = 0.35; g.strokeStyle = '#FFFFFF'; g.lineWidth = 2;
-      g.beginPath(); g.arc(mx, my - 8, 22, 0, Math.PI * 2); g.stroke();
-      g.beginPath(); g.arc(mx, my - 8, 30, 0, Math.PI * 2); g.stroke();
-      g.globalAlpha = 1;
-    } else {                                   // hitclaud: la bola (coral) y un target
-      target(AW * 0.64, AH * 0.42, 13);
-      g.fillStyle = ACENTO.vivo; g.beginPath(); g.arc(AW * 0.30, AH * 0.66, 12, 0, Math.PI * 2); g.fill();
-    }
-    return cv;
-  }
-  function imagenJuego(id) { return imagenesJuego[id] || (imagenesJuego[id] = construirImagenJuego(id)); }
-  function ponerImagenJuego(id) {
-    if (!elHomeImagen) return;
-    try {
-      const img = imagenJuego(id);
-      elHomeImagen.width = img.width; elHomeImagen.height = img.height;
-      const c = elHomeImagen.getContext('2d');
-      c.clearRect(0, 0, img.width, img.height); c.drawImage(img, 0, 0);
-    } catch (e) { /* nunca rompe el home */ }
-  }
+  // (Rediseño v2.7) El home NO JUGABLE ya NO dibuja una escena en canvas: muestra la misma
+  // estructura del jugable pero APAGADA (CAMBIO 4), con la línea de estado como único encendido.
+  // La imagen offscreen y su caché se retiraron; el estado apagado es puro CSS/DOM.
 
   // ── FLECHAS: ciclo INFINITO entre juegos, en AMBAS direcciones (2.3). El orden es el de JUEGOS
   // (HitClaud, ShotClaud, PushClaud). La flecha IZQUIERDA avanza (Hit→Shot→Push→Hit); la DERECHA
@@ -603,58 +557,58 @@
     return ORDEN_JUEGOS[(((i < 0 ? 0 : i) + delta) % n + n) % n];
   }
 
-  // PANTALLA 2 — récord del juego en la duración elegida (cambia al cambiar de duración) y
-  // selector con SÓLO las duraciones de ese juego. Si tiene una sola, el selector no se muestra.
+  // HOME — récord del juego (bloque "Record personal"). Muestra el récord de la duración base del
+  // juego (modoInicioSel, que el home fija a la más corta): con el rediseño ya NO hay duración
+  // seleccionable (CAMBIO 2.3), pero el bloque necesita un número; el de la duración base es el
+  // representativo. Cambia al cambiar de juego con las flechas.
   function actualizarRecordDuracion() {
     if (!elDurRecord) return;
     try { const r = recordDe(juegoSel, modoInicioSel); elDurRecord.textContent = U.abreviarNumero(r ? r.valor : 0); }
     catch (e) { elDurRecord.textContent = '0'; }
   }
+  // CAMBIO 2 — los botones de DURACIÓN SON la acción de jugar: tocar "15 Segundos" arranca una
+  // partida de 15 s (ya no hay botón JUGAR ni duración preseleccionada). Uno por duración del juego,
+  // apilados. El texto dice la duración completa en palabras (2.4).
   function construirDuraciones() {
     if (!elDurModos) return;
     const j = juegoPorId(juegoSel); if (!j) return;
     elDurModos.textContent = '';
-    elDurModos.classList.toggle('oculto', j.duraciones.length <= 1); // 3.2: una sola → sin selector
     j.duraciones.forEach(function (dur) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'go-reiniciar ini-sel' + (dur === modoInicioSel ? ' sel-activo' : '');
+      b.className = 'home-dur';
       b.setAttribute('data-dur', dur);
-      b.textContent = dur + 's';
-      b.addEventListener('click', function () {
-        modoInicioSel = dur;
-        const bs = elDurModos.querySelectorAll('button');
-        for (let i = 0; i < bs.length; i++) bs[i].classList.toggle('sel-activo', bs[i].getAttribute('data-dur') === dur);
-        actualizarRecordDuracion();
-        actualizarMedallaRecord(); // el icono del récord cambia con la duración (6.2)
-      });
+      b.textContent = dur + ' Segundos';          // "15 Segundos", "60 Segundos" (2.4)
+      b.addEventListener('click', function () { iniciarPartida(juegoSel, dur); }); // tocar = jugar esa duración (2.2)
       elDurModos.appendChild(b);
     });
   }
   // HOME de `juego` (nivel ÚNICO). `reiniciar`=true fuerza la duración MÁS CORTA; si no, conserva
   // la elegida validándola contra las del juego. Según disponibilidad(): si es JUGABLE muestra el
-  // cuerpo (saludo + récord + duraciones + Ranking + JUGAR); si NO (otra plataforma o "Pronto")
-  // muestra su imagen + leyenda y NADA pulsable salvo las flechas (2.4/2.5/2.6). "Pronto" manda
-  // sobre la plataforma. El nombre del juego va en la fila de navegación (entre las flechas).
+  // cuerpo encendido (saludo + récord + Ranking + guía + botones de duración + cierre); si NO,
+  // muestra el cuerpo APAGADO (misma estructura quemada, CAMBIO 4) con la LÍNEA DE ESTADO como lo
+  // único encendido. `data-juego` alimenta el parpadeo por juego (CSS) y `home-apagado` el estado
+  // quemado. NADA es pulsable en el apagado salvo las flechas. El nombre va entre las flechas.
   function mostrarHome(juego, reiniciar) {
     const j = juegoPorId(juego); if (!j) return;
     juegoSel = juego;
     if (reiniciar || j.duraciones.indexOf(modoInicioSel) === -1) modoInicioSel = duracionMasCorta(j);
     if (elDurJuego) elDurJuego.textContent = j.nombre;
     const disp = disponibilidad(j, esDesktop);
+    if (elDuracion) { elDuracion.classList.toggle('home-apagado', !disp.jugable); elDuracion.setAttribute('data-juego', j.id); }
     if (elHomeJugable) elHomeJugable.classList.toggle('oculto', !disp.jugable);
     if (elHomeNoJugable) elHomeNoJugable.classList.toggle('oculto', disp.jugable);
     if (disp.jugable) {
       actualizarSaludo();                 // "Hola, <nombre>" pulsable (editar nombre)
-      construirDuraciones();
+      construirDuraciones();              // los botones de duración SON la acción de jugar (CAMBIO 2)
       actualizarRecordDuracion();
       actualizarMedallaRecord();          // corona ya; medalla si está en el top 12
     } else {
-      ponerImagenJuego(j.id);             // escena representativa del juego
-      // "Pronto" manda sobre la plataforma (2.6). Leyenda con dignidad (2.5), no un error.
-      if (elHomeLeyenda) elHomeLeyenda.textContent = disp.pronto
-        ? 'Pronto'
-        : (j.plataforma === 'escritorio' ? 'Disponible solo en computadora' : 'Disponible solo en móvil');
+      // LÍNEA DE ESTADO (4.2): lo único encendido del cuerpo apagado. "Próximamente" (aún no hecho),
+      // "Disponible en pc y mac" (juego de escritorio visto en móvil) o "Disponible en móvil" (al revés).
+      if (elHomeEstado) elHomeEstado.textContent = disp.pronto
+        ? 'Próximamente'
+        : (j.plataforma === 'escritorio' ? 'Disponible en pc y mac' : 'Disponible en móvil');
     }
     jugando = false;
     ocultarNav();
@@ -670,8 +624,8 @@
   if (btnHomeDer) btnHomeDer.addEventListener('click', function () { mostrarHome(juegoVecino(juegoSel, -1), true); });
   const btnDurRanking = document.getElementById('durRanking'); // ranking DE ESE juego, duración seleccionada
   if (btnDurRanking) btnDurRanking.addEventListener('click', function () { abrirRanking(juegoSel, 'duracion'); });
-  const btnDurJugar = document.getElementById('durJugar');
-  if (btnDurJugar) btnDurJugar.addEventListener('click', function () { iniciarPartida(juegoSel, modoInicioSel); });
+  // (Rediseño v2.7) Ya NO hay botón JUGAR: los botones de duración (construirDuraciones) SON la
+  // acción de jugar. El botón JUGAR del RANKING (btnRankJugar) y los del fin de partida siguen igual.
 
   // ── BOTONES DEL FIN DE PARTIDA (CAMBIO 4) ───────────────────────────────────────────
   const btnFinJugar = document.getElementById('finJugarDeNuevo');   // mismo juego, misma duración (4.4)

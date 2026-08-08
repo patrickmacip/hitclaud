@@ -44,14 +44,14 @@ console.log('=== 2.4/4: selector de duración de ANCHO IDÉNTICO, un renglón, �
 {
   chk('.ini-sel reparte el ancho por igual (flex: 1)', /\.ini-sel \{[\s\S]{0,140}flex: 1;/.test(css));
   chk('.ini-sel en un solo renglón (nowrap) y altura ≥56px', /\.ini-sel \{[\s\S]{0,160}white-space: nowrap;/.test(css) && /\.ini-sel \{[\s\S]{0,160}min-height: 56px/.test(css));
-  chk('pantalla 2: los botones de duración se generan como .ini-sel con texto "Ns"', /b\.className = 'go-reiniciar ini-sel'[\s\S]{0,120}b\.textContent = dur \+ 's'/.test(main));
+  chk('home v2.7: los botones de duración se generan como .home-dur con texto "N Segundos"', /b\.className = 'home-dur'[\s\S]{0,140}b\.textContent = dur \+ ' Segundos'/.test(main));
   chk('fin: botón principal "Jugar de nuevo" (.go-reiniciar .ini-jugar, fijo al pie)', /<button id="finJugarDeNuevo" class="go-reiniciar ini-jugar fin-jugar">Jugar de nuevo<\/button>/.test(html));
   chk('fin: "Cambiar duración" se oculta si el juego tiene una sola duración', /btnFinCambiar\.classList\.toggle\('oculto', unaSola\)/.test(main));
 }
 
 console.log('=== P2/2.5/2.6: un solo acento sólido (JUGAR); Ranking es botón con contorno, no enlace ===');
 {
-  chk('JUGAR (pantalla 2) es el botón relleno principal (.go-reiniciar .ini-jugar)', /<button id="durJugar" class="go-reiniciar ini-jugar">JUGAR<\/button>/.test(html));
+  chk('el home ya NO tiene botón JUGAR: los botones de duración (home-dur) son la acción (CAMBIO 2)', !/id="durJugar"/.test(html) && /<div class="home-modos" id="durModos"/.test(html));
   chk('Ranking: botón de verdad, contorno, con el podio (NO enlace, sin subrayado)', /\.ini-ranking \{[\s\S]{0,220}border: 2px solid var\(--acento/.test(css) && !/\.ini-ranking \{[\s\S]{0,220}text-decoration/.test(css));
   chk('Actualizaciones: discreto, sin contorno ni subrayado (P3)', /\.ini-actu \{[\s\S]{0,220}border: none;/.test(css) && !/\.ini-actu \{[\s\S]{0,220}text-decoration/.test(css));
   chk('Ranking también en el fin de partida (#verRankingFin con podio)', /id="verRankingFin"[\s\S]{0,120}assets\/podio-1\.svg/.test(html));

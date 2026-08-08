@@ -38,13 +38,15 @@ console.log('=== Récord por JUEGO+DURACIÓN en llaves v4 propias, independiente
   chk('CloudOver no sube el récord (queda 700), ultimoScore=0', r15.valor === 700 && r15.ultimoScore === 0);
 }
 
-console.log('=== Pantalla 2: selector con SÓLO las duraciones del juego, generado ===');
+console.log('=== Home v2.7: los botones de duración (SÓLO las del juego) SON la acción de jugar ===');
 {
-  chk('el selector de duración se genera desde j.duraciones', /j\.duraciones\.forEach\(function \(dur\)[\s\S]{0,260}b\.textContent = dur \+ 's'/.test(main));
-  chk('una sola duración → selector oculto (3.2)', /elDurModos\.classList\.toggle\('oculto', j\.duraciones\.length <= 1\)/.test(main));
-  chk('JUGAR de la pantalla 2 arranca (juegoSel, modoInicioSel)', /iniciarPartida\(juegoSel, modoInicioSel\)/.test(main));
-  chk('el récord de la pantalla 2 sigue a la duración', /function actualizarRecordDuracion\(\)[\s\S]{0,220}recordDe\(juegoSel, modoInicioSel\)/.test(main));
+  // Se generan desde j.duraciones, con el texto completo en palabras ("15 Segundos") y cada uno
+  // arranca su propia partida (ya no hay botón JUGAR ni "selector" que ocultar).
+  chk('los botones de duración se generan desde j.duraciones con texto en palabras', /j\.duraciones\.forEach\(function \(dur\)[\s\S]{0,320}b\.textContent = dur \+ ' Segundos'/.test(main));
+  chk('tocar una duración arranca su partida (iniciarPartida(juegoSel, dur))', /addEventListener\('click', function \(\) \{ iniciarPartida\(juegoSel, dur\); \}\)/.test(main));
+  chk('el récord del home sigue a la duración base (modoInicioSel)', /function actualizarRecordDuracion\(\)[\s\S]{0,260}recordDe\(juegoSel, modoInicioSel\)/.test(main));
   chk('sin selector de modo escrito a mano (el home genera sus duraciones en #durModos)', !/id="sel15"/.test(html) && /id="durModos"/.test(html));
+  chk('ya NO hay botón JUGAR en el home (los botones de duración lo reemplazan)', !/id="durJugar"/.test(html));
 }
 
 console.log(`\n== RESUMEN modo15: ${ok} OK, ${ko} NO ==`);

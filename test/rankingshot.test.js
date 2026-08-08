@@ -39,8 +39,7 @@ function appCon(opts) {
 }
 function jugar(app, juego, dur) {
   app.irAJuego(juego);
-  if (dur) { const b = app.byId['durModos'].children.find(function (x) { return x._attrs['data-dur'] === dur; }); if (b) b.dispatch('click'); }
-  app.byId['durJugar'].dispatch('click');
+  app.jugar(dur); // rediseño v2.7: el botón de DURACIÓN es la acción de jugar (ya no hay botón JUGAR)
 }
 
 console.log('=== V3 — ShotClaud manda "shotclaud:20"/"shotclaud:60" con efectividad (por tiempo) ===');

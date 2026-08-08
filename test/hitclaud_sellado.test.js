@@ -32,7 +32,7 @@ function capturarTargets(opts) {
   } });
   // Navega hasta el juego pedido (izquierda avanza: HitClaud→ShotClaud→PushClaud) y JUEGA.
   for (let i = 0; i < opts.izq; i++) app.byId['homeIzq'].dispatch('click');
-  app.byId['durJugar'].dispatch('click');
+  app.jugar(); // rediseño v2.7: el botón de duración arranca la partida (ya no hay botón JUGAR)
   for (let i = 0; i < 60; i++) app.step(32);
   return caps;
 }

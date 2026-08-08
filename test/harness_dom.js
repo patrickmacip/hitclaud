@@ -105,6 +105,18 @@ function crearApp(opts) {
     navigator, console, Math, JSON, Date, function () { return 0; }, function () {}, window.Ranking);
 
   function step(ms) { fakeNow += ms; if (rafCb) { const cb = rafCb; rafCb = null; cb(fakeNow); } }
+  // Arranca una partida desde el home (rediseño v2.7): los botones de DURACIÓN son la acción de
+  // jugar (ya no hay botón JUGAR). Toca el botón con data-dur=`dur` (o el primero si no se indica).
+  // Devuelve true si encontró y tocó un botón. El home debe estar en un juego JUGABLE (con botones).
+  function jugar(dur) {
+    const modos = byId['durModos']; if (!modos) return false;
+    const hijos = modos.children || [];
+    let b = null;
+    for (let i = 0; i < hijos.length; i++) { const d = hijos[i]._attrs && hijos[i]._attrs['data-dur']; if (dur == null || d === String(dur)) { b = hijos[i]; break; } }
+    if (!b && hijos.length && dur == null) b = hijos[0];
+    if (b) { b.dispatch('click'); return true; }
+    return false;
+  }
   function disparar(x, y) { const c = byId['juego']; if (c) c.dispatch('pointerdown', { preventDefault: function () {}, clientX: x, clientY: y, pointerId: 1 }); }
   // Navega al HOME de `id` con las flechas (el home arranca en HitClaud; la flecha IZQUIERDA
   // avanza en el orden HitClaud→ShotClaud→PushClaud). Sustituye a las tarjetas eliminadas.
@@ -114,7 +126,7 @@ function crearApp(opts) {
     for (let k = 0; k < veces; k++) { const b = byId['homeIzq']; if (b) b.dispatch('click'); }
   }
 
-  return { byId: byId, mem: mem, step: step, disparar: disparar, irAJuego: irAJuego, window: window, document: document };
+  return { byId: byId, mem: mem, step: step, disparar: disparar, irAJuego: irAJuego, jugar: jugar, window: window, document: document };
 }
 
 module.exports = { crearApp: crearApp };

@@ -34,8 +34,8 @@ console.log('=== CAMBIO 2/3: cabecera unificada; Actualizaciones sin Cerrar gran
 {
   const actu = html.slice(html.indexOf('<div id="actualizaciones"'), html.indexOf('<div id="ranking"'));
   chk('Actualizaciones ya NO tiene botón grande "Cerrar" al pie', !/>Cerrar<\/button>/.test(actu) && /id="actuCerrar" class="hdr-icono"/.test(actu));
-  chk('las flechas del home son iconos esquinados (hdr-icono)', /<button id="homeIzq" class="hdr-icono"[\s\S]{0,120}#ic-atras/.test(html) && /<button id="homeDer" class="hdr-icono"[\s\S]{0,120}#ic-adelante/.test(html));
-  chk('cabecera del home: flecha izq · nombre centrado · flecha der', /ov-cabecera home-nav[\s\S]*?id="homeIzq"[\s\S]*?nivel-titulo[\s\S]*?id="homeDer"/.test(html));
+  chk('las flechas del home son iconos esquinados (hdr-icono home-flecha)', /<button id="homeIzq" class="hdr-icono home-flecha"[\s\S]{0,120}#ic-atras/.test(html) && /<button id="homeDer" class="hdr-icono home-flecha"[\s\S]{0,120}#ic-adelante/.test(html));
+  chk('cabecera del home: flecha izq · nombre centrado (home-juego) · flecha der', /ov-cabecera home-nav[\s\S]*?id="homeIzq"[\s\S]*?home-juego[\s\S]*?id="homeDer"/.test(html));
   chk('dice "Hola," y NO "Juegas como"', /'Hola, ' \+ nombreUsuario/.test(main) && !/Juegas como/.test(main));
 }
 
@@ -86,7 +86,7 @@ console.log('=== CAMBIO 6: icono del récord — corona por defecto, medalla si 
   chk('fuera del ranking → null (queda la corona)', mejorPuestoDe([{ nombre: 'A' }, { nombre: 'B' }], 'PAT') === null);
   chk('la pantalla pinta la corona de INMEDIATO (ponerIconoRecord(null)) antes de la red', /function actualizarMedallaRecord\(\) \{\s*ponerIconoRecord\(null\);/.test(main));
   chk('sólo cambia a medalla si el puesto es 1-12 (iconoPuesto en ponerIconoRecord)', /function ponerIconoRecord\(puesto\)[\s\S]{0,200}iconoPuesto\(puesto\)/.test(main));
-  chk('el icono cambia al cambiar de duración (actualizarMedallaRecord en el click)', /modoInicioSel = dur;[\s\S]{0,360}actualizarMedallaRecord\(\)/.test(main));
+  chk('el icono se actualiza al mostrar el home / cambiar de juego (actualizarMedallaRecord en mostrarHome)', /function mostrarHome\(juego, reiniciar\)[\s\S]{0,1400}actualizarMedallaRecord\(\)/.test(main));
   chk('reutiliza la tabla ya pedida si es del mismo contexto (no pide dos veces, 6.5)', /rankTopClave === clave/.test(main));
   chk('un fallo de red deja la corona sin lanzar (try/catch + reject no-op)', /Ranking\.pedirTop\([\s\S]{0,500}function \(\) \{ \/\* falla → se queda la corona/.test(main) && /function actualizarMedallaRecord\(\)[\s\S]{0,1000}catch \(e\) \{ \/\* nunca rompe/.test(main));
 }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#121216">
-  <title>hitcloude</title>
+  <title>Hitcloude</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -69,41 +69,58 @@
        + Ranking + JUGAR; si no, una imagen del juego y una leyenda ("Disponible solo en…" o
        "Pronto"). Al pie, Actualizaciones (igual en todos). La app SIEMPRE abre en HitClaud. -->
   <div id="duracion" class="oculto" role="dialog" aria-modal="true">
-    <div class="go-panel">
-      <!-- 2.1 FILA DE NAVEGACIÓN: flechas discretas, el nombre del juego es lo que pesa. -->
+    <div class="go-panel home-panel">
+      <!-- CABECERA: flecha izquierda · nombre del juego · flecha derecha. Las flechas ciclan entre
+           juegos y son la ÚNICA salida del home apagado. Área táctil 44×44 aunque el icono sea chico. -->
       <div class="ov-cabecera home-nav">
-        <button id="homeIzq" class="hdr-icono" type="button" aria-label="Juego anterior">
+        <button id="homeIzq" class="hdr-icono home-flecha" type="button" aria-label="Juego anterior">
           <svg class="icono" aria-hidden="true"><use href="#ic-atras"></use></svg>
         </button>
-        <span class="nivel-titulo" id="durJuego">HitClaud</span>
-        <button id="homeDer" class="hdr-icono" type="button" aria-label="Juego siguiente">
+        <span class="home-juego" id="durJuego">Hitcloude</span>
+        <button id="homeDer" class="hdr-icono home-flecha" type="button" aria-label="Juego siguiente">
           <svg class="icono" aria-hidden="true"><use href="#ic-adelante"></use></svg>
         </button>
       </div>
-      <!-- 2.4 JUEGO DISPONIBLE: saludo (editable), récord+medalla, duraciones, Ranking, JUGAR. -->
+      <!-- JUGABLE: saludo (editable) · récord+medalla · Ranking · guía + botones de duración (que
+           SON la acción de jugar, CAMBIO 2) · cierre. Ya NO hay botón JUGAR ni duración preseleccionada. -->
       <div id="homeJugable">
-        <button class="ini-saludo" id="iniSaludo" type="button">
+        <button class="ini-saludo home-saludo" id="iniSaludo" type="button">
           <span id="iniSaludoTexto">Ponte un nombre</span>
           <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-lapiz"></use></svg>
         </button>
-        <div class="ini-record" aria-label="Récord del juego">
-          <span id="durRecordIcono"><svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg></span>
-          <span class="valor" id="durRecord">0</span>
+        <div class="home-record" aria-label="Récord del juego">
+          <p class="home-record-et">Record personal</p>
+          <div class="home-record-val">
+            <span id="durRecordIcono"><svg class="icono icono-mini" aria-hidden="true"><use href="#ic-corona"></use></svg></span>
+            <span class="valor" id="durRecord">0</span>
+          </div>
         </div>
-        <div class="ini-modos" id="durModos" role="group" aria-label="Duración"></div>
-        <button id="durRanking" class="ini-ranking" type="button">
+        <button id="durRanking" class="ini-ranking home-ranking" type="button">
           <img src="assets/podio-1.svg" alt="" aria-hidden="true">
           <span>Ranking</span>
         </button>
-        <button id="durJugar" class="go-reiniciar ini-jugar">JUGAR</button>
+        <p class="home-guia">Selecciona el tiempo de tu partida</p>
+        <div class="home-modos" id="durModos" role="group" aria-label="Elige el tiempo de tu partida"></div>
+        <p class="home-cierre">¡Gracias por jugar!</p>
       </div>
-      <!-- 2.5/2.6 JUEGO NO DISPONIBLE (otra plataforma) o SIN TERMINAR (Pronto): imagen + leyenda,
-           nada pulsable salvo las flechas. La leyenda es información con dignidad, no un error. -->
+      <!-- APAGADO: MISMA estructura, quemada. Sólo las flechas y la línea de estado están vivas.
+           Nada aquí es pulsable (CAMBIO 4). Sin botones de duración. -->
       <div id="homeNoJugable" class="oculto">
-        <canvas id="homeImagen" class="home-imagen" aria-hidden="true"></canvas>
-        <p class="home-leyenda" id="homeLeyenda"></p>
+        <p class="home-estado" id="homeEstado"></p>
+        <div class="home-record home-record-off" aria-label="Récord del juego">
+          <p class="home-record-et">Record personal</p>
+          <div class="home-record-val">
+            <span class="home-medalla-off" aria-hidden="true"><svg class="icono icono-mini"><use href="#ic-corona"></use></svg></span>
+            <span class="valor">0000</span>
+          </div>
+        </div>
+        <div class="ini-ranking home-ranking home-ranking-off" aria-hidden="true">
+          <img src="assets/podio-1.svg" alt="" aria-hidden="true">
+          <span>Ranking</span>
+        </div>
+        <p class="home-guia home-guia-off">Selecciona el tiempo de tu partida</p>
       </div>
-      <!-- 2.7 Actualizaciones, discreto, al pie, igual en todos los homes. -->
+      <!-- Actualizaciones: se conserva, al pie, discreto (donde no compite con las acciones, 3.9). -->
       <button id="verActualizaciones" class="ini-actu" type="button">Actualizaciones</button>
     </div>
   </div>
@@ -140,7 +157,7 @@
         </button>
         <div class="rank-titulo">
           <p class="actu-titulo">Ranking</p>
-          <p class="rank-juego-nombre" id="rankJuegoNombre">HitClaud</p>
+          <p class="rank-juego-nombre" id="rankJuegoNombre">Hitcloude</p>
         </div>
         <button id="rankCerrar" class="hdr-icono" type="button" aria-label="Cerrar">
           <svg class="icono" aria-hidden="true"><use href="#ic-cerrar"></use></svg>

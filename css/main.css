@@ -213,20 +213,114 @@ body {
 .ini-record .rec-medalla { width: 20px; height: 20px; display: block; }
 
 /* ── HOME DE CADA JUEGO: fila de navegación entre juegos + cuerpo (jugable / no jugable) ──── */
-/* Las flechas son DISCRETAS: el nombre del juego (nivel-titulo, centrado) es lo que pesa. */
-.home-nav .hdr-icono { color: var(--texto-apagado, #8989B1); } /* flechas tenues, no dominantes */
-@media (hover: hover) { .home-nav .hdr-icono:hover { color: var(--acento-vivo, #FF8764); } }
-/* Cuerpo JUGABLE (saludo + récord + duraciones + Ranking + JUGAR) apilado y centrado. */
+/* Las flechas son DISCRETAS: el nombre del juego (home-juego, centrado) es lo que pesa. En el home
+   apagado son lo ÚNICO vivo (la salida), por eso conservan su color siempre (CAMBIO 4.1). */
+.home-nav .hdr-icono { color: var(--home-flecha, #8989B4); } /* flechas #8989B4, tenues, no dominantes */
+@media (hover: hover) { .home-nav .hdr-icono:hover { color: var(--home-saludo, #FFC6B5); } }
+/* Cuerpo JUGABLE (saludo + récord + Ranking + guía + botones de duración + cierre) apilado. */
 #homeJugable { display: flex; flex-direction: column; align-items: center; width: 100%; }
-/* Cuerpo NO JUGABLE: imagen del juego + leyenda con dignidad (no un aviso de error). */
-#homeNoJugable { display: flex; flex-direction: column; align-items: center; width: 100%; gap: var(--esp-4); margin: var(--esp-4) 0; }
-.home-imagen {
-  width: 200px; max-width: 80%; height: auto; aspect-ratio: 10 / 7;
-  border-radius: var(--radio); opacity: 0.92;
+/* Cuerpo NO JUGABLE (APAGADO): MISMA estructura que el jugable, quemada (CAMBIO 4). */
+#homeNoJugable { display: flex; flex-direction: column; align-items: center; width: 100%; }
+
+/* ═══ HOME REDISEÑADO v2.7 — medidas del diseño de Pat (lienzo 402px), adaptadas proporcionalmente.
+   El panel es el CONTENEDOR (#15151D); ancho útil 292px, relleno 47px arriba/abajo y 13.68% (≈55px
+   sobre 402) a los lados para conservar la proporción en otros anchos. Botones al 100% del útil. ═ */
+/* .go-panel se declara después en el archivo: subo la especificidad (0-0-2-0) para que estos
+   overrides del home ganen sin depender del orden. */
+.go-panel.home-panel {
+  background: var(--home-fondo, #15151D);
+  max-width: 402px;
+  padding: 47px 13.68%;
+  text-align: center;
 }
-.home-leyenda {
-  font: var(--texto-l); font-weight: 700; color: var(--blanco, #FFFFFF);
-  text-align: center; letter-spacing: 0.2px; margin: 0; text-wrap: balance;
+/* CABECERA (3.2): flecha · nombre · flecha. Nombre centrado (flex:1), flechas a los lados con su
+   área táctil de 44×44 aunque el icono sea de 7×11. Separada 74px de lo que sigue. */
+.home-nav { justify-content: space-between; gap: 26px; margin-bottom: 74px; align-items: center; }
+.home-juego {
+  flex: 1 1 auto; min-width: 0; text-align: center;
+  font: 600 48px/58px var(--fuente); color: var(--home-juego, #FF7E5A);
+}
+.home-flecha .icono { width: 11px; height: 11px; }            /* icono chico (≈7×11) dentro del área táctil 44×44 */
+/* SALUDO (3.3): "Hola, <nombre>", pulsable (abre editar nombre). */
+.home-saludo { font: 600 32.4px/39px var(--fuente); color: var(--home-saludo, #FFC6B5); }
+.home-saludo .icono-mini { color: var(--home-saludo, #FFC6B5); }
+/* BLOQUE DE RÉCORD (3.4): etiqueta arriba; debajo (4px) medalla/corona + número. */
+.home-record { display: flex; flex-direction: column; align-items: center; margin-top: 35px; width: 100%; }
+.home-record-et { font: 400 16px/19px var(--fuente); color: var(--home-etiqueta, #8989B4); margin: 0; }
+.home-record-val { display: flex; align-items: center; justify-content: center; gap: 17px; margin-top: 4px; }
+.home-record-val .valor { font: 600 39px/47px var(--fuente); color: var(--home-saludo, #FFC6B5); font-variant-numeric: tabular-nums; }
+.home-record-val .rec-medalla { width: 31px; height: 34px; display: block; }
+.home-record-val .icono-mini { width: 31px; height: 34px; color: var(--home-saludo, #FFC6B5); }
+/* BOTÓN RANKING y BOTONES DE DURACIÓN (3.5/3.7): mismo estilo — 292×60, borde 1px, radio 6, sin
+   relleno, texto acento 24.9px. El ancho es 100% del útil (≈292 en 402px). */
+.home-ranking, .home-dur {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; min-height: 60px; box-sizing: border-box; margin: 0;
+  border: 1px solid var(--home-acento, #FF7E5A); border-radius: 6px;
+  background: transparent; color: var(--home-acento, #FF7E5A);
+  font: 600 24.9px/1 var(--fuente); cursor: pointer;
+}
+.home-ranking { margin-top: 24px; }
+.home-ranking img { width: 20px; height: 22px; }              /* podio 20×22 (3.5) */
+/* LÍNEA GUÍA (3.6) y CIERRE (3.8): texto discreto, centrado. */
+.home-guia { font: 400 16px/1.3 var(--fuente); color: var(--home-etiqueta, #8989B4); margin: 24px 0 0; }
+.home-cierre { font: 400 16px/1.3 var(--fuente); color: var(--home-etiqueta, #8989B4); margin: 24px 0 0; }
+/* BOTONES DE DURACIÓN apilados, separados 15px (3.7). */
+.home-modos { display: flex; flex-direction: column; align-items: stretch; gap: 15px; width: 100%; margin-top: 15px; }
+.home-dur:active { transform: scale(0.98); }
+@media (hover: hover) { .home-ranking:hover, .home-dur:hover { border-color: var(--home-saludo, #FFC6B5); } }
+
+/* ═══ HOME APAGADO (CAMBIO 4): misma estructura, quemada. Sólo flechas y línea de estado, vivas. ═ */
+.home-apagado .home-juego { color: var(--home-off-juego, #402D27); }   /* nombre quemado (4.1) */
+/* LÍNEA DE ESTADO (4.2): lo único encendido del cuerpo. Tamaño por juego (Próximamente 32.4 /
+   "Disponible en pc y mac" 29.4). */
+.home-estado { font: 600 32.4px/1.2 var(--fuente); color: var(--home-off-estado, #FFD9B5); margin: 0 0 35px; text-wrap: balance; }
+.home-apagado[data-juego="shotclaud"] .home-estado { font-size: 29.4px; }
+/* La medalla/corona del récord apagado: girada -20.95°, al 40% (como caída, 4.3). */
+.home-medalla-off { display: block; transform: rotate(-20.95deg); opacity: 0.4; }
+.home-medalla-off .icono-mini { width: 31px; height: 34px; color: var(--home-off-record, #937E78); }
+/* "Record personal" y guía, quemados (4.4/4.6). El número "0000" en #937E78 al 40% (4.4). */
+.home-apagado .home-record-et, .home-guia-off { color: var(--home-off-etiqueta, #24242C); }
+.home-record-off .home-record-val .valor { color: var(--home-off-record, #937E78); opacity: 0.4; }
+/* Ranking APAGADO (4.5): borde #5F4842, icono al 26%, texto #5F4842 al 40%. NO pulsable (es un div). */
+.home-ranking-off { border-color: var(--home-off-borde, #5F4842); cursor: default; }
+.home-ranking-off img { opacity: 0.26; }
+.home-ranking-off span { color: var(--home-off-texto, #5F4842); opacity: 0.4; }
+
+/* ═══ CAMBIO 5 — PARPADEO de foco fundido (SÓLO home apagado). CSS puro: sólo opacidad (5.3: nada
+   de shadowBlur ni filtros de desenfoque; puerta cerrada por los 20fps del iPhone). No cuesta nada
+   durante la partida: el home está display:none al jugar (5.4/V7). Respeta reduce-motion (5.5). ═ */
+/* PUSHCLOUDE (5.1): tubo fluorescente fundido. Secuencia IRREGULAR con fotogramas: ráfaga corta de
+   parpadeo (18–26%), calma larga (26–60%), casi se apaga y vuelve DE GOLPE (61–63%), otra calma,
+   un chispazo (84–85%). Timing linear → cortes abruptos, no un pulso suave. */
+@keyframes home-fluor {
+  0%, 18% { opacity: 1; }
+  19% { opacity: 0.22; }  20% { opacity: 0.9; }
+  21% { opacity: 0.3; }   23% { opacity: 1; }
+  24% { opacity: 0.35; }  26% { opacity: 1; }   /* fin de la ráfaga */
+  27%, 60% { opacity: 1; }                        /* calma larga */
+  61% { opacity: 0.12; }  62.5% { opacity: 0.12; } 63% { opacity: 1; } /* se apaga casi del todo y vuelve de golpe */
+  64%, 83% { opacity: 1; }
+  84% { opacity: 0.45; }  85% { opacity: 1; }     /* chispazo */
+  86%, 100% { opacity: 1; }
+}
+/* El nombre parpadea MÁS LEVE (nunca baja tanto): mismo ritmo, menor amplitud. */
+@keyframes home-fluor-leve {
+  0%, 18% { opacity: 1; }
+  20% { opacity: 0.7; }  23% { opacity: 1; }
+  26% { opacity: 0.8; }  27%, 60% { opacity: 1; }
+  61% { opacity: 0.55; } 63% { opacity: 1; }
+  84% { opacity: 0.8; }  85%, 100% { opacity: 1; }
+}
+.home-apagado[data-juego="pushclaud"] .home-estado { animation: home-fluor 6.5s linear infinite; }
+.home-apagado[data-juego="pushclaud"] .home-juego  { animation: home-fluor-leve 6.5s linear infinite; }
+/* SHOTCLOUDE (5.2): sólo la línea de estado PALPITA. Latido suave y REGULAR (señal viva, no
+   abandonada) — distinto del fluorescente de Pushcloude. */
+@keyframes home-latido { 0%, 100% { opacity: 0.68; } 50% { opacity: 1; } }
+.home-apagado[data-juego="shotclaud"] .home-estado { animation: home-latido 2.4s ease-in-out infinite; }
+/* REDUCCIÓN DE MOVIMIENTO (5.5): sin parpadeo, opacidad fija. */
+@media (prefers-reduced-motion: reduce) {
+  .home-apagado .home-estado, .home-apagado .home-juego { animation: none; opacity: 1; }
 }
 
 /* ── CABECERA UNIFICADA (CAMBIO 2): misma estructura en duración, ranking y actualizaciones —

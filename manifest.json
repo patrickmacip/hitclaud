@@ -1,7 +1,7 @@
 {
-  "name": "hitcloude",
-  "short_name": "hitcloude",
-  "description": "hitcloude — juego de puntería offline",
+  "name": "Hitcloude",
+  "short_name": "Hitcloude",
+  "description": "Hitcloude — juego de puntería offline",
   "start_url": ".",
   "display": "standalone",
   "orientation": "portrait",

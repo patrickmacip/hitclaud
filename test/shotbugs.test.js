@@ -18,9 +18,8 @@ function conSeed(seed, fn) {
 }
 function rec(app, clave) { const v = app.mem.get(clave); return v ? JSON.parse(v).record : null; }
 function jugarShot(app, dur) {
-  app.irAJuego('shotclaud');           // → pantalla de duración (20 por defecto)
-  if (dur) { const b = app.byId['durModos'].children.find(function (x) { return x._attrs['data-dur'] === dur; }); if (b) b.dispatch('click'); }
-  app.byId['durJugar'].dispatch('click');                   // → iniciarPartida(shotclaud, dur)
+  app.irAJuego('shotclaud');           // → home de ShotClaud
+  app.jugar(dur);                      // el botón de ESA duración arranca la partida (v2.7: ya no hay JUGAR)
 }
 
 console.log('=== D1 — el récord de ShotClaud se guarda al terminar por CloudOver (20 y 60, por separado) ===');

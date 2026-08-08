@@ -43,12 +43,14 @@ function leerBarra(app) {
     puestoTxt: puesto.textContent, puestoOculto: puesto.classList.contains('oculto') };
 }
 
+// Hitcloude es táctil → sólo es jugable (con botones de duración) en móvil. Todas las partidas de
+// Hitcloude del test se arrancan en móvil con app.jugar() (v2.7: el botón de duración = jugar).
 (async function () {
   console.log('=== Top 12: la barra muestra MEDALLA (+ su puesto) (4.1) ===');
   {
-    const app = appMedalla({ top: topConPat(5) });      // Pat en el 5º
-    await flush();                                       // deja resolver la consulta del home
-    app.byId['durJugar'].dispatch('click');             // arranca HitClaud
+    const app = appMedalla({ top: topConPat(5), movil: true }); // Pat en el 5º
+    // Arranca ANTES de resolver la consulta (caché fría): la corona debe estar de inmediato.
+    app.jugar();
     const antes = leerBarra(app);
     chk('la corona se pinta de INMEDIATO, antes de la red (4.3)', antes.corona && antes.puestoOculto);
     await flush();                                       // llega el dato
@@ -59,9 +61,8 @@ function leerBarra(app) {
 
   console.log('=== Top 20 pero fuera del 12: corona + NÚMERO de puesto, sin medalla (4.1) ===');
   {
-    const app = appMedalla({ top: topConPat(15) });     // Pat en el 15º
-    await flush();
-    app.byId['durJugar'].dispatch('click');
+    const app = appMedalla({ top: topConPat(15), movil: true }); // Pat en el 15º
+    app.jugar();
     await flush();
     const b = leerBarra(app);
     chk('sin medalla (13+ no tiene): queda la corona', b.corona && !b.medalla);
@@ -70,16 +71,14 @@ function leerBarra(app) {
 
   console.log('=== Fuera del ranking (21+ o ausente): sólo corona + récord (4.1) ===');
   {
-    const app = appMedalla({ top: topConPat(25, 30) });  // Pat en el 25º → fuera del top 20
-    await flush();
-    app.byId['durJugar'].dispatch('click');
+    const app = appMedalla({ top: topConPat(25, 30), movil: true }); // Pat en el 25º → fuera del top 20
+    app.jugar();
     await flush();
     const b = leerBarra(app);
     chk('corona sola (ni medalla ni número), es "sólo el récord"', b.corona && !b.medalla && b.puestoOculto && b.puestoTxt === '');
 
-    const app2 = appMedalla({ top: [{ nombre: 'Otro' }, { nombre: 'Alguien' }] }); // Pat no está
-    await flush();
-    app2.byId['durJugar'].dispatch('click');
+    const app2 = appMedalla({ top: [{ nombre: 'Otro' }, { nombre: 'Alguien' }], movil: true }); // Pat no está
+    app2.jugar();
     await flush();
     const b2 = leerBarra(app2);
     chk('si el jugador NO está en la tabla → corona sola', b2.corona && !b2.medalla && b2.puestoOculto);
@@ -90,9 +89,8 @@ function leerBarra(app) {
     let lanzo = false;
     let app;
     try {
-      app = appMedalla({ fail: true });
-      await flush();
-      app.byId['durJugar'].dispatch('click');
+      app = appMedalla({ fail: true, movil: true });
+      app.jugar();
       await flush();
     } catch (e) { lanzo = true; }
     chk('no se lanzó ninguna excepción por el fallo de red', !lanzo);
@@ -106,7 +104,7 @@ function leerBarra(app) {
     await flush();                                       // resuelve la consulta del home (llena la caché rankTop*)
     const antes = app._cap.pidio.length;
     chk('el home hizo la consulta al mostrarse (hay al menos una)', antes >= 1);
-    app.byId['durJugar'].dispatch('click');             // misma clave hitclaud → debe REUSAR, no pedir otra vez
+    app.jugar();                                        // misma clave hitclaud → debe REUSAR, no pedir otra vez
     await flush();
     chk('la barra no pide dos veces la misma tabla (reutiliza el home, 4.4)', app._cap.pidio.length === antes);
     chk('y muestra la medalla del puesto 3', leerBarra(app).medalla && /podio-3\.svg/.test(leerBarra(app).src));
@@ -117,7 +115,7 @@ function leerBarra(app) {
     const shot = appMedalla({ top: topConPat(8) });     // desktop: ShotClaud jugable; el home no consulta su tabla
     await flush();
     shot.irAJuego('shotclaud');
-    shot.byId['durJugar'].dispatch('click');            // sin caché → pide una vez
+    shot.jugar();                                        // botón de duración = jugar; sin caché → pide una vez
     await flush();
     const bs = leerBarra(shot);
     chk('ShotClaud: medalla del puesto 8 y su número "#8"', bs.medalla && /podio-8\.svg/.test(bs.src) && bs.puestoTxt === '#8');

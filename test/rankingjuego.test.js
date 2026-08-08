@@ -10,21 +10,21 @@ function chk(n, c) { console.log(`  ${n}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) o
 
 console.log('=== El HOME (nivel único) tiene su saludo y Actualizaciones; el ranking se abre desde él ===');
 {
-  const home = (html.match(/<div id="duracion"[\s\S]*?<\/div>\s*<\/div>/) || [''])[0];
+  const home = html.slice(html.indexOf('<div id="duracion"'), html.indexOf('<div id="actualizaciones"'));
   chk('el ranking no vive en el home (se abre con su botón)', !/id="verRanking"/.test(html));
   chk('el saludo editable se queda (en el cuerpo jugable del home)', /id="iniSaludo"/.test(home));
   chk('Actualizaciones se queda (al pie del home)', /id="verActualizaciones"/.test(home));
 }
 
-console.log('=== CAMBIO 2: el home muestra saludo, récord, selector, ranking y JUGAR ===');
+console.log('=== v2.7: el home muestra saludo, récord, Ranking, guía y botones de duración (sin JUGAR) ===');
 {
-  const dur = (html.match(/<div id="duracion"[\s\S]*?<\/div>\s*<\/div>/) || [''])[0];
-  chk('orden: nav → saludo → récord → selector → Ranking → JUGAR', /home-nav[\s\S]*?id="iniSaludo"[\s\S]*?id="durRecord"[\s\S]*?id="durModos"[\s\S]*?id="durRanking"[\s\S]*?id="durJugar"/.test(dur));
+  const dur = html.slice(html.indexOf('<div id="duracion"'), html.indexOf('<div id="actualizaciones"'));
+  chk('orden: nav → saludo → récord → Ranking → guía → botones de duración → cierre', /home-nav[\s\S]*?id="iniSaludo"[\s\S]*?id="durRecord"[\s\S]*?id="durRanking"[\s\S]*?home-guia[\s\S]*?id="durModos"[\s\S]*?home-cierre/.test(dur));
   chk('el saludo del home se pinta con el nombre (actualizarSaludo en mostrarHome)', /function mostrarHome\(juego, reiniciar\)[\s\S]{0,600}actualizarSaludo\(\)/.test(main));
   chk('el nombre NO se edita en la pantalla 2 (no abre editar-nombre desde durNombre)', !/durNombre[\s\S]{0,80}abrirEditarNombre/.test(main));
   chk('botón Ranking en la pantalla 2, con el podio', /id="durRanking"[\s\S]{0,120}podio-1\.svg/.test(html));
   chk('el Ranking de la pantalla 2 abre el ranking de ESE juego (contexto duracion)', /btnDurRanking[\s\S]{0,120}abrirRanking\(juegoSel, 'duracion'\)/.test(main));
-  chk('JUGAR es el botón relleno de la pantalla 2', /<button id="durJugar" class="go-reiniciar ini-jugar">JUGAR<\/button>/.test(html));
+  chk('el home ya NO tiene botón JUGAR: los botones de duración son la acción (CAMBIO 2)', !/id="durJugar"/.test(html) && /<div class="home-modos" id="durModos"/.test(html));
 }
 
 console.log('=== D4/5.3: al entrar desde el menú, la duración MÁS CORTA viene marcada ===');

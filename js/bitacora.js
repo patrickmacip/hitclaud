@@ -14,6 +14,14 @@
 
   const versiones = [
     {
+      version: '2.7', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'El juego se llama Hitcloude' },
+        { texto: 'Inicio rediseñado: eliges el tiempo y juegas de un toque' },
+        { texto: 'Los juegos que aún no puedes jugar ahora se ven apagados' },
+      ],
+    },
+    {
       version: '2.6', fecha: '3 de agosto',
       puntos: [
         { texto: 'Los targets derribados ahora caen describiendo un arco, no en picada' },
