@@ -1378,9 +1378,9 @@
     EMPUJON: 0.05,               // px/ms: leve empujón del golpe al resto (sigue su ruta, 3.3)
     // LANZAMIENTO CONTROLADO: el target cruza en LÍNEA RECTA (gravedad ~0; el motor NO cambia, sólo se
     // fijan props), SIEMPRE ENTERO, dentro de la BANDA central. v3.1: entra desde los 4 bordes (CAMBIO 4).
-    // CAMBIO 1 (v3.1) — 60% MÁS RÁPIDO que la versión anterior: 0.13 × 1.6 = 0.208 px/ms. Un solo sitio;
-    // aplica a naranjas Y rojos (ambos pasan por lanzarPush).
-    VEL_PX: 0.208,
+    // CAMBIO 1 (v3.1) — 60% más rápido: 0.13 × 1.6 = 0.208. v3.2 (CAMBIO 3) — se DUPLICA: 0.208 × 2 =
+    // 0.416 px/ms. Un solo sitio; aplica a naranjas Y rojos (ambos pasan por lanzarPush).
+    VEL_PX: 0.416,
     VEL_VARIA: [{ mult: 1.0, prob: 0.6 }, { mult: 1.2, prob: 0.3 }, { mult: 1.4, prob: 0.1 }],
     ANG_FRAC: 0.9,               // fracción de la holgura de banda que puede usar la pendiente (variedad)
     BANDA_FRAC: 0.65,            // los targets transitan por el 65% CENTRAL de la altura (banda vigente, 4.2)
@@ -1401,7 +1401,7 @@
     // CAMBIO 5 (v3.1) — RELÁMPAGO: LA MITAD de las apariciones. Quieto, dura 400 ms, 200 en cualquier
     // parte, alimenta la racha, sin castigo si no se toca. Cupo propio (cuentan aparte de los normales).
     RELAMP_FRAC: 0.5,           // ~mitad de las apariciones son relámpago (5.1)
-    RELAMP_MS: 400,             // duración del relámpago (5.2, valor de Pat)
+    RELAMP_MS: 800,             // duración del relámpago (v3.2 CAMBIO 2: 400 → 800, valor de Pat)
     MAX_RELAMPAGOS: 3,          // cupo propio de relámpagos (aparte de los 3 normales, 2.2)
     MAX_EN_PANTALLA: 6,          // (heredado; el spawn de Pushcloude lo gobierna spawnPush)
     MAX_VIVOS: 16,               // tope duro de dibujo (seguridad)
@@ -1775,7 +1775,7 @@
   // el 1/3 de recorrido del último normal (2.1), el cupo de 3 normales (2.2) y el cupo de relámpagos, y
   // reparte ~mitad relámpago (5.1). Todo sin solaparse (3).
   function spawnPush(now) {
-    for (let i = targets.length - 1; i >= 0; i--) { if (targets[i].relampago && now >= targets[i].__muereEn) { targets[i].viva = false; targets.splice(i, 1); } } // caduca 400ms, sin castigo (5.4)
+    for (let i = targets.length - 1; i >= 0; i--) { if (targets[i].relampago && now >= targets[i].__muereEn) { targets[i].viva = false; targets.splice(i, 1); } } // caduca 800ms, sin castigo (5.4)
     if (now < pushProxSpawn) return;
     let normales = 0, relamp = 0, ultNormal = null;
     for (let i = 0; i < targets.length; i++) { const t = targets[i]; if (t.relampago) { relamp++; } else { normales++; if (!ultNormal || t.__nace > ultNormal.__nace) ultNormal = t; } }
@@ -2194,7 +2194,7 @@
         if (marcador.racha > pRachaMax) pRachaMax = marcador.racha;
         const centros = [];
         for (let k = 0; k < tg.celdas.length; k++) { if (tg.celdas[k]) { centros.push(F.celdaMundo(tg, k)); tg.celdas[k] = false; } }
-        explotarCubos(centros, mx, my, 1.0, 0, 0, tk('--dorado', '#FFC300')); // reviente dorado
+        explotarCubos(centros, mx, my, 1.0, 0, 0, ACENTO.base); // reviente IGUAL que un normal (v3.2 CAMBIO 1)
         tg.viva = false; targets.splice(ti, 1);
         sacudidaHasta = ahora + SACUDIDA_MS;
         mostrarBonoCentro(mx, my, r.ganancia);
@@ -2756,7 +2756,8 @@
     // parpadeo cloudover-a/b. El destello de contacto (crema) manda.
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
-      if (t.relampago) { dibujarRelampago(t, performance.now()); continue; } // CAMBIO 5: look propio
+      // v3.2 (CAMBIO 1) — el relámpago se dibuja IGUAL que un normal (mismo color, forma y tamaño). Lo
+      // único que lo distingue es que está quieto y dura poco. Sin color propio ni anillo.
       const destella = t.destelloHasta && performance.now() < t.destelloHasta;
       ctx.save();
       ctx.translate(t.x, t.y);
@@ -3157,33 +3158,6 @@
     // CAMBIO 2 (v3.0) — PUSHCLOUDE: la marca de la zona central YA NO SE DIBUJA (Pat la quitó). El
     // target se ve limpio. La MECÁNICA no cambia: el centro sigue valiendo 200 y el resto 50 (enZonaCentral
     // en aplastar); la señal de acierto al centro es que el target revienta entero (2.3).
-  }
-
-  // CAMBIO 5.3/5.4 (v3.1) — RELÁMPAGO: look PROPIO, distinto de un target normal de un vistazo. Es un
-  // objetivo de REFLEJOS: rombo DORADO con anillo blanco pulsante (color y forma distintos del cubo
-  // naranja). Entrada rápida (fade+pop en 80ms) y salida por fade en el último 28% de su vida → se lee,
-  // no es un corte seco. SIN shadowBlur (5.7). Reporta para veto de Pat: rombo dorado + anillo.
-  function dibujarRelampago(t, now) {
-    const edad = now - t.__nace, p = edad / PUSH.RELAMP_MS;
-    let alpha = 1, esc = 1;
-    if (edad < 80) { alpha = Math.max(0, Math.min(1, edad / 80)); esc = 0.55 + 0.45 * alpha; }
-    else if (p > 0.72) { alpha = Math.max(0, 1 - (p - 0.72) / 0.28); }
-    const lado = Math.max(PUSH.COLS, PUSH.FILAS) * 8 * 0.82;
-    const col = tk('--dorado', '#FFC300');
-    ctx.save();
-    ctx.translate(t.x, t.y);
-    ctx.globalAlpha = Math.max(0, alpha);
-    ctx.scale(esc, esc);
-    ctx.rotate(Math.PI / 4);                 // ROMBO (cuadrado girado 45°) → forma distinta del cubo normal
-    ctx.fillStyle = col;
-    ctx.beginPath(); ctx.roundRect(-lado / 2, -lado / 2, lado, lado, 6); ctx.fill();
-    ctx.fillStyle = COLOR.negro; ctx.fillRect(-3, -3, 6, 6); // marca central: se lee como objetivo
-    ctx.rotate(-Math.PI / 4);
-    ctx.globalAlpha = Math.max(0, alpha) * 0.9; // ANILLO pulsante (reflejos)
-    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(0, 0, lado * 0.8, 0, Math.PI * 2); ctx.stroke();
-    ctx.restore();
-    ctx.globalAlpha = 1;
   }
 
   // Bolita: disco sólido en el COLOR del modo (SIN parpadeo — el acento es

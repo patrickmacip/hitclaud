@@ -208,7 +208,9 @@ console.log('=== CAMBIO 5 — RELÁMPAGO: quieto 400 ms, 200 en cualquier punto,
   for (let i = 0; i < 900 && !rel; i++) { appA.step(16); rel = appA._cap.caps.find(function (t) { return t.relampago && t.__enJuego && t.viva !== false && t.x > -9000; }); }
   chk('apareció un relámpago vivo', !!rel);
   if (rel) { const x0 = rel.x, y0 = rel.y; appA.step(16); appA.step(16); chk('el relámpago NO se mueve (vx/vy 0 y misma posición, 5.2)', rel.vx === 0 && rel.vy === 0 && rel.x === x0 && rel.y === y0); }
-  chk('FUENTE: el relámpago dura RELAMP_MS=400 y caduca sin castigo (splice, no anotarFallo, 5.2/5.4)', /RELAMP_MS: 400,/.test(main) && /if \(targets\[i\]\.relampago && now >= targets\[i\]\.__muereEn\) \{ targets\[i\]\.viva = false; targets\.splice\(i, 1\); \}/.test(main));
+  chk('el relámpago dura 800 ms (v3.2 CAMBIO 2): __muereEn − __nace === 800', !!rel && (rel.__muereEn - rel.__nace) === 800);
+  chk('FUENTE: el relámpago dura RELAMP_MS=800 y caduca sin castigo (splice, no anotarFallo, 5.2/5.4)', /RELAMP_MS: 800,/.test(main) && /if \(targets\[i\]\.relampago && now >= targets\[i\]\.__muereEn\) \{ targets\[i\]\.viva = false; targets\.splice\(i, 1\); \}/.test(main));
+  chk('FUENTE: la velocidad de cruce se DUPLICA (v3.2 CAMBIO 3): VEL_PX = 0.416 = 0.208 × 2, en un solo sitio', /VEL_PX: 0\.416,/.test(main) && /0\.208 × 2 =[\s\S]{0,20}0\.416/.test(main) && (main.match(/VEL_PX:/g) || []).length === 1);
 
   // 200 EN CUALQUIER PUNTO + la racha sube igual que un centro: tres relámpagos seguidos → 200+200+240.
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
@@ -219,7 +221,7 @@ console.log('=== CAMBIO 5 — RELÁMPAGO: quieto 400 ms, 200 en cualquier punto,
   chk('la racha sube como un centro: 200+200+240 = 640 (misma progresión, 5.3)', !!r2 && !!r3 && score(app) === '640');
 
   // NO tocarlo: ni castiga ni rompe la racha. Con racha 3 (640), dejar caducar relámpagos y seguir.
-  for (let i = 0; i < 32; i++) app.step(16); // ~500 ms sin tocar: los relámpagos caducan solos
+  for (let i = 0; i < 60; i++) app.step(16); // ~960 ms sin tocar (> 800 de vida): los relámpagos caducan solos
   chk('dejar caducar relámpagos NO resta puntos (no es un fallo, 5.4)', score(app) === '640');
   const r4 = traerAlCentro(app, 'relampago'); if (r4) app.disparar(400, 300);
   chk('la racha se conservó pese a las caducidades: siguiente centro ×1.4 = 280 → 920 (5.4)', !!r4 && score(app) === '920');
@@ -257,12 +259,18 @@ console.log('=== CAMBIO 5 — Ni rojos, ni bajo la barra, ni encimados; ~la mita
   chk('FUENTE: intentarRelampago NO crea rojos y verifica no-solape (pushSolapa) antes de soltar', /function intentarRelampago[\s\S]{0,900}t\.relampago = true;[\s\S]{0,320}if \(!pushSolapa\(t, PUSH\.RELAMP_MS, now\)\) \{ t\.__enJuego = true; targets\.push\(t\); return true; \}/.test(main) && !/function intentarRelampago[\s\S]{0,900}t\.rojo = true/.test(main));
 }
 
-console.log('=== CAMBIO 5 — El relámpago se dibuja DISTINTO y SIN shadowBlur (rombo dorado + anillo blanco) ===');
+console.log('=== CAMBIO 1 (v3.2) — El relámpago se ve IGUAL que un normal: sin color propio ni anillo ===');
 {
-  chk('el bucle de dibujo desvía los relámpagos a dibujarRelampago', /if \(t\.relampago\) \{ dibujarRelampago\(t, performance\.now\(\)\); continue; \}/.test(main));
-  const fn = main.slice(main.indexOf('function dibujarRelampago'), main.indexOf('// Bolita:'));
-  chk('dibujarRelampago usa el DORADO y un anillo blanco (distinto del naranja)', /tk\('--dorado'/.test(fn) && /#FFFFFF/.test(fn));
-  chk('dibujarRelampago NO usa shadowBlur (prohibido, 5.7)', !/shadowBlur/.test(fn));
+  chk('ya NO existe dibujarRelampago: el dibujo propio (rombo dorado + anillo) se eliminó', !/dibujarRelampago/.test(main));
+  chk('el bucle de dibujo NO desvía al relámpago (cae al dibujo normal dibujarSpriteTarget)', !/if \(t\.relampago\) \{ dibujarRelampago/.test(main));
+  chk('el reventón del relámpago usa ACENTO.base, igual que un acierto al centro (sin dorado propio)', /if \(tg\.relampago\) \{[\s\S]{0,600}explotarCubos\(centros, mx, my, 1\.0, 0, 0, ACENTO\.base\)/.test(main));
+  // Comportamiento: un relámpago tiene la MISMA grilla (color/forma/tamaño) que un target normal.
+  const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
+  const relN = traerAlCentro(app, 'relampago');
+  chk('un relámpago tiene la MISMA grilla que un normal (7×6, 42 celdas)', !!relN && relN.cols === 7 && relN.filas === 6 && relN.celdas.length === 42);
+  const app2 = appPush(); app2.irAJuego('pushclaud'); app2.jugar('60');
+  const normN = traerAlCentro(app2, 'normal');
+  chk('coincide con la grilla de un target normal (mismas dimensiones)', !!normN && normN.cols === relN.cols && normN.filas === relN.filas && normN.celdas.length === relN.celdas.length);
 }
 
 console.log(`\n== RESUMEN pushcloude: ${ok} OK, ${ko} NO ==`);
