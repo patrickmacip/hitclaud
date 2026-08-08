@@ -14,6 +14,13 @@
 
   const versiones = [
     {
+      version: '3.0', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'En Pushcloude tu dedo ahora demuele de verdad' },
+        { texto: 'Los targets cruzan la pantalla completos y por la zona de juego' },
+      ],
+    },
+    {
       version: '2.9', fecha: '3 de agosto',
       puntos: [
         { texto: 'Llega Pushcloude: aplasta los targets con el dedo' },

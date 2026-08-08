@@ -271,6 +271,7 @@
     record = recordDe(juego, modo) || recordDe('hitclaud', '60'); // récord de ese juego+duración
     actualizarRecord();
     if (botonStop) botonStop.classList.toggle('oculto', juego !== 'pushclaud'); // stop SÓLO en Pushcloude (7.1)
+    document.documentElement.classList.toggle('juego-push', juego === 'pushclaud'); // oculta el hitmaker en Pushcloude (CAMBIO 1: no hay bola)
     actualizarMedallaBarra(); // CAMBIO 4: corona ya; medalla/puesto si está en el ranking (no espera a la red)
     reiniciarEstado();
     tiempoRestante = DURACIONES[modo] || 0;      // 15→15000, 60→60000
@@ -674,6 +675,7 @@
     }
     jugando = false;
     if (botonStop) botonStop.classList.add('oculto'); // el stop sólo vive DURANTE una partida de Pushcloude
+    document.documentElement.classList.remove('juego-push'); // en el home vuelve todo a normal
     ocultarNav();
     if (elDuracion) elDuracion.classList.remove('oculto');
   }
@@ -1367,13 +1369,22 @@
   // (grilla, velocidad, DIRECCIÓN, frecuencia de rojos, demolición), nunca tocando el motor.
   const PUSH = {
     COLS: 7, FILAS: 6,            // grande y fácil de tocar (como Shotcloude)
-    ARRANCA_FRAC: 0.34,          // toque FUERA: arranca ~1/3 del target (3.4)
-    EMPUJON: 0.05,               // px/ms: leve empujón del golpe al resto (sigue su ruta, 3.4)
-    VEL_BASE: 1.0,               // velocidad base; la VARIEDAD va sobre todo en la dirección (8.1)
+    // CAMBIO 3 — RADIO DE DEMOLICIÓN del toque = 55% del target (en celdas). Un toque al BORDE arranca
+    // ≥ la mitad de las celdas; al CENTRO (enZonaCentral) revienta entero. Un solo sitio (3.4). v3.0.
+    ARRANCA_FRAC: 0.55,
+    // CAMBIO 3.5 — ÁREA que RESPONDE al toque, generosa (un dedo no es un cursor): un toque cuenta si
+    // cae dentro de radio × este factor del centro del target (antes exigía caer sobre una celda viva).
+    TOQUE_FACTOR: 1.15,
+    EMPUJON: 0.05,               // px/ms: leve empujón del golpe al resto (sigue su ruta, 3.3)
+    // CAMBIO 4/5 — LANZAMIENTO CONTROLADO: el target cruza en LÍNEA RECTA de un borde lateral al otro
+    // (gravedad 0 → control total; el motor NO cambia, sólo se fijan props del target), SIEMPRE ENTERO
+    // (4), y dentro de la BANDA central (5). La dirección se varía con una pendiente ACOTADA que nunca
+    // saca al target de la banda (5.4). Todos los valores de movimiento aquí, en un solo sitio (5.5).
+    VEL_PX: 0.13,                // px/ms de cruce (× variación) → ~2–3 s en cruzar
     VEL_VARIA: [{ mult: 1.0, prob: 0.6 }, { mult: 1.2, prob: 0.3 }, { mult: 1.4, prob: 0.1 }],
-    ANG_SPREAD: 0.6,             // rad (~34°): rotación aleatoria de la velocidad → más ángulos (8.1)
-    ROJO_FACTOR: 0.6,            // frecuencia de rojos (8.3, PROPUESTO para veto de Pat: tocar rojo
-    //                              REINICIA la partida —muy castigador—, por eso menos rojos que Shotcloude)
+    ANG_FRAC: 0.9,               // fracción de la holgura de banda que puede usar la pendiente (variedad)
+    BANDA_FRAC: 0.65,            // los targets transitan por el 65% CENTRAL de la altura (5.1, valor de Pat)
+    ROJO_FACTOR: 0.6,            // frecuencia de rojos (PROPUESTO para veto: el rojo REINICIA la partida)
     MAX_EN_PANTALLA: 6,          // cupo de spawn
     MAX_VIVOS: 16,               // tope duro de dibujo
     SPAWN_GAP_MAX: 420,          // hueco máximo entre naranjas
@@ -1644,21 +1655,44 @@
     if (esPush()) {
       const t = F.crearTarget({ w: W, h: H }, PUSH.COLS, PUSH.FILAS);
       t.radio = Math.max(PUSH.COLS, PUSH.FILAS) * 4 + 12;
-      aplicarMovimientoPush(t);
+      lanzarPush(t);
       return t;
     }
     return F.crearTarget({ w: W, h: H });
   }
-  // Pushcloude (CAMBIO 8.1): velocidad base con variación + ROTACIÓN aleatoria del vector velocidad →
-  // los targets entran desde más ángulos que en los otros juegos. La gravedad NO se toca (motor
-  // sellado): sólo se gira la velocidad inicial. Todo dentro de PUSH (un solo sitio, 8.4).
-  function aplicarMovimientoPush(t) {
-    const f = PUSH.VEL_BASE * sortearVariacion(PUSH.VEL_VARIA);
-    t.vx *= f; t.vy *= f;
-    const a = (Math.random() * 2 - 1) * PUSH.ANG_SPREAD;
-    const ca = Math.cos(a), sa = Math.sin(a), vx = t.vx, vy = t.vy;
-    t.vx = vx * ca - vy * sa;
-    t.vy = vx * sa + vy * ca;
+  // CAMBIO 4/5 (v3.0) — Lanza un target de Pushcloude que cruza ENTERO por la BANDA central. Entra por
+  // un borde LATERAL y va en LÍNEA RECTA (gravedad 0) hasta salir por el otro lado → nunca una punta
+  // asomando (4). La Y de entrada y la PENDIENTE se acotan a la banda del 65% central (5), de modo que
+  // la FORMA COMPLETA transita siempre dentro de ella. La dirección se varía con esa pendiente (5.4).
+  // No toca el motor: sólo fija props del target (misma técnica que aplicarVelocidadShot). Vale para
+  // naranjas y rojos (4.3) porque generarRojo pasa por nuevoTarget.
+  function lanzarPush(t) {
+    const r = Math.max(PUSH.COLS, PUSH.FILAS) * 4;       // semi-tamaño del target (px)
+    const margen = (1 - PUSH.BANDA_FRAC) / 2;            // 0.175 arriba/abajo → 65% central
+    const top = H * margen + r;                          // la forma COMPLETA cabe dentro de la banda
+    const bot = H * (1 - margen) - r;
+    const banda = Math.max(1, bot - top);
+    const y0 = top + Math.random() * banda;
+    const desdeIzq = Math.random() < 0.5;
+    t.x = desdeIzq ? -(r + 8) : W + (r + 8);
+    t.y = y0;
+    // RECTA: gravedad DIMINUTA pero NO cero. El motor (sellado) hace `o.gravedad || GRAVEDAD`, así que
+    // un 0 se trataría como "sin definir" y caería con gravedad plena; 1e-9 es truthy y despreciable.
+    t.gravedad = 1e-9;
+    t.rot = 0;
+    const vBase = PUSH.VEL_PX * sortearVariacion(PUSH.VEL_VARIA);
+    t.vx = desdeIzq ? vBase : -vBase;
+    // Pendiente vertical ACOTADA: en cruzar TODO el ancho, el desvío no saca al target de la banda.
+    const cruce = (W + 2 * (r + 8)) / Math.abs(t.vx);    // ms de borde a borde
+    const holgura = Math.min(y0 - top, bot - y0);        // px libres al borde más cercano de la banda
+    const vyMax = (holgura / cruce) * PUSH.ANG_FRAC;
+    t.vy = (Math.random() * 2 - 1) * vyMax;              // dirección variada, SIEMPRE dentro de la banda
+  }
+  // CAMBIO 3.5 — ¿el toque cae sobre este target? Área GENEROSA (un dedo, no un cursor): dentro de
+  // radio × TOQUE_FACTOR del centro. Reemplaza la exigencia de caer sobre una celda viva exacta.
+  function tocaTargetPush(tg, mx, my) {
+    const r = (tg.radio || 30) * PUSH.TOQUE_FACTOR;
+    return Math.hypot(mx - tg.x, my - tg.y) <= r;
   }
 
   // CAMBIO 3 — velocidad de ShotClaud: base (SHOT.VEL_BASE) × variación por target sorteada
@@ -2047,7 +2081,7 @@
     for (let ti = targets.length - 1; ti >= 0; ti--) {
       const tg = targets[ti];
       if (!tg.haEntrado) continue;
-      if (F.celdaEnPunto(tg, mx, my) < 0) continue;   // el toque no cae sobre este target
+      if (!tocaTargetPush(tg, mx, my)) continue;      // área GENEROSA de toque (dedo, no cursor) — 3.5
       pAciertos += 1;
       if (tg.rojo) { reinicioPorRojoPush(tg, mx, my); return; } // ROJO → reinicia la partida (5)
       tg.destelloHasta = ahora + DESTELLO_MS;
@@ -2996,22 +3030,9 @@
       if (!t.celdas[oi]) continue;
       ctx.fillRect(x + (oi % COLS) * CUBO + 2, y + ((oi / COLS) | 0) * CUBO + 2, 4, 4);
     }
-    // CAMBIO 3.2 — PUSHCLOUDE: la ZONA CENTRAL SE DIBUJA (dónde apuntar). El cuarto central (mitad
-    // del ancho × mitad del alto, centrado — MISMA geometría que S.enZonaCentral). Un marco claro que
-    // se distingue sin parecer otro objeto: contorno blanco tenue. Sólo en targets intactos (no rojo,
-    // no mordido: ya no tienen centro que dé 200). SIN shadowBlur.
-    if (esPush() && !t.rojo && !t.tocado) {
-      const hw = COLS * 2, hh = FILAS * 2; // medio-eje del cuarto central (COLS*8/2 * 0.5 = COLS*2)
-      ctx.save();
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.globalAlpha = 0.55;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.roundRect(-hw, -hh, hw * 2, hh * 2, 2);
-      ctx.stroke();
-      ctx.restore();
-      ctx.globalAlpha = 1;
-    }
+    // CAMBIO 2 (v3.0) — PUSHCLOUDE: la marca de la zona central YA NO SE DIBUJA (Pat la quitó). El
+    // target se ve limpio. La MECÁNICA no cambia: el centro sigue valiendo 200 y el resto 50 (enZonaCentral
+    // en aplastar); la señal de acierto al centro es que el target revienta entero (2.3).
   }
 
   // Bolita: disco sólido en el COLOR del modo (SIN parpadeo — el acento es

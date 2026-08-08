@@ -105,7 +105,7 @@ console.log('=== main.js consulta haEntrado en TODAS las rutas (bola + hitscan H
   chk('hitscan (ShotClaud) usa el MISMO guard de haEntrado antes de celdaEnPunto', /if \(!tg\.haEntrado\) continue;[\s\S]{0,140}if \(F\.celdaEnPunto\(tg, mx, my\) < 0\) continue;/.test(main));
   // Cuatro consultas (una por ruta): bola (HitClaud móvil), hitscan HitClaud, hitscan ShotClaud y
   // APLASTAR (Pushcloude). La lógica de haEntrado NO cambió, sólo hay un consumidor más (v2.9).
-  chk('hitscan (Pushcloude/aplastar) usa el MISMO guard de haEntrado antes de celdaEnPunto', /if \(!tg\.haEntrado\) continue;[\s\S]{0,140}if \(F\.celdaEnPunto\(tg, mx, my\) < 0\) continue;[\s\S]{0,400}reinicioPorRojoPush/.test(main));
+  chk('aplastar (Pushcloude) usa el MISMO guard de haEntrado antes del test de toque (área generosa)', /if \(!tg\.haEntrado\) continue;[\s\S]{0,140}if \(!tocaTargetPush\(tg, mx, my\)\) continue;[\s\S]{0,400}reinicioPorRojoPush/.test(main));
   chk('main.js consulta haEntrado exactamente en 4 sitios (bola + 2 hitscan + aplastar)', (main.match(/!tg\.haEntrado/g) || []).length === 4);
 }
 

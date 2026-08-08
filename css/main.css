@@ -113,6 +113,8 @@ body {
 
 /* DESKTOP: la mira (dibujada en canvas) reemplaza al hitmaker y al cursor. */
 .desktop .hitmaker { display: none; }
+/* CAMBIO 1 (v3.0): en Pushcloude NO hay bola ni arrastre → el hitmaker no se muestra. */
+.juego-push .hitmaker { display: none; }
 .desktop #juego { cursor: none; }
 
 /* ── Hitmaker (centrado horizontal, borde inferior) ────────── */

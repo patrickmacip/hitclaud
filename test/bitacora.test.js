@@ -22,26 +22,26 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 24 versiones', B.versiones.length === 24);
-  chk('la primera entrada es la 2.9 (más reciente primero)', B.versiones[0].version === '2.9');
-  chk('la 2.9 trae sus cuatro puntos literales (Pushcloude)', (function () {
+  chk('hay exactamente 25 versiones', B.versiones.length === 25);
+  chk('la primera entrada es la 3.0 (más reciente primero)', B.versiones[0].version === '3.0');
+  chk('la 3.0 trae sus dos puntos literales (dedo demuele + targets enteros)', (function () {
     const v = B.versiones[0];
-    return v.version === '2.9' && v.fecha === '3 de agosto' && v.puntos.length === 4 &&
+    return v.version === '3.0' && v.fecha === '3 de agosto' && v.puntos.length === 2 &&
+      v.puntos[0].texto === 'En Pushcloude tu dedo ahora demuele de verdad' &&
+      v.puntos[1].texto === 'Los targets cruzan la pantalla completos y por la zona de juego';
+  })());
+  chk('la segunda entrada es la 2.9 (intacta: Pushcloude)', (function () {
+    const v = B.versiones[1];
+    return v.version === '2.9' && v.puntos.length === 4 &&
       v.puntos[0].texto === 'Llega Pushcloude: aplasta los targets con el dedo' &&
-      v.puntos[1].texto === 'Cada quince segundos necesitas mil puntos o pierdes lo acumulado' &&
-      v.puntos[2].texto === 'Tocar un rojo reinicia la partida entera, sin detener el juego' &&
       v.puntos[3].texto === 'Partidas de 60 y 180 segundos';
   })());
-  chk('la segunda entrada es la 2.8 (intacta: acceso anticipado de Pushcloude)', (function () {
-    const v = B.versiones[1];
-    return v.version === '2.8' && v.fecha === '3 de agosto' && v.puntos.length === 1 &&
-      v.puntos[0].texto === 'Pushcloude entra en acceso anticipado para quien tenga la clave';
-  })());
-  chk('la tercera entrada es la 2.7 (intacta)', B.versiones[2].version === '2.7' && B.versiones[2].puntos[0].texto === 'El juego se llama Hitcloude');
-  chk('la cuarta entrada es la 2.6 (intacta)', B.versiones[3].version === '2.6' && B.versiones[3].puntos.length === 2);
-  chk('la quinta entrada es la 2.5 (intacta)', B.versiones[4].version === '2.5' && B.versiones[4].puntos.length === 3);
-  chk('la sexta entrada es la 2.4 (intacta)', B.versiones[5].version === '2.4' && B.versiones[5].puntos[2].texto === 'El juego siempre abre en HitClaud');
-  chk('la séptima entrada sigue siendo la 2.3', B.versiones[6].version === '2.3');
+  chk('la tercera entrada es la 2.8 (intacta)', B.versiones[2].version === '2.8' && B.versiones[2].puntos[0].texto === 'Pushcloude entra en acceso anticipado para quien tenga la clave');
+  chk('la cuarta entrada es la 2.7 (intacta)', B.versiones[3].version === '2.7' && B.versiones[3].puntos[0].texto === 'El juego se llama Hitcloude');
+  chk('la quinta entrada es la 2.6 (intacta)', B.versiones[4].version === '2.6' && B.versiones[4].puntos.length === 2);
+  chk('la sexta entrada es la 2.5 (intacta)', B.versiones[5].version === '2.5' && B.versiones[5].puntos.length === 3);
+  chk('la séptima entrada es la 2.4 (intacta)', B.versiones[6].version === '2.4' && B.versiones[6].puntos[2].texto === 'El juego siempre abre en HitClaud');
+  chk('la octava entrada sigue siendo la 2.3', B.versiones[7].version === '2.3');
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });

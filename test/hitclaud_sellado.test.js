@@ -82,7 +82,7 @@ console.log('=== (B) Ninguna constante de ShotClaud llega a HitClaud ===');
   chk('nuevoTarget: SHOT.COLS/FILAS (7×6) SÓLO dentro de la rama esShot()',
     /if \(esShot\(\)\) \{\s*const t = F\.crearTarget\(\{ w: W, h: H \}, SHOT\.COLS, SHOT\.FILAS\);/.test(main));
   chk('nuevoTarget: HitClaud (ni esShot ni esPush) devuelve el crearTarget 5×4 por defecto',
-    /return F\.crearTarget\(\{ w: W, h: H \}\);\s*\}\s*\/\/ Pushcloude/.test(main));
+    /if \(esPush\(\)\) \{[\s\S]{0,220}\}\s*return F\.crearTarget\(\{ w: W, h: H \}\);\s*\}/.test(main));
   chk('aplicarVelocidadShot se INVOCA una sola vez (dentro de nuevoTarget de ShotClaud, no en HitClaud)',
     (main.match(/aplicarVelocidadShot\(t\);/g) || []).length === 1);
   chk('ShotClaud declara SIN_GRANDE (Big Claude es exclusivo de HitClaud)', /SIN_GRANDE: true/.test(main));
