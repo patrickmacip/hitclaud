@@ -14,6 +14,14 @@
 
   const versiones = [
     {
+      version: '3.1', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Pushcloude sube el ritmo: targets más rápidos y desde todas partes' },
+        { texto: 'Llegan los relámpago: aparecen un instante y valen 200 si los cazas' },
+        { texto: 'Ya no se encima un target sobre otro' },
+      ],
+    },
+    {
       version: '3.0', fecha: '3 de agosto',
       puntos: [
         { texto: 'En Pushcloude tu dedo ahora demuele de verdad' },

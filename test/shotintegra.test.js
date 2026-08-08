@@ -74,7 +74,7 @@ console.log('=== CAMBIO 3 — Rojos: el DOBLE que la ShotClaud previa + TOPE DUR
 {
   chk('ROJO_FACTOR = 0.025 (el doble de rojos que la previa de 0.05)', ROJO_FACTOR === 0.025);
   chk('cupos propios mayores para llenar la pantalla (spawn 6, vivos 16)', MAX_EN_PANTALLA === 6 && MAX_VIVOS === 16);
-  chk('el spawn de rojos exige rojos < naranjas en ShotClaud/Pushcloude', /const c = contarTargets\(\);\s*const puedeRojo = !\(esShot\(\) \|\| esPush\(\)\) \|\| c\.rojos < c\.naranjas;/.test(main));
+  chk('el spawn de rojos exige rojos < naranjas en ShotClaud', /const c = contarTargets\(\);\s*const puedeRojo = !esShot\(\) \|\| c\.rojos < c\.naranjas;/.test(main));
   chk('contarTargets separa rojos de naranjas (todo lo no-rojo)', /function contarTargets\(\) \{[\s\S]{0,200}if \(targets\[i\]\.rojo\) rojos\+\+; else naranjas\+\+;/.test(main));
 
   // PRUEBA de comportamiento del TOPE DURO (4.2 "pruébalo"): simula el spawn EXACTO del juego
@@ -141,7 +141,7 @@ console.log('=== Integración: hitscan de ShotClaud, Big Claude apagado, SW ==='
 {
   chk('dispararHitscan deriva a dispararHitscanShot cuando esShot()', /if \(esShot\(\)\) \{ dispararHitscanShot\(mx, my, ahora\); return; \}/.test(main));
   chk('Big Claude NO se lanza en ShotClaud/Pushcloude (guard sinGrande)', /if \(!sinGrande\(\) && targets\.length < capEnPantalla\(\) && t >= proximoGrande/.test(main) && /function sinGrande\(\) \{ return \(esShot\(\) && SHOT\.SIN_GRANDE\) \|\| \(esPush\(\) && PUSH\.SIN_GRANDE\); \}/.test(main));
-  chk('el service worker subió a v91', /hitclaud-shell-v91/.test(sw));
+  chk('el service worker subió a v92', /hitclaud-shell-v92/.test(sw));
 }
 
 console.log('=== V4 REGRESIÓN de HitClaud — su camino queda intacto ===');

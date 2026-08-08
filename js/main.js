@@ -248,7 +248,7 @@
     pTiros = 0; pAciertos = 0; pRachaMax = 0; pCarambolas = 0; pPuntosFin = 0;
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; bonos.length = 0; disparos.length = 0; multAnterior = 1;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null; sacudidaCloudover = null;
-    pushReset = null; pushCicloBase = 0; pushCicloRestante = (PU ? PU.CICLO_MS : 15000); pushCicloCumplido = false; // ciclo de metas de Pushcloude
+    pushReset = null; pushCicloBase = 0; pushCicloRestante = (PU ? PU.CICLO_MS : 15000); pushCicloCumplido = false; pushProxSpawn = performance.now(); pushCountNormal = 0; pushCountRelamp = 0; // ciclo/spawn de Pushcloude
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
     const ahora = performance.now();
@@ -1376,19 +1376,37 @@
     // cae dentro de radio × este factor del centro del target (antes exigía caer sobre una celda viva).
     TOQUE_FACTOR: 1.15,
     EMPUJON: 0.05,               // px/ms: leve empujón del golpe al resto (sigue su ruta, 3.3)
-    // CAMBIO 4/5 — LANZAMIENTO CONTROLADO: el target cruza en LÍNEA RECTA de un borde lateral al otro
-    // (gravedad 0 → control total; el motor NO cambia, sólo se fijan props del target), SIEMPRE ENTERO
-    // (4), y dentro de la BANDA central (5). La dirección se varía con una pendiente ACOTADA que nunca
-    // saca al target de la banda (5.4). Todos los valores de movimiento aquí, en un solo sitio (5.5).
-    VEL_PX: 0.13,                // px/ms de cruce (× variación) → ~2–3 s en cruzar
+    // LANZAMIENTO CONTROLADO: el target cruza en LÍNEA RECTA (gravedad ~0; el motor NO cambia, sólo se
+    // fijan props), SIEMPRE ENTERO, dentro de la BANDA central. v3.1: entra desde los 4 bordes (CAMBIO 4).
+    // CAMBIO 1 (v3.1) — 60% MÁS RÁPIDO que la versión anterior: 0.13 × 1.6 = 0.208 px/ms. Un solo sitio;
+    // aplica a naranjas Y rojos (ambos pasan por lanzarPush).
+    VEL_PX: 0.208,
     VEL_VARIA: [{ mult: 1.0, prob: 0.6 }, { mult: 1.2, prob: 0.3 }, { mult: 1.4, prob: 0.1 }],
     ANG_FRAC: 0.9,               // fracción de la holgura de banda que puede usar la pendiente (variedad)
-    BANDA_FRAC: 0.65,            // los targets transitan por el 65% CENTRAL de la altura (5.1, valor de Pat)
-    ROJO_FACTOR: 0.6,            // frecuencia de rojos (PROPUESTO para veto: el rojo REINICIA la partida)
-    MAX_EN_PANTALLA: 6,          // cupo de spawn
-    MAX_VIVOS: 16,               // tope duro de dibujo
-    SPAWN_GAP_MAX: 420,          // hueco máximo entre naranjas
-    SIN_GRANDE: true,            // Pushcloude NO lanza Big Claude (8.2)
+    BANDA_FRAC: 0.65,            // los targets transitan por el 65% CENTRAL de la altura (banda vigente, 4.2)
+    ROJO_FACTOR: 0.6,            // (heredado; el spawn de Pushcloude usa P_ROJO — ver spawnPush)
+    P_ROJO: 0.28,               // prob. de que un normal sea ROJO (respeta el tope rojos ≤ naranjas)
+    // CAMBIO 2 (v3.1) — MÁS SEPARADOS: no aparece un normal nuevo hasta que el anterior lleve 1/3 de su
+    // recorrido (2.1); máximo 3 NORMALES vivos (naranja+rojo). Los RELÁMPAGO cuentan APARTE (su propio
+    // cupo). Cadencia mínima entre intentos y reintento corto si no cupo sin solaparse.
+    SEP_RECORRIDO: 1 / 3,
+    MAX_NORMALES: 3,             // tope de targets normales vivos (2.2)
+    SPAWN_MIN: 200,              // ms mínimos entre apariciones (piso de cadencia)
+    SPAWN_REINTENTO: 120,        // ms para reintentar si un intento no cupo sin solaparse (3.3)
+    // CAMBIO 3 (v3.1) — SIN CRUCES: antes de soltar, se comprueba que la trayectoria no se solape con las
+    // de los vivos; si se solapa, se prueba otro ángulo/entrada hasta INTENTOS veces; si ninguno cabe, se
+    // pospone (3.2/3.3). SEP_FACTOR = margen extra sobre la suma de radios.
+    SEP_FACTOR: 1.15,
+    INTENTOS: 10,
+    // CAMBIO 5 (v3.1) — RELÁMPAGO: LA MITAD de las apariciones. Quieto, dura 400 ms, 200 en cualquier
+    // parte, alimenta la racha, sin castigo si no se toca. Cupo propio (cuentan aparte de los normales).
+    RELAMP_FRAC: 0.5,           // ~mitad de las apariciones son relámpago (5.1)
+    RELAMP_MS: 400,             // duración del relámpago (5.2, valor de Pat)
+    MAX_RELAMPAGOS: 3,          // cupo propio de relámpagos (aparte de los 3 normales, 2.2)
+    MAX_EN_PANTALLA: 6,          // (heredado; el spawn de Pushcloude lo gobierna spawnPush)
+    MAX_VIVOS: 16,               // tope duro de dibujo (seguridad)
+    SPAWN_GAP_MAX: 420,          // (heredado)
+    SIN_GRANDE: true,            // Pushcloude NO lanza Big Claude
   };
   const esPush = function () { return juegoActivo === 'pushclaud'; };
   // Cupos según el juego activo: ShotClaud/Pushcloude llenan más la pantalla; HitClaud queda idéntico.
@@ -1495,6 +1513,8 @@
   let pushCicloRestante = 0;        // ms restantes del ciclo de 15 s (independiente del reloj de partida)
   let pushCicloCumplido = false;    // ¿la meta del ciclo ya está cumplida? (aviso "vas a salvo", 4.5)
   let pushReset = null;             // {modo:'reinicio'|'salir', inicio} máquina del rojo (5) / stop (7)
+  let pushProxSpawn = 0;            // timestamp mínimo del próximo intento de spawn de Pushcloude (v3.1)
+  let pushCountNormal = 0, pushCountRelamp = 0; // apariciones por tipo → balance ~50/50 (5.1)
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
   let sacudidaHasta = 0;      // timestamp fin de la micro-sacudida de pantalla
@@ -1666,27 +1686,111 @@
   // la FORMA COMPLETA transita siempre dentro de ella. La dirección se varía con esa pendiente (5.4).
   // No toca el motor: sólo fija props del target (misma técnica que aplicarVelocidadShot). Vale para
   // naranjas y rojos (4.3) porque generarRojo pasa por nuevoTarget.
+  // CAMBIO 4 (v3.1) — entra desde CUALQUIER borde. La banda del 65% central SIGUE VIGENTE (nada cruza la
+  // franja de la barra, 4.2) y todo target CRUZA ENTERO (4.3). Como un target no puede a la vez quedarse
+  // en la banda y salir por arriba/abajo, las 4 direcciones se expresan así, siempre con SALIDA LATERAL:
+  //   'izq'/'der' → cruce horizontal a media banda.  'arriba' → entra por el TOPE de la banda y baja en
+  //   diagonal hasta el fondo de la banda al salir.  'abajo' → entra por el fondo y sube.
+  // Recorre en LÍNEA RECTA (gravedad ~0). Registra metadatos para la separación temporal y de trayectorias.
   function lanzarPush(t) {
     const r = Math.max(PUSH.COLS, PUSH.FILAS) * 4;       // semi-tamaño del target (px)
     const margen = (1 - PUSH.BANDA_FRAC) / 2;            // 0.175 arriba/abajo → 65% central
     const top = H * margen + r;                          // la forma COMPLETA cabe dentro de la banda
     const bot = H * (1 - margen) - r;
     const banda = Math.max(1, bot - top);
-    const y0 = top + Math.random() * banda;
-    const desdeIzq = Math.random() < 0.5;
-    t.x = desdeIzq ? -(r + 8) : W + (r + 8);
-    t.y = y0;
-    // RECTA: gravedad DIMINUTA pero NO cero. El motor (sellado) hace `o.gravedad || GRAVEDAD`, así que
-    // un 0 se trataría como "sin definir" y caería con gravedad plena; 1e-9 es truthy y despreciable.
-    t.gravedad = 1e-9;
-    t.rot = 0;
+    const bordes = ['izq', 'der', 'arriba', 'abajo'];
+    const borde = bordes[(Math.random() * 4) | 0];       // 4.4: reparte las direcciones
+    const desdeIzq = (borde === 'arriba' || borde === 'abajo') ? (Math.random() < 0.5) : (borde === 'izq');
     const vBase = PUSH.VEL_PX * sortearVariacion(PUSH.VEL_VARIA);
+    t.x = desdeIzq ? -(r + 8) : W + (r + 8);
+    t.gravedad = 1e-9;                                   // recta: 0 sería falsy y el motor (sellado) caería con gravedad plena
+    t.rot = 0;
     t.vx = desdeIzq ? vBase : -vBase;
-    // Pendiente vertical ACOTADA: en cruzar TODO el ancho, el desvío no saca al target de la banda.
-    const cruce = (W + 2 * (r + 8)) / Math.abs(t.vx);    // ms de borde a borde
-    const holgura = Math.min(y0 - top, bot - y0);        // px libres al borde más cercano de la banda
-    const vyMax = (holgura / cruce) * PUSH.ANG_FRAC;
-    t.vy = (Math.random() * 2 - 1) * vyMax;              // dirección variada, SIEMPRE dentro de la banda
+    const cruce = (W + 2 * (r + 8)) / Math.abs(t.vx);    // ms de borde a borde (salida lateral)
+    if (borde === 'arriba' || borde === 'abajo') {
+      // Diagonal de esquina a esquina de la BANDA: entra por el tope (arriba) o el fondo (abajo).
+      t.y = borde === 'arriba' ? top : bot;
+      t.vy = (borde === 'arriba' ? banda : -banda) / cruce; // recorre justo el alto de la banda en el cruce
+    } else {
+      // Lateral: media banda, con pendiente ACOTADA para no salirse de ella (variedad).
+      const y0 = top + Math.random() * banda;
+      t.y = y0;
+      const holgura = Math.min(y0 - top, bot - y0);
+      t.vy = (Math.random() * 2 - 1) * (holgura / cruce) * PUSH.ANG_FRAC;
+    }
+    t.__nace = performance.now(); t.__cruce = cruce; t.__muereEn = t.__nace + cruce; t.__borde = borde;
+  }
+
+  // ── SEPARACIÓN de trayectorias (CAMBIO 3): dos targets NUNCA se solapan. Como todos van en línea
+  // recta (o quietos, los relámpago), se muestrea la distancia mínima en el tiempo compartido de vida.
+  function pushVida(t, now) { return (t.__muereEn != null ? t.__muereEn : now + 4000) - now; }
+  function pushSolapa(cand, candVida, now) {
+    const rC = cand.radio || 40;
+    for (let i = 0; i < targets.length; i++) {
+      const o = targets[i];
+      const hasta = Math.min(candVida, pushVida(o, now));
+      if (hasta <= 0) continue;
+      const minD = (rC + (o.radio || 40)) * PUSH.SEP_FACTOR;
+      for (let dt = 0; dt <= hasta; dt += 60) {
+        const ax = cand.x + cand.vx * dt, ay = cand.y + cand.vy * dt;
+        const ox = o.x + (o.vx || 0) * dt, oy = o.y + (o.vy || 0) * dt;
+        if (Math.hypot(ax - ox, ay - oy) < minD) return true; // se cruzarían → NO
+      }
+    }
+    return false;
+  }
+
+  // Intenta soltar un NORMAL (naranja o rojo) sin solaparse. Hasta PUSH.INTENTOS ángulos/entradas; si
+  // ninguno cabe, se rinde (el llamador pospone, 3.3). El rojo respeta el tope rojos ≤ naranjas (5.6/tope).
+  function intentarNormal(now) {
+    let naranjas = 0, rojos = 0;
+    for (let i = 0; i < targets.length; i++) { const t = targets[i]; if (t.relampago) continue; if (t.rojo) rojos++; else naranjas++; }
+    const rojo = (rojos < naranjas) && Math.random() < PUSH.P_ROJO;
+    for (let intento = 0; intento < PUSH.INTENTOS; intento++) {
+      const t = nuevoTarget();                 // crea + lanzarPush (4 direcciones, metadatos)
+      if (rojo) t.rojo = true;
+      if (!pushSolapa(t, t.__cruce, now)) { t.__enJuego = true; targets.push(t); return true; }
+    }
+    return false;
+  }
+  // Intenta colocar un RELÁMPAGO quieto en la zona de juego, sin solaparse ni bajo la barra (5.5).
+  function intentarRelampago(now) {
+    const r = Math.max(PUSH.COLS, PUSH.FILAS) * 4;
+    const margen = (1 - PUSH.BANDA_FRAC) / 2;
+    const top = H * margen + r, bot = H * (1 - margen) - r;
+    const left = r + 8, right = W - r - 8;
+    for (let intento = 0; intento < PUSH.INTENTOS; intento++) {
+      const t = F.crearTarget({ w: W, h: H }, PUSH.COLS, PUSH.FILAS);
+      t.radio = Math.max(PUSH.COLS, PUSH.FILAS) * 4 + 12;
+      t.x = left + Math.random() * Math.max(1, right - left);
+      t.y = top + Math.random() * Math.max(1, bot - top);
+      t.vx = 0; t.vy = 0; t.gravedad = 1e-9; t.rot = 0; t.velRot = 0;
+      t.haEntrado = true; t.relampago = true;   // QUIETO y tocable de inmediato (5.2)
+      t.__nace = now; t.__cruce = PUSH.RELAMP_MS; t.__muereEn = now + PUSH.RELAMP_MS; t.__borde = 'relampago';
+      if (!pushSolapa(t, PUSH.RELAMP_MS, now)) { t.__enJuego = true; targets.push(t); return true; }
+    }
+    return false;
+  }
+  // SPAWN de Pushcloude (reemplaza los gates genéricos): caduca relámpagos, respeta la cadencia mínima,
+  // el 1/3 de recorrido del último normal (2.1), el cupo de 3 normales (2.2) y el cupo de relámpagos, y
+  // reparte ~mitad relámpago (5.1). Todo sin solaparse (3).
+  function spawnPush(now) {
+    for (let i = targets.length - 1; i >= 0; i--) { if (targets[i].relampago && now >= targets[i].__muereEn) { targets[i].viva = false; targets.splice(i, 1); } } // caduca 400ms, sin castigo (5.4)
+    if (now < pushProxSpawn) return;
+    let normales = 0, relamp = 0, ultNormal = null;
+    for (let i = 0; i < targets.length; i++) { const t = targets[i]; if (t.relampago) { relamp++; } else { normales++; if (!ultNormal || t.__nace > ultNormal.__nace) ultNormal = t; } }
+    // CAMBIO 5.1 — ~LA MITAD de las APARICIONES son relámpago. Como los relámpago viven 400ms y los
+    // normales ~2s, contar 50/50 por sorteo los sobre-representaría; en su lugar se alterna por CONTEO
+    // (spawnea el tipo que va por detrás en apariciones). Si el elegido no cabe/está gateado, ESPERA
+    // (no sustituye) → mantiene el balance ~50/50.
+    const preferRelamp = pushCountRelamp <= pushCountNormal;
+    if (preferRelamp) {
+      if (relamp < PUSH.MAX_RELAMPAGOS && intentarRelampago(now)) { pushCountRelamp++; pushProxSpawn = now + PUSH.SPAWN_MIN; return; }
+    } else if (normales < PUSH.MAX_NORMALES && (!ultNormal || (now - ultNormal.__nace) / ultNormal.__cruce >= PUSH.SEP_RECORRIDO)) {
+      // 1/3 del recorrido del anterior (2.1) + cupo de 3 normales (2.2)
+      if (intentarNormal(now)) { pushCountNormal++; pushProxSpawn = now + PUSH.SPAWN_MIN; return; }
+    }
+    pushProxSpawn = now + PUSH.SPAWN_REINTENTO; // no cupo / gateado → reintenta pronto sin romper el balance (3.3)
   }
   // CAMBIO 3.5 — ¿el toque cae sobre este target? Área GENEROSA (un dedo, no un cursor): dentro de
   // radio × TOQUE_FACTOR del centro. Reemplaza la exigencia de caer sobre una celda viva exacta.
@@ -2083,8 +2187,21 @@
       if (!tg.haEntrado) continue;
       if (!tocaTargetPush(tg, mx, my)) continue;      // área GENEROSA de toque (dedo, no cursor) — 3.5
       pAciertos += 1;
-      if (tg.rojo) { reinicioPorRojoPush(tg, mx, my); return; } // ROJO → reinicia la partida (5)
+      if (tg.rojo) { reinicioPorRojoPush(tg, mx, my); return; } // ROJO → reinicia la partida (5); nunca hay rojos relámpago (5.6)
       tg.destelloHasta = ahora + DESTELLO_MS;
+      if (tg.relampago) {                             // CAMBIO 5.2 — RELÁMPAGO: 200 en CUALQUIER parte, sube la racha
+        const r = PU.anotarCentro(marcador);          // misma economía que un acierto al centro
+        if (marcador.racha > pRachaMax) pRachaMax = marcador.racha;
+        const centros = [];
+        for (let k = 0; k < tg.celdas.length; k++) { if (tg.celdas[k]) { centros.push(F.celdaMundo(tg, k)); tg.celdas[k] = false; } }
+        explotarCubos(centros, mx, my, 1.0, 0, 0, tk('--dorado', '#FFC300')); // reviente dorado
+        tg.viva = false; targets.splice(ti, 1);
+        sacudidaHasta = ahora + SACUDIDA_MS;
+        mostrarBonoCentro(mx, my, r.ganancia);
+        popMarcador();
+        actualizarMarcador();
+        return;
+      }
       if (!tg.tocado && PU.enZonaCentral(tg, mx, my)) { // CENTRO de un target intacto → destruye entero
         const r = PU.anotarCentro(marcador);
         if (marcador.racha > pRachaMax) pRachaMax = marcador.racha;
@@ -2361,6 +2478,7 @@
     // Targets: misma física (sub-paseada). Al salir del viewport mueren solos
     // (paso() los marca); el spawn caótico gobierna el reemplazo por su reloj.
     for (let i = targets.length - 1; i >= 0; i--) {
+      if (targets[i].relampago) continue;       // RELÁMPAGO: quieto, sin física (5.2); caduca en spawnPush
       F.paso(targets[i], dt, limites);
       if (!targets[i].viva) targets.splice(i, 1);
     }
@@ -2470,10 +2588,14 @@
       q.rot += q.velRot * dt;
       if (q.y > H + 8 || q.x < -8 || q.x > W + 8 || q.y < -400) cubos.splice(i, 1);
     }
-    // SPAWN bajo el TOPE DURO de 2 (naranjas + rojos + grande juntos). Cada gate
-    // mira targets.length ACTUAL (tras un spawn el siguiente ve el lugar ocupado →
-    // nunca se pasa de 2). Si no hay lugar/no toca, el timer queda vencido y dispara
-    // al liberarse (no se descarta el turno).
+    // SPAWN. Pushcloude (v3.1) tiene su PROPIO gestor: ritmo (1/3 de recorrido), cupo de 3 normales,
+    // separación de trayectorias (sin cruces) y relámpagos (spawnPush). Hit/ShotClaud conservan el suyo.
+    if (esPush()) {
+      spawnPush(t);
+    } else {
+    // SPAWN bajo el TOPE DURO (naranjas + rojos + grande juntos). Cada gate mira targets.length ACTUAL
+    // (tras un spawn el siguiente ve el lugar ocupado). Si no hay lugar/no toca, el timer queda vencido
+    // y dispara al liberarse (no se descarta el turno).
     if (targets.length < capEnPantalla() && t >= proximoSpawn) {
       generarNaranja();
       proximoSpawn = t + retardoNaranja(t);
@@ -2485,11 +2607,11 @@
       // Si ya hay tantos rojos como naranjas, se salta el turno (el timer vencido reintenta en
       // cuanto aparezca un naranja). En HitClaud no aplica: escala como siempre.
       const c = contarTargets();
-      const puedeRojo = !(esShot() || esPush()) || c.rojos < c.naranjas; // tope duro: rojos ≤ naranjas
+      const puedeRojo = !esShot() || c.rojos < c.naranjas; // tope duro: rojos ≤ naranjas
       if (puedeRojo) {
         generarRojo();
-        // ShotClaud/Pushcloude ajustan la frecuencia de rojos con su ROJO_FACTOR (menor factor → más rojos).
-        const factorRojo = esPush() ? PUSH.ROJO_FACTOR : esShot() ? SHOT.ROJO_FACTOR : 1;
+        // ShotClaud: 5× más rojos → el intervalo se acorta con SHOT.ROJO_FACTOR (CAMBIO 4).
+        const factorRojo = esShot() ? SHOT.ROJO_FACTOR : 1;
         proximoRojo = t + P.intervaloRojo(escalada.nivel) * factorRojo * rnd(ROJO_JITTER[0], ROJO_JITTER[1]);
       }
     }
@@ -2497,6 +2619,7 @@
     if (!sinGrande() && targets.length < capEnPantalla() && t >= proximoGrande && !targets.some(function (x) { return x.grande; })) {
       generarGrande();
       proximoGrande = t + GRANDE_MIN_MS + Math.random() * GRANDE_JITTER_MS;
+    }
     }
     // (FASE 12) SIN récord en vivo: el récord ya NO sube ni se escribe durante la
     // partida. La celda "Record" muestra el récord GUARDADO (por tiempo cumplido);
@@ -2633,6 +2756,7 @@
     // parpadeo cloudover-a/b. El destello de contacto (crema) manda.
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
+      if (t.relampago) { dibujarRelampago(t, performance.now()); continue; } // CAMBIO 5: look propio
       const destella = t.destelloHasta && performance.now() < t.destelloHasta;
       ctx.save();
       ctx.translate(t.x, t.y);
@@ -3033,6 +3157,33 @@
     // CAMBIO 2 (v3.0) — PUSHCLOUDE: la marca de la zona central YA NO SE DIBUJA (Pat la quitó). El
     // target se ve limpio. La MECÁNICA no cambia: el centro sigue valiendo 200 y el resto 50 (enZonaCentral
     // en aplastar); la señal de acierto al centro es que el target revienta entero (2.3).
+  }
+
+  // CAMBIO 5.3/5.4 (v3.1) — RELÁMPAGO: look PROPIO, distinto de un target normal de un vistazo. Es un
+  // objetivo de REFLEJOS: rombo DORADO con anillo blanco pulsante (color y forma distintos del cubo
+  // naranja). Entrada rápida (fade+pop en 80ms) y salida por fade en el último 28% de su vida → se lee,
+  // no es un corte seco. SIN shadowBlur (5.7). Reporta para veto de Pat: rombo dorado + anillo.
+  function dibujarRelampago(t, now) {
+    const edad = now - t.__nace, p = edad / PUSH.RELAMP_MS;
+    let alpha = 1, esc = 1;
+    if (edad < 80) { alpha = Math.max(0, Math.min(1, edad / 80)); esc = 0.55 + 0.45 * alpha; }
+    else if (p > 0.72) { alpha = Math.max(0, 1 - (p - 0.72) / 0.28); }
+    const lado = Math.max(PUSH.COLS, PUSH.FILAS) * 8 * 0.82;
+    const col = tk('--dorado', '#FFC300');
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.scale(esc, esc);
+    ctx.rotate(Math.PI / 4);                 // ROMBO (cuadrado girado 45°) → forma distinta del cubo normal
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.roundRect(-lado / 2, -lado / 2, lado, lado, 6); ctx.fill();
+    ctx.fillStyle = COLOR.negro; ctx.fillRect(-3, -3, 6, 6); // marca central: se lee como objetivo
+    ctx.rotate(-Math.PI / 4);
+    ctx.globalAlpha = Math.max(0, alpha) * 0.9; // ANILLO pulsante (reflejos)
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(0, 0, lado * 0.8, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   // Bolita: disco sólido en el COLOR del modo (SIN parpadeo — el acento es

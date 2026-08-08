@@ -89,11 +89,18 @@ function appPush() {
 function score(app) { return app.byId['barraActual'].textContent; }
 function ocultoDur(app) { return app.byId['duracion'].classList.contains('oculto'); }
 function ocultoFin(app) { return app.byId['gameover'].classList.contains('oculto'); }
-// Trae al centro (400,300), CONGELADO, el primer target (rojo o no, según `rojo`) vivo y ya entrado;
-// aparta a los demás para que un toque en (400,300) sólo lo alcance a él. Devuelve el target.
-function traerAlCentro(app, rojo) {
+// Trae al centro (400,300), CONGELADO, el primer target del `tipo` pedido ('normal' = naranja;
+// 'relampago') vivo y ya entrado; aparta a los demás para que el toque sólo lo alcance a él.
+function traerAlCentro(app, tipo) {
+  const quiereRelamp = tipo === 'relampago';
   let tg = null;
-  for (let i = 0; i < 900 && !tg; i++) { app.step(16); tg = app._cap.caps.find(function (t) { return (!!t.rojo === !!rojo) && t.viva !== false && t.haEntrado && t.x > -9000; }); }
+  for (let i = 0; i < 900 && !tg; i++) {
+    app.step(16);
+    tg = app._cap.caps.find(function (t) {
+      const esRelamp = !!t.relampago;
+      return esRelamp === quiereRelamp && t.__enJuego && !t.rojo && t.viva !== false && t.haEntrado && t.x > -9000;
+    });
+  }
   if (tg) {
     app._cap.caps.forEach(function (t) { if (t !== tg) { t.x = -99999; t.y = -99999; } });
     tg.x = 400; tg.y = 300; tg.vx = 0; tg.vy = 0; tg.gravedad = 1e-9; tg.rot = 0; tg.velRot = 0;
@@ -104,13 +111,13 @@ function traerAlCentro(app, rojo) {
 console.log('=== JUEGO — Toque al CENTRO destruye entero (200); BORDE arranca ≥ la mitad, el resto sigue ===');
 {
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
-  const tg = traerAlCentro(app, false);
+  const tg = traerAlCentro(app, 'normal');
   chk('salió un target 7×6 y se trajo al centro', !!tg && tg.cols === 7 && tg.filas === 6);
   app.disparar(400, 300); // CENTRO exacto
   chk('CENTRO: destruye el target ENTERO (vivos 0) y suma 200', !!tg && tg.vivos === 0 && score(app) === '200');
 
   const app2 = appPush(); app2.irAJuego('pushclaud'); app2.jugar('60');
-  const t2 = traerAlCentro(app2, false);
+  const t2 = traerAlCentro(app2, 'normal');
   const vivosAntes = t2.vivosMax, gAntes = t2.gravedad, vxAntes = t2.vx;
   app2.disparar(420, 300); // BORDE (20px > cuarto central 14px, dentro del target)
   const arrancadas = vivosAntes - t2.vivos;
@@ -122,7 +129,7 @@ console.log('=== JUEGO — Toque al CENTRO destruye entero (200); BORDE arranca 
 console.log('=== JUEGO — Toque al VACÍO resta; el medidor se dibuja en el canvas (no captura) ===');
 {
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
-  const tg = traerAlCentro(app, false);
+  const tg = traerAlCentro(app, 'normal');
   app.disparar(400, 300);          // centro (+200)
   app.disparar(40, 570);           // vacío, lejos de todo (resta 50)
   chk('VACÍO: resta (200 → 150)', !!tg && score(app) === '150');
@@ -132,8 +139,11 @@ console.log('=== JUEGO — Toque al VACÍO resta; el medidor se dibuja en el can
 console.log('=== JUEGO — Tocar un ROJO reinicia la partida (no termina): puntos a 0, sin salir, sin enviar ===');
 {
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
-  const rojo = traerAlCentro(app, true);
-  chk('apareció un rojo tocable', !!rojo);
+  // Los rojos son escasos (spawnPush los sortea con P_ROJO y tope); para ejercitar el camino de forma
+  // determinista, marco como ROJO un target normal VIVO (es el mismo objeto del juego) y lo toco.
+  const rojo = traerAlCentro(app, 'normal');
+  chk('hay un target para marcar como rojo', !!rojo);
+  if (rojo) { rojo.rojo = true; rojo.relampago = false; }
   if (rojo) app.disparar(400, 300);  // toca el rojo → REINICIO de la partida
   chk('tras tocar el rojo: puntos a 0 y NO se sale de la pantalla (home/fin ocultos, 5.4)', score(app) === '0' && ocultoDur(app) && ocultoFin(app));
   for (let i = 0; i < 45; i++) app.step(32); // cuenta atrás (flash 320 + 3×260 ≈ 1100ms)
@@ -177,8 +187,8 @@ console.log('=== CAMBIO 4/5 — Los targets cruzan ENTEROS y transitan por la ba
   chk('se observaron targets en juego', vistos > 20);
   chk('NINGÚN target sale del 65% central de la altura (5.1)', fueraBanda === 0);
   chk('NINGÚN target cruza por la franja de la barra (5.3)', cruzaBarra === 0);
-  chk('FUENTE: lanzarPush entra por un borde lateral, gravedad ~0 (recta) → cruza entero (4/4.2)', /function lanzarPush\(t\) \{[\s\S]{0,600}t\.x = desdeIzq \? -\(r \+ 8\) : W \+ \(r \+ 8\);[\s\S]{0,320}t\.gravedad = 1e-9;/.test(main));
-  chk('FUENTE: la pendiente vertical se acota a la banda (5.4) y el 65% es constante (5.5)', /const vyMax = \(holgura \/ cruce\) \* PUSH\.ANG_FRAC;/.test(main) && /BANDA_FRAC: 0\.65/.test(main));
+  chk('FUENTE: lanzarPush lanza en recta (gravedad ~0) por salida lateral → cruza entero (4/4.3)', /function lanzarPush\(t\) \{[\s\S]{0,1100}t\.x = desdeIzq \? -\(r \+ 8\) : W \+ \(r \+ 8\);\s*t\.gravedad = 1e-9;/.test(main));
+  chk('FUENTE: entra desde los CUATRO bordes (izq/der/arriba/abajo) y la pendiente se acota a la banda', /const bordes = \['izq', 'der', 'arriba', 'abajo'\];/.test(main) && /\(holgura \/ cruce\) \* PUSH\.ANG_FRAC/.test(main) && /BANDA_FRAC: 0\.65/.test(main));
 }
 
 console.log('=== FUENTE — Rojo reinicia puntos/racha/ciclo/reloj; sólo el tiempo guarda récord; sin envío ===');
@@ -188,6 +198,71 @@ console.log('=== FUENTE — Rojo reinicia puntos/racha/ciclo/reloj; sólo el tie
   chk('al terminar la cuenta: reinicia estado, RELOJ de partida y ciclo (sin terminarPartida)', /pushReset = null;\s*reiniciarEstado\(\);[\s\S]{0,120}tiempoRestante = DURACIONES\[modoJuego\] \|\| 0;[\s\S]{0,120}pushCicloBase = 0; pushCicloRestante = PU\.CICLO_MS/.test(main));
   chk('sólo el fin por TIEMPO guarda récord (record.terminar en terminarPartida)', /function terminarPartida\(porTiempo\)[\s\S]{0,1600}record\.terminar\(scoreFinal, ahora, cuentaRecord\)/.test(main));
   chk('Pushcloude NO envía al servidor todavía (envío inactivo, 9.5)', /if \(esPush\(\)\) return;/.test(main) && /servidor sólo acepta 'pushclaud:15'/.test(main));
+}
+
+console.log('=== CAMBIO 5 — RELÁMPAGO: quieto 400 ms, 200 en cualquier punto, sin castigo si no se toca ===');
+{
+  // No se MUEVE: se busca uno vivo en libertad y se comprueba que no se desplaza entre frames.
+  const appA = appPush(); appA.irAJuego('pushclaud'); appA.jugar('60');
+  let rel = null;
+  for (let i = 0; i < 900 && !rel; i++) { appA.step(16); rel = appA._cap.caps.find(function (t) { return t.relampago && t.__enJuego && t.viva !== false && t.x > -9000; }); }
+  chk('apareció un relámpago vivo', !!rel);
+  if (rel) { const x0 = rel.x, y0 = rel.y; appA.step(16); appA.step(16); chk('el relámpago NO se mueve (vx/vy 0 y misma posición, 5.2)', rel.vx === 0 && rel.vy === 0 && rel.x === x0 && rel.y === y0); }
+  chk('FUENTE: el relámpago dura RELAMP_MS=400 y caduca sin castigo (splice, no anotarFallo, 5.2/5.4)', /RELAMP_MS: 400,/.test(main) && /if \(targets\[i\]\.relampago && now >= targets\[i\]\.__muereEn\) \{ targets\[i\]\.viva = false; targets\.splice\(i, 1\); \}/.test(main));
+
+  // 200 EN CUALQUIER PUNTO + la racha sube igual que un centro: tres relámpagos seguidos → 200+200+240.
+  const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
+  const r1 = traerAlCentro(app, 'relampago'); if (r1) app.disparar(422, 300); // toque FUERA del centro exacto
+  chk('tocar un relámpago fuera del centro da 200 (vale en cualquier punto, 5.3)', !!r1 && score(app) === '200');
+  const r2 = traerAlCentro(app, 'relampago'); if (r2) app.disparar(400, 300);
+  const r3 = traerAlCentro(app, 'relampago'); if (r3) app.disparar(378, 300);
+  chk('la racha sube como un centro: 200+200+240 = 640 (misma progresión, 5.3)', !!r2 && !!r3 && score(app) === '640');
+
+  // NO tocarlo: ni castiga ni rompe la racha. Con racha 3 (640), dejar caducar relámpagos y seguir.
+  for (let i = 0; i < 32; i++) app.step(16); // ~500 ms sin tocar: los relámpagos caducan solos
+  chk('dejar caducar relámpagos NO resta puntos (no es un fallo, 5.4)', score(app) === '640');
+  const r4 = traerAlCentro(app, 'relampago'); if (r4) app.disparar(400, 300);
+  chk('la racha se conservó pese a las caducidades: siguiente centro ×1.4 = 280 → 920 (5.4)', !!r4 && score(app) === '920');
+}
+
+console.log('=== CAMBIO 5 — Ni rojos, ni bajo la barra, ni encimados; ~la mitad de las apariciones ===');
+{
+  const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
+  const r = Math.max(7, 6) * 4, barra = 58;
+  let relRojo = 0, relBajoBarra = 0, relSolapado = 0, relVistos = 0;
+  let apRelamp = 0, apNormal = 0; const vistos = new Set();
+  for (let i = 0; i < 1200; i++) {
+    app.step(16);
+    app._cap.caps.forEach(function (t) {
+      if (!t.__enJuego) return;                                       // ignora candidatos rechazados (nunca entraron al juego)
+      if (!vistos.has(t)) { vistos.add(t); if (t.relampago) apRelamp++; else apNormal++; } // cuenta cada aparición una vez
+      if (!t.relampago || t.viva === false || !t.haEntrado || t.x < -9000) return;
+      relVistos++;
+      if (t.rojo) relRojo++;
+      if (t.y - r < barra) relBajoBarra++;
+      app._cap.caps.forEach(function (o) {
+        if (o === t || !o.__enJuego || o.viva === false || !o.haEntrado || o.x < -9000) return;
+        if (Math.hypot(t.x - o.x, t.y - o.y) < (r + (o.relampago ? r : Math.max(7, 6) * 4))) relSolapado++;
+      });
+    });
+  }
+  chk('se observaron relámpagos vivos', relVistos > 20);
+  chk('NINGÚN relámpago es ROJO (5.6)', relRojo === 0);
+  chk('NINGÚN relámpago aparece bajo la barra (5.5)', relBajoBarra === 0);
+  chk('NINGÚN relámpago aparece encimado a otro target (3/5.5)', relSolapado === 0);
+  const frac = apRelamp / Math.max(1, apRelamp + apNormal);
+  console.log('  apariciones: relámpago=' + apRelamp + ', normal=' + apNormal + ' (relámpago ' + Math.round(frac * 100) + '%)');
+  chk('~LA MITAD de las apariciones son relámpago (40–60%, 5.1)', frac >= 0.4 && frac <= 0.6);
+  chk('FUENTE: el balance alterna por conteo de apariciones (pushCountRelamp ≤ pushCountNormal)', /const preferRelamp = pushCountRelamp <= pushCountNormal;/.test(main));
+  chk('FUENTE: intentarRelampago NO crea rojos y verifica no-solape (pushSolapa) antes de soltar', /function intentarRelampago[\s\S]{0,900}t\.relampago = true;[\s\S]{0,320}if \(!pushSolapa\(t, PUSH\.RELAMP_MS, now\)\) \{ t\.__enJuego = true; targets\.push\(t\); return true; \}/.test(main) && !/function intentarRelampago[\s\S]{0,900}t\.rojo = true/.test(main));
+}
+
+console.log('=== CAMBIO 5 — El relámpago se dibuja DISTINTO y SIN shadowBlur (rombo dorado + anillo blanco) ===');
+{
+  chk('el bucle de dibujo desvía los relámpagos a dibujarRelampago', /if \(t\.relampago\) \{ dibujarRelampago\(t, performance\.now\(\)\); continue; \}/.test(main));
+  const fn = main.slice(main.indexOf('function dibujarRelampago'), main.indexOf('// Bolita:'));
+  chk('dibujarRelampago usa el DORADO y un anillo blanco (distinto del naranja)', /tk\('--dorado'/.test(fn) && /#FFFFFF/.test(fn));
+  chk('dibujarRelampago NO usa shadowBlur (prohibido, 5.7)', !/shadowBlur/.test(fn));
 }
 
 console.log(`\n== RESUMEN pushcloude: ${ok} OK, ${ko} NO ==`);
