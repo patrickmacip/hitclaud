@@ -62,6 +62,22 @@
     </div>
   </div>
 
+  <!-- PUERTA DE ACCESO ANTICIPADO (v2.8): pide la clave para desbloquear Pushcloude. Toda pantalla
+       tiene salida (Cerrar vuelve al home). Registrado en AMBAS reglas de overlay del CSS. Cuando ya
+       hay acceso, aparece además "Salir del acceso anticipado" (CAMBIO 4). NO se guarda la clave. -->
+  <div id="acceso" class="oculto" role="dialog" aria-modal="true">
+    <div class="go-panel">
+      <p class="ini-titulo">Acceso anticipado</p>
+      <input id="accesoInput" class="nombre-input" type="password"
+             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+             inputmode="text" placeholder="clave" aria-label="Clave de acceso">
+      <p class="acceso-error oculto" id="accesoError">Clave incorrecta. Probá de nuevo.</p>
+      <button id="accesoOk" class="go-reiniciar">Entrar</button>
+      <button id="accesoSalir" class="go-reiniciar go-modo-libre oculto">Salir del acceso anticipado</button>
+      <button id="accesoCerrar" class="go-reiniciar go-modo-libre">Cerrar</button>
+    </div>
+  </div>
+
   <!-- HOME DE CADA JUEGO (nivel ÚNICO; ya no hay pantalla de selección). Arriba, la FILA DE
        NAVEGACIÓN: flecha izquierda · nombre del juego · flecha derecha. Las flechas CICLAN entre
        juegos (HitClaud → ShotClaud → PushClaud → …), no salen a ningún lado. Debajo, según la
@@ -88,10 +104,17 @@
       <!-- JUGABLE: saludo (editable) · récord+medalla · Ranking · guía + botones de duración (que
            SON la acción de jugar, CAMBIO 2) · cierre. Ya NO hay botón JUGAR ni duración preseleccionada. -->
       <div id="homeJugable">
-        <button class="ini-saludo home-saludo" id="iniSaludo" type="button">
-          <span id="iniSaludoTexto">Ponte un nombre</span>
-          <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-lapiz"></use></svg>
-        </button>
+        <div class="home-saludo-fila">
+          <button class="ini-saludo home-saludo" id="iniSaludo" type="button">
+            <span id="iniSaludoTexto">Ponte un nombre</span>
+            <svg class="icono icono-mini" aria-hidden="true"><use href="#ic-lapiz"></use></svg>
+          </button>
+          <!-- Distintivo ADMIN (acceso anticipado): junto al nombre, en los tres juegos. Pulsable
+               para GESTIONAR el acceso (abre el overlay, donde se puede salir). Oculto sin acceso. -->
+          <button class="home-admin oculto" id="homeAdmin" type="button" aria-label="Acceso anticipado — tocar para gestionar">ADMIN</button>
+        </div>
+        <!-- Acceso anticipado de Pushcloude: se lee como privilegio (3.2). Oculto salvo en ese caso. -->
+        <p class="home-anticipo oculto" id="homeAnticipo">Acceso anticipado ✦ puede fallar</p>
         <div class="home-record" aria-label="Récord del juego">
           <p class="home-record-et">Record personal</p>
           <div class="home-record-val">
@@ -105,12 +128,18 @@
         </button>
         <p class="home-guia">Selecciona el tiempo de tu partida</p>
         <div class="home-modos" id="durModos" role="group" aria-label="Elige el tiempo de tu partida"></div>
+        <!-- Aviso al tocar una duración de un juego cuya MECÁNICA aún no existe (Pushcloude en acceso
+             anticipado, 3.3): "llega pronto" y NO arranca partida. Oculto hasta que se pulsa. -->
+        <p class="home-pronto oculto" id="homePronto"></p>
         <p class="home-cierre">¡Gracias por jugar!</p>
       </div>
       <!-- APAGADO: MISMA estructura, quemada. Sólo las flechas y la línea de estado están vivas.
            Nada aquí es pulsable (CAMBIO 4). Sin botones de duración. -->
       <div id="homeNoJugable" class="oculto">
         <p class="home-estado" id="homeEstado"></p>
+        <!-- LA PUERTA (1.1): enlace DISCRETO bajo "Próximamente", sólo en Pushcloude sin acceso.
+             Quien no sepa, no debe reparar en él. Es lo único pulsable del apagado además de las flechas. -->
+        <button class="home-acceso-link oculto" id="homeAccesoLink" type="button">¿Tienes acceso?</button>
         <div class="home-record home-record-off" aria-label="Récord del juego">
           <p class="home-record-et">Record personal</p>
           <div class="home-record-val">

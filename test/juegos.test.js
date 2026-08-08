@@ -45,7 +45,7 @@ console.log('=== NIVEL ÚNICO (home por juego); nunca se sale del juego ===');
   chk('juego no disponible: el home muestra su cuerpo APAGADO con línea de estado (CAMBIO 4)', /elHomeNoJugable\.classList\.toggle\('oculto', disp\.jugable\)/.test(main) && /elHomeEstado\.textContent = disp\.pronto/.test(main));
   chk('las FLECHAS ciclan de juego (no salen): homeIzq avanza, homeDer retrocede', /btnHomeIzq\.addEventListener\('click', function \(\) \{ mostrarHome\(juegoVecino\(juegoSel, 1\), true\); \}\)/.test(main) && /btnHomeDer\.addEventListener\('click', function \(\) \{ mostrarHome\(juegoVecino\(juegoSel, -1\), true\); \}\)/.test(main));
   chk('el botón de casa vuelve al HOME de su juego (4.1)', /function abandonarPartida\(\)[\s\S]{0,400}mostrarHome\(juegoActivo, false\)/.test(main));
-  chk('los botones de duración del home arrancan la partida de ESA duración (CAMBIO 2)', /addEventListener\('click', function \(\) \{ iniciarPartida\(juegoSel, dur\); \}\)/.test(main));
+  chk('los botones de duración del home arrancan la partida de ESA duración (CAMBIO 2)', /if \(j\.jugable\) iniciarPartida\(juegoSel, dur\);/.test(main));
 }
 
 console.log('=== CAMBIO 4: fin de partida — jugar de nuevo / cambiar duración ===');

@@ -126,17 +126,25 @@
   //   · en su plataforma y terminado → jugable:true, sin aviso.
   // El aviso de plataforma y el de "Pronto" son cosas DISTINTAS (5.4): un juego no
   // disponible por plataforma NO dice "Pronto".
-  function disponibilidad(j, desktop) {
-    // "Pronto" MANDA sobre la plataforma (2.6): si el juego no está terminado, ése es su estado
-    // en cualquier plataforma, antes de mirar dónde se juega.
-    if (!j.jugable) return { jugable: false, pronto: true, aviso: 'Pronto' };
+  function disponibilidad(j, desktop, acceso) {
+    // "Pronto" MANDA sobre la plataforma: si el juego no está terminado, ése es su estado. EXCEPCIÓN
+    // (v2.8): Pushcloude con ACCESO ANTICIPADO deja de estar "Próximamente" — pero sigue siendo
+    // TÁCTIL, así que en escritorio no se juega ("Disponible en móvil", 3.4). `anticipado:true` marca
+    // que el home se ve encendido aunque su mecánica aún no exista (j.jugable sigue false → 3.3/3.6).
+    if (!j.jugable) {
+      if (j.id === 'pushclaud' && acceso) {
+        if (desktop) return { jugable: false, pronto: false, anticipado: false, aviso: 'Disponible en móvil' }; // táctil (3.4)
+        return { jugable: true, pronto: false, anticipado: true, aviso: null };                                 // desbloqueado en móvil (3.1)
+      }
+      return { jugable: false, pronto: true, anticipado: false, aviso: 'Pronto' };                              // sin acceso: Próximamente (3.5)
+    }
     const enPlataforma = j.plataforma === 'ambas'
       || (j.plataforma === 'escritorio' && desktop)
       || (j.plataforma === 'tactil' && !desktop);
     if (!enPlataforma) {
-      return { jugable: false, pronto: false, aviso: j.plataforma === 'escritorio' ? 'Disponible en computadora' : 'Disponible en móvil' };
+      return { jugable: false, pronto: false, anticipado: false, aviso: j.plataforma === 'escritorio' ? 'Disponible en computadora' : 'Disponible en móvil' };
     }
-    return { jugable: true, pronto: false, aviso: null };
+    return { jugable: true, pronto: false, anticipado: false, aviso: null };
   }
   const duracionMs = function (dur) { return Number(dur) * 1000; }; // 15→15000, 20→20000, 60→60000
   // Mapa duración→ms DERIVADO de JUEGOS (sin lista aparte). El bucle/temporizador lo leen.
@@ -185,6 +193,25 @@
   const nombreStore = U.crearTextoPersistente(almacen, idbKV, NOMBRE_KEY);
   let nombreUsuario = nombreStore.valor;               // lectura síncrona inicial
   const puedeGuardarNombre = !!(almacen || idbKV);     // si no hay almacén → jugar sin nombre
+
+  // ── ACCESO ANTICIPADO (v2.8): desbloquea Pushcloude para quien tenga la clave ──────────────
+  // Se guarda SÓLO una marca ('1'), NUNCA la clave (1.8), con el MISMO patrón best-effort de doble
+  // almacén (localStorage + IndexedDB) en try/catch: si el almacén falla, se juega sin guardar y sin
+  // romper (1.7). La clave vive sólo en memoria y se compara en tiempo (casi) constante (1.4).
+  const ACCESO_KEY = 'hitclaud.acceso.v1';
+  const accesoStore = U.crearTextoPersistente(almacen, idbKV, ACCESO_KEY);
+  let accesoAnticipado = accesoStore.valor === '1';    // lectura síncrona inicial
+  const ACCESO_CLAVE = 'Santi28082014';                // distingue mayúsculas/minúsculas (1.4)
+  // Compara en tiempo (casi) constante: NO corta en el primer carácter distinto; el largo se pliega
+  // en el acumulador para no filtrarlo. Devuelve true sólo si coincide exactamente (1.4).
+  function claveOk(intento) {
+    const b = String(intento == null ? '' : intento);
+    let dif = ACCESO_CLAVE.length ^ b.length;
+    for (let i = 0; i < ACCESO_CLAVE.length; i++) dif |= ACCESO_CLAVE.charCodeAt(i) ^ (b.charCodeAt(i) | 0);
+    return dif === 0;
+  }
+  function concederAcceso() { accesoAnticipado = true;  try { accesoStore.guardar('1'); } catch (e) { /* sin guardar, sin romper (1.7) */ } }
+  function revocarAcceso()  { accesoAnticipado = false; try { accesoStore.guardar('');  } catch (e) { /* idem */ } }
 
   // AVISO EMERGENTE RETIRADO (FASE 26): el overlay que mostraba las novedades y toda
   // su lógica (constante de versión + decisión pura) se eliminaron de aquí — nunca era
@@ -439,6 +466,10 @@
   const elHomeJugable = document.getElementById('homeJugable');
   const elHomeNoJugable = document.getElementById('homeNoJugable');
   const elHomeEstado = document.getElementById('homeEstado'); // línea de estado del home apagado (CAMBIO 4.2)
+  const elHomeAdmin = document.getElementById('homeAdmin');       // distintivo ADMIN junto al saludo (v2.8)
+  const elHomeAnticipo = document.getElementById('homeAnticipo'); // línea de acceso anticipado (3.2)
+  const elHomePronto = document.getElementById('homePronto');     // aviso "llega pronto" al tocar duración (3.3)
+  const elHomeAccesoLink = document.getElementById('homeAccesoLink'); // enlace "¿Tienes acceso?" (1.1)
   const elDurJuego = document.getElementById('durJuego');
   const elDurModos = document.getElementById('durModos');
   const elDurRecord = document.getElementById('durRecord');
@@ -566,6 +597,13 @@
     try { const r = recordDe(juegoSel, modoInicioSel); elDurRecord.textContent = U.abreviarNumero(r ? r.valor : 0); }
     catch (e) { elDurRecord.textContent = '0'; }
   }
+  // Aviso "llega pronto" (3.3): la mecánica de Pushcloude aún no existe; se avisa con claridad y NO
+  // se arranca nada. Inline en el home (que tiene salida por las flechas), sin overlay extra.
+  function mostrarPronto() {
+    if (!elHomePronto) return;
+    elHomePronto.textContent = 'La mecánica de Pushcloude llega pronto ⏳';
+    elHomePronto.classList.remove('oculto');
+  }
   // CAMBIO 2 — los botones de DURACIÓN SON la acción de jugar: tocar "15 Segundos" arranca una
   // partida de 15 s (ya no hay botón JUGAR ni duración preseleccionada). Uno por duración del juego,
   // apilados. El texto dice la duración completa en palabras (2.4).
@@ -579,7 +617,12 @@
       b.className = 'home-dur';
       b.setAttribute('data-dur', dur);
       b.textContent = dur + ' Segundos';          // "15 Segundos", "60 Segundos" (2.4)
-      b.addEventListener('click', function () { iniciarPartida(juegoSel, dur); }); // tocar = jugar esa duración (2.2)
+      // Tocar = jugar esa duración (2.2). EXCEPCIÓN (3.3): si la MECÁNICA aún no existe (Pushcloude en
+      // acceso anticipado, j.jugable=false), NO se arranca partida — se avisa que llega pronto.
+      b.addEventListener('click', function () {
+        if (j.jugable) iniciarPartida(juegoSel, dur);
+        else mostrarPronto();
+      });
       elDurModos.appendChild(b);
     });
   }
@@ -594,10 +637,18 @@
     juegoSel = juego;
     if (reiniciar || j.duraciones.indexOf(modoInicioSel) === -1) modoInicioSel = duracionMasCorta(j);
     if (elDurJuego) elDurJuego.textContent = j.nombre;
-    const disp = disponibilidad(j, esDesktop);
+    const disp = disponibilidad(j, esDesktop, accesoAnticipado);
     if (elDuracion) { elDuracion.classList.toggle('home-apagado', !disp.jugable); elDuracion.setAttribute('data-juego', j.id); }
     if (elHomeJugable) elHomeJugable.classList.toggle('oculto', !disp.jugable);
     if (elHomeNoJugable) elHomeNoJugable.classList.toggle('oculto', disp.jugable);
+    // Distintivo ADMIN junto al saludo: en los TRES juegos si hay acceso (2.1). Vive en el cuerpo
+    // jugable (el saludo sólo existe encendido). El aviso "llega pronto" se reinicia oculto al re-render.
+    if (elHomeAdmin) elHomeAdmin.classList.toggle('oculto', !accesoAnticipado);
+    if (elHomePronto) { elHomePronto.classList.add('oculto'); elHomePronto.textContent = ''; }
+    // Enlace "¿Tienes acceso?" (1.1): SÓLO en Pushcloude sin acceso (su home apagado "Próximamente").
+    if (elHomeAccesoLink) elHomeAccesoLink.classList.toggle('oculto', !(j.id === 'pushclaud' && !accesoAnticipado));
+    // Línea de acceso anticipado (3.2): sólo cuando el home está DESBLOQUEADO por acceso (Pushcloude).
+    if (elHomeAnticipo) elHomeAnticipo.classList.toggle('oculto', !disp.anticipado);
     if (disp.jugable) {
       actualizarSaludo();                 // "Hola, <nombre>" pulsable (editar nombre)
       construirDuraciones();              // los botones de duración SON la acción de jugar (CAMBIO 2)
@@ -678,6 +729,60 @@
   if (nombreInput) nombreInput.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { e.preventDefault(); confirmarNombre(); }
   });
+
+  // ── PUERTA DE ACCESO ANTICIPADO (v2.8) ─────────────────────────────────────────────────────
+  // Overlay con salida (Cerrar → home). Clave correcta → concede acceso y refresca el home ya
+  // desbloqueado (1.5); incorrecta → aviso claro, campo listo para reintentar, sin límite (1.6).
+  // CAMBIO 4: si ya hay acceso, aparece "Salir del acceso anticipado" (revoca) — también se abre
+  // este overlay tocando el distintivo ADMIN. NO se guarda la clave (1.8), sólo la marca de acceso.
+  const elAcceso = document.getElementById('acceso');
+  const accesoInput = document.getElementById('accesoInput');
+  const accesoError = document.getElementById('accesoError');
+  const btnAccesoOk = document.getElementById('accesoOk');
+  const btnAccesoSalir = document.getElementById('accesoSalir');
+  const btnAccesoCerrar = document.getElementById('accesoCerrar');
+  function abrirAcceso() {
+    if (accesoInput) accesoInput.value = '';
+    if (accesoError) accesoError.classList.add('oculto');
+    if (btnAccesoSalir) btnAccesoSalir.classList.toggle('oculto', !accesoAnticipado); // "Salir" sólo si ya hay acceso (4.2)
+    if (elDuracion) elDuracion.classList.add('oculto'); // cierra el home mientras se pide la clave
+    if (elAcceso) elAcceso.classList.remove('oculto');  // NO .focus(): teclado bajo demanda
+  }
+  function cerrarAcceso() { if (elAcceso) elAcceso.classList.add('oculto'); mostrarHome(juegoSel || 'pushclaud', false); }
+  function intentarAcceso() {
+    const v = accesoInput ? accesoInput.value : '';
+    if (claveOk(v)) {
+      concederAcceso();                                  // guarda SÓLO la marca (1.8)
+      if (elAcceso) elAcceso.classList.add('oculto');
+      actualizarSaludo();
+      mostrarHome(juegoSel || 'pushclaud', false);       // el home se ve desbloqueado de inmediato (1.5)
+    } else {
+      if (accesoError) accesoError.classList.remove('oculto'); // aviso claro, sin regañar (1.6)
+      if (accesoInput) { accesoInput.value = ''; try { accesoInput.focus(); } catch (e) {} } // listo para reintentar
+    }
+  }
+  if (elHomeAccesoLink) elHomeAccesoLink.addEventListener('click', abrirAcceso); // "¿Tienes acceso?"
+  if (elHomeAdmin) elHomeAdmin.addEventListener('click', abrirAcceso);           // el distintivo gestiona el acceso (4.2)
+  if (btnAccesoOk) btnAccesoOk.addEventListener('click', intentarAcceso);
+  if (btnAccesoCerrar) btnAccesoCerrar.addEventListener('click', cerrarAcceso);
+  if (btnAccesoSalir) btnAccesoSalir.addEventListener('click', function () {
+    revocarAcceso();                                      // sale del acceso (4.1); todo vuelve a como estaba
+    if (elAcceso) elAcceso.classList.add('oculto');
+    actualizarSaludo();
+    mostrarHome(juegoSel || 'pushclaud', false);
+  });
+  if (accesoInput) accesoInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); intentarAcceso(); }
+  });
+  // El acceso sobrevive a recargar aunque sólo esté en IndexedDB: reconcilia y, si aparece, refresca
+  // el home de Pushcloude ya desbloqueado. Best-effort, nunca rompe (1.7).
+  try {
+    accesoStore.reconciliar().then(function (v) {
+      const antes = accesoAnticipado;
+      accesoAnticipado = (v === '1');
+      if (accesoAnticipado !== antes) { actualizarSaludo(); if (elDuracion && !elDuracion.classList.contains('oculto')) mostrarHome(juegoSel || 'hitclaud', false); }
+    }, function () {});
+  } catch (e) { /* nunca rompe */ }
 
   // ── PANTALLA DE ACTUALIZACIONES (FASE 26): bitácora completa desde bitacora.js ──
   // Overlay de SOLO LECTURA (sin interacción salvo desplazarse) al que se entra desde

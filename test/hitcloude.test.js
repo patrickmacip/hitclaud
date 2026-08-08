@@ -78,9 +78,10 @@ console.log('=== CAMBIO 2 — El botón JUGAR desaparece; los botones de duraci�
 
 console.log('=== CAMBIO 4 — Home apagado: nada pulsable salvo las flechas ===');
 {
-  // El cuerpo apagado (#homeNoJugable) no contiene NINGÚN <button> (el Ranking apagado es un div).
+  // El cuerpo apagado (#homeNoJugable) sólo tiene UN <button>: el enlace "¿Tienes acceso?" (la puerta,
+  // 1.1). El Ranking apagado sigue siendo un <div> no pulsable. Nada más es pulsable ahí.
   const bloqueOff = html.slice(html.indexOf('<div id="homeNoJugable"'), html.indexOf('<!-- Actualizaciones'));
-  chk('#homeNoJugable no tiene ningún <button> (ni Ranking pulsable)', bloqueOff.indexOf('<button') === -1);
+  chk('#homeNoJugable: el ÚNICO <button> es el enlace de acceso (1.1); el Ranking es <div>', (bloqueOff.match(/<button/g) || []).length === 1 && /id="homeAccesoLink"/.test(bloqueOff));
   chk('el Ranking apagado es un <div> aria-hidden (no pulsable, 4.5)', /<div class="ini-ranking home-ranking home-ranking-off" aria-hidden="true">/.test(bloqueOff));
   chk('la medalla apagada va girada -20.95° al 40% (4.3)', /\.home-medalla-off \{[\s\S]{0,120}rotate\(-20\.95deg\)[\s\S]{0,60}opacity: 0\.4/.test(css));
   // Las flechas viven en la cabecera (fuera del cuerpo apagado): siguen siendo la salida.

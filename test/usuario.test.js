@@ -30,7 +30,7 @@ console.log('=== PRIMERA carga pide nombre y BLOQUEA; SEGUNDA no ===');
   chk('arranque: si hay nombre → bienvenida (directo al inicio)', /if \(nombreUsuario\) mostrarHome\('hitclaud', true\);/.test(main));
   chk('arranque: sin nombre y con almacén → pedir nombre (bloquea)', /else if \(puedeGuardarNombre\) mostrarPantallaNombre\(\);/.test(main));
   // FASE 22: #nombre debe estar REGISTRADO en AMBAS reglas de overlay (no solo existir en HTML).
-  chk('overlay #nombre registrado como overlay real (posición z-index:3 + ocultado compuesto)', /<div id="nombre" class="oculto" role="dialog"/.test(html) && /#gameover, #duracion, #nombre, #actualizaciones, #ranking \{/.test(css) && /#nombre\.oculto/.test(css));
+  chk('overlay #nombre registrado como overlay real (posición z-index:3 + ocultado compuesto)', /<div id="nombre" class="oculto" role="dialog"/.test(html) && /#gameover, #duracion, #nombre, #acceso, #actualizaciones, #ranking \{/.test(css) && /#nombre\.oculto/.test(css));
   // Simulación de las dos cargas con el mismo almacén.
   const local = mockLocal(), idb = mockIdb();
   const carga1 = U.crearTextoPersistente(local, idb, KEY);

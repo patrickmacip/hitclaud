@@ -39,7 +39,7 @@ console.log('=== JUEGO DISPONIBLE: saludo + récord + Ranking + guía + botones 
   const home = html.slice(html.indexOf('<div id="duracion"'), html.indexOf('<div id="actualizaciones"'));
   // Orden nuevo: saludo → récord → Ranking → guía → durModos (botones de duración) → cierre. Sin JUGAR.
   chk('cuerpo jugable #homeJugable con saludo, récord, Ranking, guía, botones de duración y cierre', /id="homeJugable"[\s\S]*?id="iniSaludo"[\s\S]*?id="durRecord"[\s\S]*?id="durRanking"[\s\S]*?home-guia[\s\S]*?id="durModos"[\s\S]*?home-cierre/.test(home));
-  chk('mostrarHome muestra el cuerpo jugable según disponibilidad()', /const disp = disponibilidad\(j, esDesktop\);[\s\S]{0,200}elHomeJugable\.classList\.toggle\('oculto', !disp\.jugable\)/.test(main));
+  chk('mostrarHome muestra el cuerpo jugable según disponibilidad()', /const disp = disponibilidad\(j, esDesktop, accesoAnticipado\);[\s\S]{0,200}elHomeJugable\.classList\.toggle\('oculto', !disp\.jugable\)/.test(main));
   chk('ya NO hay botón JUGAR: los botones de duración son la acción (CAMBIO 2)', !/id="durJugar"/.test(html) && /<div class="home-modos" id="durModos"/.test(html));
 }
 

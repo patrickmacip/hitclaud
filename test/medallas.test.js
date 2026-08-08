@@ -23,7 +23,7 @@ console.log('=== CAMBIO 1: TODAS las ventanas acotadas al alto visible, mismo ma
 {
   chk('un ÚNICO margen definido (--ventana-margen)', /--ventana-margen:\s*\d+px;/.test(css));
   chk('altura máxima única definida con dvh + safe-area (--ventana-max)', /--ventana-max:\s*calc\(100dvh - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\) - 2 \* var\(--ventana-margen\)\)/.test(css));
-  chk('los overlays usan ese margen en el padding (mismo valor para todos)', /#gameover, #duracion, #nombre, #actualizaciones, #ranking \{[\s\S]{0,320}padding:[\s\S]{0,120}var\(--ventana-margen\)/.test(css));
+  chk('los overlays usan ese margen en el padding (mismo valor para todos)', /#gameover, #duracion, #nombre, #acceso, #actualizaciones, #ranking \{[\s\S]{0,320}padding:[\s\S]{0,120}var\(--ventana-margen\)/.test(css));
   chk('.go-panel (nombre/inicio/duración/fin) acotado a la ventana', /\.go-panel \{[\s\S]{0,260}max-height: var\(--ventana-max\)/.test(css));
   chk('.actu-panel (actualizaciones) acotado a la ventana', /\.actu-panel \{[\s\S]{0,260}max-height: var\(--ventana-max\)/.test(css));
   chk('.rank-panel (ranking) acotado a la ventana', /\.rank-panel \{[\s\S]{0,120}height: min\(620px, var\(--ventana-max\)\)/.test(css));
@@ -86,7 +86,7 @@ console.log('=== CAMBIO 6: icono del récord — corona por defecto, medalla si 
   chk('fuera del ranking → null (queda la corona)', mejorPuestoDe([{ nombre: 'A' }, { nombre: 'B' }], 'PAT') === null);
   chk('la pantalla pinta la corona de INMEDIATO (ponerIconoRecord(null)) antes de la red', /function actualizarMedallaRecord\(\) \{\s*ponerIconoRecord\(null\);/.test(main));
   chk('sólo cambia a medalla si el puesto es 1-12 (iconoPuesto en ponerIconoRecord)', /function ponerIconoRecord\(puesto\)[\s\S]{0,200}iconoPuesto\(puesto\)/.test(main));
-  chk('el icono se actualiza al mostrar el home / cambiar de juego (actualizarMedallaRecord en mostrarHome)', /function mostrarHome\(juego, reiniciar\)[\s\S]{0,1400}actualizarMedallaRecord\(\)/.test(main));
+  chk('el icono se actualiza al mostrar el home / cambiar de juego (actualizarMedallaRecord en mostrarHome)', /function mostrarHome\(juego, reiniciar\)[\s\S]{0,2200}actualizarMedallaRecord\(\)/.test(main));
   chk('reutiliza la tabla ya pedida si es del mismo contexto (no pide dos veces, 6.5)', /rankTopClave === clave/.test(main));
   chk('un fallo de red deja la corona sin lanzar (try/catch + reject no-op)', /Ranking\.pedirTop\([\s\S]{0,500}function \(\) \{ \/\* falla → se queda la corona/.test(main) && /function actualizarMedallaRecord\(\)[\s\S]{0,1000}catch \(e\) \{ \/\* nunca rompe/.test(main));
 }

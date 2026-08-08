@@ -108,11 +108,11 @@ console.log('=== CAMBIO 3 — Rojos: el DOBLE que la ShotClaud previa + TOPE DUR
 
 console.log('=== CAMBIO 5 — Juegos por plataforma (regla en la estructura, no repartida) ===');
 {
-  chk('existe disponibilidad(j, desktop) derivada de la plataforma', /function disponibilidad\(j, desktop\) \{/.test(main));
+  chk('existe disponibilidad(j, desktop, acceso) derivada de la plataforma', /function disponibilidad\(j, desktop, acceso\) \{/.test(main));
   chk('fuera de plataforma → aviso de plataforma, NO "Pronto" (distintos, 5.4)', /aviso: j\.plataforma === 'escritorio' \? 'Disponible en computadora' : 'Disponible en móvil'/.test(main));
-  chk('en plataforma pero sin terminar → pronto:true, aviso "Pronto"', /if \(!j\.jugable\) return \{ jugable: false, pronto: true, aviso: 'Pronto' \};/.test(main));
-  chk('la tarjeta usa disponibilidad() (no reglas sueltas)', /const disp = disponibilidad\(j, esDesktop\);/.test(main));
-  chk('el home muestra el cuerpo jugable o el no-jugable según disponibilidad()', /const disp = disponibilidad\(j, esDesktop\);[\s\S]{0,200}elHomeJugable\.classList\.toggle\('oculto', !disp\.jugable\)/.test(main));
+  chk('en plataforma pero sin terminar (sin acceso) → pronto:true, aviso "Pronto"', /return \{ jugable: false, pronto: true, anticipado: false, aviso: 'Pronto' \};/.test(main));
+  chk('la tarjeta usa disponibilidad() (no reglas sueltas)', /const disp = disponibilidad\(j, esDesktop, accesoAnticipado\);/.test(main));
+  chk('el home muestra el cuerpo jugable o el no-jugable según disponibilidad()', /const disp = disponibilidad\(j, esDesktop, accesoAnticipado\);[\s\S]{0,200}elHomeJugable\.classList\.toggle\('oculto', !disp\.jugable\)/.test(main));
 
   // Comportamiento de la regla (replicada desde la estructura JUEGOS parseada de main.js).
   const bloque = (main.match(/const JUEGOS = \[([\s\S]*?)\];/) || ['', ''])[1];
@@ -138,7 +138,7 @@ console.log('=== Integración: hitscan de ShotClaud, Big Claude apagado, SW ==='
 {
   chk('dispararHitscan deriva a dispararHitscanShot cuando esShot()', /if \(esShot\(\)\) \{ dispararHitscanShot\(mx, my, ahora\); return; \}/.test(main));
   chk('Big Claude NO se lanza en ShotClaud (guard SIN_GRANDE)', /if \(!\(esShot\(\) && SHOT\.SIN_GRANDE\) && targets\.length < capEnPantalla\(\) && t >= proximoGrande/.test(main));
-  chk('el service worker subió a v88', /hitclaud-shell-v88/.test(sw));
+  chk('el service worker subió a v89', /hitclaud-shell-v89/.test(sw));
 }
 
 console.log('=== V4 REGRESIÓN de HitClaud — su camino queda intacto ===');

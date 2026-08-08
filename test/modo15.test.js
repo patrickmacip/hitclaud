@@ -43,7 +43,7 @@ console.log('=== Home v2.7: los botones de duración (SÓLO las del juego) SON l
   // Se generan desde j.duraciones, con el texto completo en palabras ("15 Segundos") y cada uno
   // arranca su propia partida (ya no hay botón JUGAR ni "selector" que ocultar).
   chk('los botones de duración se generan desde j.duraciones con texto en palabras', /j\.duraciones\.forEach\(function \(dur\)[\s\S]{0,320}b\.textContent = dur \+ ' Segundos'/.test(main));
-  chk('tocar una duración arranca su partida (iniciarPartida(juegoSel, dur))', /addEventListener\('click', function \(\) \{ iniciarPartida\(juegoSel, dur\); \}\)/.test(main));
+  chk('tocar una duración arranca su partida (iniciarPartida(juegoSel, dur) si el juego es jugable)', /if \(j\.jugable\) iniciarPartida\(juegoSel, dur\);/.test(main));
   chk('el récord del home sigue a la duración base (modoInicioSel)', /function actualizarRecordDuracion\(\)[\s\S]{0,260}recordDe\(juegoSel, modoInicioSel\)/.test(main));
   chk('sin selector de modo escrito a mano (el home genera sus duraciones en #durModos)', !/id="sel15"/.test(html) && /id="durModos"/.test(html));
   chk('ya NO hay botón JUGAR en el home (los botones de duración lo reemplazan)', !/id="durJugar"/.test(html));

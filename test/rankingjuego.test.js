@@ -20,7 +20,7 @@ console.log('=== v2.7: el home muestra saludo, récord, Ranking, guía y botones
 {
   const dur = html.slice(html.indexOf('<div id="duracion"'), html.indexOf('<div id="actualizaciones"'));
   chk('orden: nav → saludo → récord → Ranking → guía → botones de duración → cierre', /home-nav[\s\S]*?id="iniSaludo"[\s\S]*?id="durRecord"[\s\S]*?id="durRanking"[\s\S]*?home-guia[\s\S]*?id="durModos"[\s\S]*?home-cierre/.test(dur));
-  chk('el saludo del home se pinta con el nombre (actualizarSaludo en mostrarHome)', /function mostrarHome\(juego, reiniciar\)[\s\S]{0,600}actualizarSaludo\(\)/.test(main));
+  chk('el saludo del home se pinta con el nombre (actualizarSaludo en mostrarHome)', /function mostrarHome\(juego, reiniciar\)[\s\S]{0,2200}actualizarSaludo\(\)/.test(main));
   chk('el nombre NO se edita en la pantalla 2 (no abre editar-nombre desde durNombre)', !/durNombre[\s\S]{0,80}abrirEditarNombre/.test(main));
   chk('botón Ranking en la pantalla 2, con el podio', /id="durRanking"[\s\S]{0,120}podio-1\.svg/.test(html));
   chk('el Ranking de la pantalla 2 abre el ranking de ESE juego (contexto duracion)', /btnDurRanking[\s\S]{0,120}abrirRanking\(juegoSel, 'duracion'\)/.test(main));

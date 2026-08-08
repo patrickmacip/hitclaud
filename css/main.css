@@ -151,7 +151,7 @@ body {
 .oculto { display: none; }
 /* Una clase utilitaria (0-0-1-0) NO puede anular #gameover{display:flex}
    (ID, 0-1-0-0). Regla ID+clase (0-1-1-0) para que ocultar gane. */
-#gameover.oculto, #duracion.oculto, #nombre.oculto, #actualizaciones.oculto, #ranking.oculto { display: none; }
+#gameover.oculto, #duracion.oculto, #nombre.oculto, #acceso.oculto, #actualizaciones.oculto, #ranking.oculto { display: none; }
 /* Elementos con display:flex propio (declarado DESPUÉS de .oculto) necesitan la regla
    COMPUESTA para que ocultar gane: la línea de récord del fin (4.2, se oculta si no hubo
    récord) y el selector de duración (3.2, se oculta si el juego tiene una sola). */
@@ -168,7 +168,7 @@ body {
   --ventana-margen: 16px;
   --ventana-max: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2 * var(--ventana-margen));
 }
-#gameover, #duracion, #nombre, #actualizaciones, #ranking {
+#gameover, #duracion, #nombre, #acceso, #actualizaciones, #ranking {
   position: fixed;
   inset: 0;
   z-index: 3;
@@ -302,6 +302,31 @@ body {
 .home-ranking-off { border-color: var(--home-off-borde, #5F4842); cursor: default; }
 .home-ranking-off img { opacity: 0.26; }
 .home-ranking-off span { color: var(--home-off-texto, #5F4842); opacity: 0.4; }
+
+/* ═══ ACCESO ANTICIPADO (v2.8) ══════════════════════════════════════════════════════════════ */
+/* Saludo + distintivo ADMIN en una fila (el distintivo "junto al nombre", 2.1). */
+.home-saludo-fila { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+/* Distintivo ADMIN: etiqueta chica, discreta, en mayúsculas (2.2). Pulsable (gestiona el acceso). */
+.home-admin {
+  border: none; cursor: pointer;
+  padding: 2px 8px; border-radius: 6px;
+  background: var(--admin-fondo, rgba(124, 124, 255, 0.16));
+  color: var(--admin-texto, #9B9BFF);
+  font: 700 11px/1.4 var(--fuente); letter-spacing: 1px; text-transform: uppercase;
+}
+/* Enlace "¿Tienes acceso?": MUY discreto (1.1) — quien no sepa, no repara en él. */
+.home-acceso-link {
+  display: block; margin: 12px auto 0; padding: 8px 12px; min-height: 44px; /* área táctil (ley P4) */
+  border: none; background: transparent; cursor: pointer;
+  color: var(--acceso-link, #3A3A48); font: 400 14px/1.3 var(--fuente);
+}
+/* Línea de acceso anticipado (privilegio, 3.2) y aviso "llega pronto" (3.3): mismo tono cálido. */
+.home-anticipo, .home-pronto {
+  font: 400 15px/1.35 var(--fuente); color: var(--anticipo-texto, #FFC6B5);
+  margin: 8px 0 0; text-wrap: balance;
+}
+/* Error de clave incorrecta: claro, sin regañar (1.6). Reusa el rojo de alarma existente. */
+.acceso-error { font: var(--texto-s); color: var(--tiempo-urgente, #FF4D4D); margin: 10px 0 0; text-align: center; }
 
 /* ═══ CAMBIO 5 — PARPADEO de foco fundido (SÓLO home apagado). CSS puro: sólo opacidad (5.3: nada
    de shadowBlur ni filtros de desenfoque; puerta cerrada por los 20fps del iPhone). No cuesta nada

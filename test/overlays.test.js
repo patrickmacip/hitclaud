@@ -25,7 +25,7 @@ const mOcu = css.match(/([^\n{]*#gameover\.oculto[^\n{]*)\{\s*display: none;/);
 const idsOcu = mOcu ? [...mOcu[1].matchAll(/#(\w+)\.oculto/g)].map(function (m) { return m[1]; }) : [];
 
 // La pantalla de selección (#inicio) se ELIMINÓ: el home de cada juego (#duracion) es el nivel único.
-const ESPERADOS = ['duracion', 'nombre', 'actualizaciones', 'ranking', 'gameover'];
+const ESPERADOS = ['duracion', 'nombre', 'acceso', 'actualizaciones', 'ranking', 'gameover'];
 
 console.log('=== #pausa ELIMINADO: sin rastro en HTML, CSS ni main.js ===');
 {
@@ -40,7 +40,7 @@ console.log('=== PARIDAD HTML ↔ CSS: cada overlay del HTML está en AMBAS regl
   console.log(`  HTML(role=dialog): [${idsHtml.join(', ')}]`);
   console.log(`  CSS posición z3  : [${idsPos.join(', ')}]`);
   console.log(`  CSS oculto comp. : [${idsOcu.join(', ')}]`);
-  chk('los 5 overlays vigentes (duracion=home, nombre, actualizaciones, ranking, gameover)', set(idsHtml) === set(ESPERADOS));
+  chk('los 6 overlays vigentes (duracion=home, nombre, acceso, actualizaciones, ranking, gameover)', set(idsHtml) === set(ESPERADOS));
   chk('la pantalla de selección #inicio ya NO existe (ni HTML, ni CSS, ni idsHtml)', !/id="inicio"/.test(html) && !/#inicio/.test(css) && idsHtml.indexOf('inicio') === -1);
   chk('#novedades ya NO existe en el HTML (aviso emergente retirado)', !/id="novedades"/.test(html) && idsHtml.indexOf('novedades') === -1);
   chk('#novedades NO deja reglas huérfanas en el CSS', !/#novedades/.test(css));
@@ -53,7 +53,7 @@ console.log('=== Especificidad: el ocultado de CADA overlay es COMPUESTO (0-1-1-
 {
   const compuestoParaTodos = idsHtml.every(function (id) { return idsOcu.indexOf(id) !== -1; });
   chk('cada overlay tiene su #X.oculto (ninguno depende de la .oculto genérica)', compuestoParaTodos);
-  chk('existe la .oculto genérica pero los overlays usan el compuesto', /^\.oculto \{ display: none; \}$/m.test(css) && idsOcu.length === 5);
+  chk('existe la .oculto genérica pero los overlays usan el compuesto', /^\.oculto \{ display: none; \}$/m.test(css) && idsOcu.length === 6);
 }
 
 console.log('=== TOQUES: el overlay (y su input/botones) queda POR ENCIMA del canvas ===');
@@ -90,11 +90,12 @@ console.log('=== TECLADO / anti-zoom iOS: campo alto 48, texto 16px, sin autofoc
   chk('maxlength 8', /id="nombreInput"[\s\S]{0,140}maxlength="8"/.test(html));
 }
 
-console.log('=== LEY: los CINCO overlays vigentes tienen salida (nunca un callejón sin salida) ===');
+console.log('=== LEY: los SEIS overlays vigentes tienen salida (nunca un callejón sin salida) ===');
 {
   const salidas = {
     nombre: /id="nombreOmitir"|id="nombreOk"/,
-    duracion: /id="homeIzq"|id="homeDer"|id="durJugar"|id="verActualizaciones"/, // home: flechas (ciclan) + JUGAR + Actualizaciones
+    duracion: /id="homeIzq"|id="homeDer"|id="verActualizaciones"/, // home: flechas (ciclan) + Actualizaciones
+    acceso: /id="accesoCerrar"/,                                    // puerta de acceso anticipado: Cerrar → home
     actualizaciones: /id="actuCerrar"/,
     ranking: /id="rankCerrar"/,
     gameover: /id="finJugarDeNuevo"|id="finMenu"/,

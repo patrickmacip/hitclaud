@@ -14,6 +14,12 @@
 
   const versiones = [
     {
+      version: '2.8', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Pushcloude entra en acceso anticipado para quien tenga la clave' },
+      ],
+    },
+    {
       version: '2.7', fecha: '3 de agosto',
       puntos: [
         { texto: 'El juego se llama Hitcloude' },
