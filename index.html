@@ -81,6 +81,10 @@
           <svg class="icono" aria-hidden="true"><use href="#ic-adelante"></use></svg>
         </button>
       </div>
+      <!-- CUERPO del home: lo ÚNICO que se desplaza si la pantalla es muy baja (la cabecera de arriba
+           queda fija). En estado normal cabe y no muestra barras. Contiene el cuerpo jugable XOR el
+           apagado (uno solo a la vez) y, al pie, Actualizaciones. -->
+      <div class="home-cuerpo">
       <!-- JUGABLE: saludo (editable) · récord+medalla · Ranking · guía + botones de duración (que
            SON la acción de jugar, CAMBIO 2) · cierre. Ya NO hay botón JUGAR ni duración preseleccionada. -->
       <div id="homeJugable">
@@ -122,6 +126,7 @@
       </div>
       <!-- Actualizaciones: se conserva, al pie, discreto (donde no compite con las acciones, 3.9). -->
       <button id="verActualizaciones" class="ini-actu" type="button">Actualizaciones</button>
+      </div><!-- /.home-cuerpo -->
     </div>
   </div>
 

@@ -76,7 +76,7 @@ console.log('=== FIN DE PARTIDA: "Jugar de nuevo" y "Inicio" (al home del juego)
 
 console.log('=== ESTILO: acento naranja + ley de tacto ===');
 {
-  chk('el nombre del juego usa el token del home (--home-juego)', /\.home-juego \{[\s\S]{0,120}color: var\(--home-juego/.test(css));
+  chk('el nombre del juego usa el token del home (--home-juego)', /\.home-juego \{[\s\S]{0,260}color: var\(--home-juego/.test(css));
   chk(':active + hover@media para los botones de duración/ranking del home', /\.home-dur:active \{/.test(css) && /@media \(hover: hover\) \{ \.home-ranking:hover, \.home-dur:hover/.test(css));
   chk('el bucle de dibujo sigue con 1 solo shadowBlur', (main.match(/ctx\.shadowBlur/g) || []).length === 1);
 }
