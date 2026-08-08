@@ -103,8 +103,10 @@ console.log('=== main.js consulta haEntrado en TODAS las rutas (bola + hitscan H
   chk('hitscan (HitClaud) salta el target no-entrado antes de celdaEnPunto', /if \(!tg\.haEntrado\) continue;[\s\S]{0,120}const idx = F\.celdaEnPunto\(tg, mx, my\)/.test(main));
   // Ruta de hitscan ShotClaud: MISMO criterio (haEntrado sin cambios), antes de celdaEnPunto.
   chk('hitscan (ShotClaud) usa el MISMO guard de haEntrado antes de celdaEnPunto', /if \(!tg\.haEntrado\) continue;[\s\S]{0,140}if \(F\.celdaEnPunto\(tg, mx, my\) < 0\) continue;/.test(main));
-  // Tres consultas (una por ruta): la lógica de haEntrado NO cambió, sólo hay un consumidor más.
-  chk('main.js consulta haEntrado exactamente en 3 sitios (bola + 2 hitscan)', (main.match(/!tg\.haEntrado/g) || []).length === 3);
+  // Cuatro consultas (una por ruta): bola (HitClaud móvil), hitscan HitClaud, hitscan ShotClaud y
+  // APLASTAR (Pushcloude). La lógica de haEntrado NO cambió, sólo hay un consumidor más (v2.9).
+  chk('hitscan (Pushcloude/aplastar) usa el MISMO guard de haEntrado antes de celdaEnPunto', /if \(!tg\.haEntrado\) continue;[\s\S]{0,140}if \(F\.celdaEnPunto\(tg, mx, my\) < 0\) continue;[\s\S]{0,400}reinicioPorRojoPush/.test(main));
+  chk('main.js consulta haEntrado exactamente en 4 sitios (bola + 2 hitscan + aplastar)', (main.match(/!tg\.haEntrado/g) || []).length === 4);
 }
 
 console.log(`\n== RESUMEN entrada: ${ok} OK, ${ko} NO ==`);

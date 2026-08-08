@@ -27,8 +27,8 @@ console.log('=== Los topes se leen del código real de main.js ===');
   // mismos topes (ShotClaud usa cupos propios mayores). El comportamiento de HitClaud no cambia.
   chk('los tres gates de spawn respetan capEnPantalla()', (main.match(/targets\.length < capEnPantalla\(\)/g) || []).length === 3);
   chk('el tope duro se aplica sobre capVivos() (aplicarTopeTargets)', /while \(targets\.length > capVivos\(\)\)/.test(main));
-  chk('capEnPantalla() cae en MAX_EN_PANTALLA para HitClaud', /function capEnPantalla\(\) \{ return esShot\(\) \? SHOT\.MAX_EN_PANTALLA : MAX_EN_PANTALLA; \}/.test(main));
-  chk('capVivos() cae en MAX_TARGETS_VIVOS para HitClaud', /function capVivos\(\) \{ return esShot\(\) \? SHOT\.MAX_VIVOS : MAX_TARGETS_VIVOS; \}/.test(main));
+  chk('capEnPantalla() cae en MAX_EN_PANTALLA para HitClaud', /function capEnPantalla\(\) \{ return esPush\(\) \? PUSH\.MAX_EN_PANTALLA : esShot\(\) \? SHOT\.MAX_EN_PANTALLA : MAX_EN_PANTALLA; \}/.test(main));
+  chk('capVivos() cae en MAX_TARGETS_VIVOS para HitClaud', /function capVivos\(\) \{ return esPush\(\) \? PUSH\.MAX_VIVOS : esShot\(\) \? SHOT\.MAX_VIVOS : MAX_TARGETS_VIVOS; \}/.test(main));
 }
 
 const MAX = MAX_EN_PANTALLA; // el tope que gobierna el SPAWN (espejo de los gates)

@@ -78,11 +78,11 @@ console.log('=== (B) Constantes de HitClaud clavadas en el código (fallan si ca
 
 console.log('=== (B) Ninguna constante de ShotClaud llega a HitClaud ===');
 {
-  // El único puente posible es nuevoTarget(); debe estar cerrado por esShot() antes de tocar SHOT.
-  chk('nuevoTarget devuelve el 5×4 por defecto cuando NO es ShotClaud (gate esShot())',
-    /function nuevoTarget\(\) \{\s*if \(!esShot\(\)\) return F\.crearTarget\(\{ w: W, h: H \}\);/.test(main));
-  chk('SHOT.COLS/FILAS (7×6) sólo aparecen DESPUÉS del gate esShot() dentro de nuevoTarget',
-    /if \(!esShot\(\)\) return F\.crearTarget\(\{ w: W, h: H \}\);\s*const t = F\.crearTarget\(\{ w: W, h: H \}, SHOT\.COLS, SHOT\.FILAS\);/.test(main));
+  // nuevoTarget separa por juego: HitClaud usa el 5×4 por defecto (la rama que NO es esShot/esPush).
+  chk('nuevoTarget: SHOT.COLS/FILAS (7×6) SÓLO dentro de la rama esShot()',
+    /if \(esShot\(\)\) \{\s*const t = F\.crearTarget\(\{ w: W, h: H \}, SHOT\.COLS, SHOT\.FILAS\);/.test(main));
+  chk('nuevoTarget: HitClaud (ni esShot ni esPush) devuelve el crearTarget 5×4 por defecto',
+    /return F\.crearTarget\(\{ w: W, h: H \}\);\s*\}\s*\/\/ Pushcloude/.test(main));
   chk('aplicarVelocidadShot se INVOCA una sola vez (dentro de nuevoTarget de ShotClaud, no en HitClaud)',
     (main.match(/aplicarVelocidadShot\(t\);/g) || []).length === 1);
   chk('ShotClaud declara SIN_GRANDE (Big Claude es exclusivo de HitClaud)', /SIN_GRANDE: true/.test(main));

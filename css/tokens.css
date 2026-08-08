@@ -76,4 +76,10 @@
   --admin-texto: #9B9BFF;                    /* texto del distintivo ADMIN */
   --acceso-link: #3A3A48;                    /* enlace "¿Tienes acceso?": MUY discreto sobre el home (1.1) */
   --anticipo-texto: #FFC6B5;                 /* línea de "acceso anticipado", léase como privilegio (3.2/3.3) */
+
+  /* ── PUSHCLOUDE (v2.9). Sólo se AGREGAN; nombrados por función. Se leen con respaldo en el canvas. */
+  --push-ciclo: #FFC6B5;   /* indicador del ciclo de 15 s cuando la meta AÚN no se cumple (4.4) */
+  --push-safe: #6FFF2C;    /* indicador del ciclo cuando la meta YA se cumplió: "a salvo" (4.5) */
+  --push-tinte: #FF0033;   /* tinte rojo del reinicio por rojo / stop (5.2/7.2) */
+  --push-stop: #FF6B6B;    /* icono del botón STOP en la barra (distinto de la casa, 7.4) */
 }

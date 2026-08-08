@@ -18,7 +18,7 @@ console.log('=== CAMBIO 1: la estructura JUEGOS declara EXACTAMENTE tres juegos 
   chk('tres juegos: hitclaud, shotclaud, pushclaud', ids.join(',') === 'hitclaud,shotclaud,pushclaud');
   chk('HitClaud: jugable, táctil (ya no se ofrece en computadora), 15 y 60', /id: 'hitclaud'[\s\S]{0,160}jugable: true[\s\S]{0,30}plataforma: 'tactil'[\s\S]{0,40}duraciones: \['15', '60'\]/.test(bloque));
   chk('ShotClaud: jugable, escritorio, 20 y 60', /id: 'shotclaud'[\s\S]{0,160}jugable: true[\s\S]{0,30}plataforma: 'escritorio'[\s\S]{0,40}duraciones: \['20', '60'\]/.test(bloque));
-  chk('PushClaud: NO jugable, táctil, sólo 15', /id: 'pushclaud'[\s\S]{0,160}jugable: false[\s\S]{0,30}plataforma: 'tactil'[\s\S]{0,40}duraciones: \['15'\]/.test(bloque));
+  chk('PushClaud: jugable (acceso anticipado), táctil, duraciones 60 y 180 (v2.9)', /id: 'pushclaud'[\s\S]{0,220}jugable: true[\s\S]{0,30}plataforma: 'tactil'[\s\S]{0,60}duraciones: \['60', '180'\]/.test(bloque));
   chk('el modo 20 existe SÓLO en ShotClaud', /duraciones: \['20', '60'\]/.test(bloque) && !/id: 'hitclaud'[\s\S]{0,200}'20'/.test(bloque) && !/id: 'pushclaud'[\s\S]{0,120}'20'/.test(bloque));
   chk('comentario de cómo AGREGAR un juego', /PARA AGREGAR UN JUEGO/.test(main));
 }

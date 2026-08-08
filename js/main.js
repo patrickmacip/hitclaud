@@ -14,6 +14,7 @@
   const F = window.Fisica;
   const P = window.Puntuacion;
   const S = window.ShotClaud;   // reglas de puntuación de ShotClaud (módulo puro aparte)
+  const PU = window.Pushcloude; // reglas de puntuación y ciclo de metas de Pushcloude (módulo puro)
   const U = window.Util;
 
   // Lectura de tokens A PRUEBA DE FALLOS: si el CSS no está aplicado o el SW
@@ -115,7 +116,10 @@
     // y el modo que espera el servidor de ranking. Cambiar el id rompería el ranking en producción.
     { id: 'hitclaud',  nombre: 'Hitcloude',  desc: 'Lanza la bola y demuele', jugable: true,  plataforma: 'tactil',     duraciones: ['15', '60'] },
     { id: 'shotclaud', nombre: 'Shotcloude', desc: 'Apunta y dispara',        jugable: true,  plataforma: 'escritorio', duraciones: ['20', '60'] },
-    { id: 'pushclaud', nombre: 'Pushcloude', desc: 'Aplasta con el dedo',     jugable: false, plataforma: 'tactil',     duraciones: ['15'] },
+    // v2.9: Pushcloude ya tiene mecánica (aplastar). jugable:true, PERO disponibilidad() lo cierra
+    // tras el ACCESO ANTICIPADO (9.1) y a la plataforma táctil (9.3). Duraciones 60 y 180 (9.2: la de
+    // 15 ya no existe en Pushcloude). El id 'pushclaud' NO cambia (llaves/servidor).
+    { id: 'pushclaud', nombre: 'Pushcloude', desc: 'Aplasta con el dedo',     jugable: true,  plataforma: 'tactil',     duraciones: ['60', '180'] },
   ];
   function juegoPorId(id) { for (let i = 0; i < JUEGOS.length; i++) if (JUEGOS[i].id === id) return JUEGOS[i]; return null; }
   // DISPONIBILIDAD por plataforma, DERIVADA de la estructura de JUEGOS (fuente única, no
@@ -127,17 +131,16 @@
   // El aviso de plataforma y el de "Pronto" son cosas DISTINTAS (5.4): un juego no
   // disponible por plataforma NO dice "Pronto".
   function disponibilidad(j, desktop, acceso) {
-    // "Pronto" MANDA sobre la plataforma: si el juego no está terminado, ése es su estado. EXCEPCIÓN
-    // (v2.8): Pushcloude con ACCESO ANTICIPADO deja de estar "Próximamente" — pero sigue siendo
-    // TÁCTIL, así que en escritorio no se juega ("Disponible en móvil", 3.4). `anticipado:true` marca
-    // que el home se ve encendido aunque su mecánica aún no exista (j.jugable sigue false → 3.3/3.6).
-    if (!j.jugable) {
-      if (j.id === 'pushclaud' && acceso) {
-        if (desktop) return { jugable: false, pronto: false, anticipado: false, aviso: 'Disponible en móvil' }; // táctil (3.4)
-        return { jugable: true, pronto: false, anticipado: true, aviso: null };                                 // desbloqueado en móvil (3.1)
-      }
-      return { jugable: false, pronto: true, anticipado: false, aviso: 'Pronto' };                              // sin acceso: Próximamente (3.5)
+    // PUSHCLOUDE (v2.9): tiene mecánica (jugable:true) pero es de ACCESO ANTICIPADO. Sin la clave →
+    // "Próximamente" (9.1). Con la clave: en escritorio "Disponible en móvil" (táctil, 9.3); en móvil
+    // JUGABLE, con `anticipado:true` para mostrar la línea de privilegio (CAMBIO 3.2 del acceso).
+    if (j.id === 'pushclaud') {
+      if (!acceso) return { jugable: false, pronto: true, anticipado: false, aviso: 'Pronto' };
+      if (desktop) return { jugable: false, pronto: false, anticipado: false, aviso: 'Disponible en móvil' };
+      return { jugable: true, pronto: false, anticipado: true, aviso: null };
     }
+    // "Pronto" manda sobre la plataforma: un juego sin mecánica está "Próximamente" en cualquier lado.
+    if (!j.jugable) return { jugable: false, pronto: true, anticipado: false, aviso: 'Pronto' };
     const enPlataforma = j.plataforma === 'ambas'
       || (j.plataforma === 'escritorio' && desktop)
       || (j.plataforma === 'tactil' && !desktop);
@@ -245,6 +248,7 @@
     pTiros = 0; pAciertos = 0; pRachaMax = 0; pCarambolas = 0; pPuntosFin = 0;
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; bonos.length = 0; disparos.length = 0; multAnterior = 1;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null; sacudidaCloudover = null;
+    pushReset = null; pushCicloBase = 0; pushCicloRestante = (PU ? PU.CICLO_MS : 15000); pushCicloCumplido = false; // ciclo de metas de Pushcloude
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
     const ahora = performance.now();
@@ -261,10 +265,12 @@
   function iniciarPartida(juego, modo) {
     const j = juegoPorId(juego);
     if (!j || !j.jugable || j.duraciones.indexOf(String(modo)) === -1) return; // sólo combos válidos y jugables
+    if (!disponibilidad(j, esDesktop, accesoAnticipado).jugable) return; // gate real (Pushcloude exige acceso+móvil, 9.1/9.3)
     juegoActivo = juego; modoInicioSel = modo; juegoSel = juego;
     modoJuego = modo;
     record = recordDe(juego, modo) || recordDe('hitclaud', '60'); // récord de ese juego+duración
     actualizarRecord();
+    if (botonStop) botonStop.classList.toggle('oculto', juego !== 'pushclaud'); // stop SÓLO en Pushcloude (7.1)
     actualizarMedallaBarra(); // CAMBIO 4: corona ya; medalla/puesto si está en el ranking (no espera a la red)
     reiniciarEstado();
     tiempoRestante = DURACIONES[modo] || 0;      // 15→15000, 60→60000
@@ -321,6 +327,11 @@
   //    récord local: el servidor decide si entra al top 20). Por CloudOver no se manda.
   function enviarAlServidor(porTiempo) {
     if (typeof Ranking === 'undefined') return;          // sin el módulo, el juego sigue igual
+    // CAMBIO 9.5 — PUSHCLOUDE: envío INACTIVO por ahora. El servidor sólo acepta 'pushclaud:15' y este
+    // juego usa 60/180. FALTA DEL LADO DEL SERVIDOR (~/Proyectos/hitclaud-ranking, otro prompt): aceptar/
+    // validar/almacenar 'pushclaud:60' y 'pushclaud:180'. Hasta entonces NO se manda ni /score ni
+    // /partida (su tabla arranca limpia el día que abra, 3.6). El récord LOCAL sí se guarda (9.4).
+    if (esPush()) return;
     const modo = modoJuego;
     // MODO DEL SERVIDOR: HitClaud manda la duración PELADA ('15'/'60') — sus tablas dependen de
     // eso, no se toca. ShotClaud manda con prefijo de juego ('shotclaud:20'/'shotclaud:60').
@@ -662,6 +673,7 @@
         : (j.plataforma === 'escritorio' ? 'Disponible en pc y mac' : 'Disponible en móvil');
     }
     jugando = false;
+    if (botonStop) botonStop.classList.add('oculto'); // el stop sólo vive DURANTE una partida de Pushcloude
     ocultarNav();
     if (elDuracion) elDuracion.classList.remove('oculto');
   }
@@ -1048,7 +1060,7 @@
     const base = P.rangoVigente(ritmo, marcador.puntos, ahora);
     // ShotClaud recorta más el hueco (SHOT.SPAWN_GAP_MAX) para que la pantalla se llene y
     // haya cupo de naranjas frente a tantos rojos; HitClaud conserva su SPAWN_GAP_MAX (800).
-    const gapMax = esShot() ? SHOT.SPAWN_GAP_MAX : SPAWN_GAP_MAX;
+    const gapMax = esPush() ? PUSH.SPAWN_GAP_MAX : esShot() ? SHOT.SPAWN_GAP_MAX : SPAWN_GAP_MAX;
     return Math.min(gapMax, P.retardoCaotico(base, caosSpawn, Math.random));
   }
 
@@ -1349,9 +1361,30 @@
     SIN_GRANDE: true,     // ShotClaud NO lanza Big Claude
   };
   const esShot = function () { return juegoActivo === 'shotclaud'; };
-  // Cupos según el juego activo: ShotClaud llena más la pantalla; HitClaud queda idéntico.
-  function capEnPantalla() { return esShot() ? SHOT.MAX_EN_PANTALLA : MAX_EN_PANTALLA; }
-  function capVivos() { return esShot() ? SHOT.MAX_VIVOS : MAX_TARGETS_VIVOS; }
+
+  // ── Pushcloude: dificultad y movimiento, en UN SOLO lugar (CAMBIO 8.4) ──────────────────────
+  // Reutiliza EL MISMO motor (js/fisica.js) que los demás; lo que cambia se pasa por PARÁMETROS
+  // (grilla, velocidad, DIRECCIÓN, frecuencia de rojos, demolición), nunca tocando el motor.
+  const PUSH = {
+    COLS: 7, FILAS: 6,            // grande y fácil de tocar (como Shotcloude)
+    ARRANCA_FRAC: 0.34,          // toque FUERA: arranca ~1/3 del target (3.4)
+    EMPUJON: 0.05,               // px/ms: leve empujón del golpe al resto (sigue su ruta, 3.4)
+    VEL_BASE: 1.0,               // velocidad base; la VARIEDAD va sobre todo en la dirección (8.1)
+    VEL_VARIA: [{ mult: 1.0, prob: 0.6 }, { mult: 1.2, prob: 0.3 }, { mult: 1.4, prob: 0.1 }],
+    ANG_SPREAD: 0.6,             // rad (~34°): rotación aleatoria de la velocidad → más ángulos (8.1)
+    ROJO_FACTOR: 0.6,            // frecuencia de rojos (8.3, PROPUESTO para veto de Pat: tocar rojo
+    //                              REINICIA la partida —muy castigador—, por eso menos rojos que Shotcloude)
+    MAX_EN_PANTALLA: 6,          // cupo de spawn
+    MAX_VIVOS: 16,               // tope duro de dibujo
+    SPAWN_GAP_MAX: 420,          // hueco máximo entre naranjas
+    SIN_GRANDE: true,            // Pushcloude NO lanza Big Claude (8.2)
+  };
+  const esPush = function () { return juegoActivo === 'pushclaud'; };
+  // Cupos según el juego activo: ShotClaud/Pushcloude llenan más la pantalla; HitClaud queda idéntico.
+  function capEnPantalla() { return esPush() ? PUSH.MAX_EN_PANTALLA : esShot() ? SHOT.MAX_EN_PANTALLA : MAX_EN_PANTALLA; }
+  function capVivos() { return esPush() ? PUSH.MAX_VIVOS : esShot() ? SHOT.MAX_VIVOS : MAX_TARGETS_VIVOS; }
+  // Ni ShotClaud ni Pushcloude lanzan Big Claude (sólo HitClaud).
+  function sinGrande() { return (esShot() && SHOT.SIN_GRANDE) || (esPush() && PUSH.SIN_GRANDE); }
   // Cuenta naranjas (todo lo no-rojo: naranjas, grandes, fragmentos) y rojos en pantalla.
   function contarTargets() {
     let rojos = 0, naranjas = 0;
@@ -1446,6 +1479,11 @@
   let modoJuego = null;             // '15' | '30' | '60'
   let tiempoRestante = 0;           // ms restantes — se decrementa con dt SOLO jugando
                                     // (así la pausa DETIENE el reloj de verdad).
+  // ── Pushcloude: ciclo de metas de 15 s y reinicio por rojo/stop (CAMBIO 4/5/7) ──
+  let pushCicloBase = 0;            // puntos que había al INICIO del ciclo en curso
+  let pushCicloRestante = 0;        // ms restantes del ciclo de 15 s (independiente del reloj de partida)
+  let pushCicloCumplido = false;    // ¿la meta del ciclo ya está cumplida? (aviso "vas a salvo", 4.5)
+  let pushReset = null;             // {modo:'reinicio'|'salir', inicio} máquina del rojo (5) / stop (7)
   // Cubos de explosión: animación PURA, sin colisión con nada.
   const cubos = [];
   let sacudidaHasta = 0;      // timestamp fin de la micro-sacudida de pantalla
@@ -1521,6 +1559,9 @@
   // ("@patcitorey"), con líneas de datos entre medio y antes/después → no se solapan.
   lineasFondo.splice(8, 0, { firma: true, texto: 'Patrick Macip' });
   lineasFondo.splice(13, 0, { firma: true, texto: '@patcitorey' });
+  // CAMBIO 10 — firma de Pushcloude en la cascada, MISMO tratamiento que las otras (dato `firma`).
+  // Se renderiza en dibujarFondoDatos (main.js), sin tocar util.js.
+  lineasFondo.splice(18, 0, { firma: true, texto: 'Creado por santiadmin' });
   // Dibuja el bloque. SIEMPRE (sin freno por fps). Un fillText por línea, sin shadowBlur
   // ni gradientes. Cada línea se TRUNCA al ancho útil (W − 2·margen), midiendo antes.
   function dibujarFondoDatos() {
@@ -1594,11 +1635,30 @@
   // ShotClaud: grilla propia 40% mayor (SHOT.COLS×FILAS), radio de salida acorde y velocidad
   // ajustada (base + variación). HitClaud: su 5×4 y su velocidad, sin tocar nada.
   function nuevoTarget() {
-    if (!esShot()) return F.crearTarget({ w: W, h: H });
-    const t = F.crearTarget({ w: W, h: H }, SHOT.COLS, SHOT.FILAS);
-    t.radio = Math.max(SHOT.COLS, SHOT.FILAS) * 4 + 12; // margen de salida ≈ media diagonal (como el grande)
-    aplicarVelocidadShot(t);
-    return t;
+    if (esShot()) {
+      const t = F.crearTarget({ w: W, h: H }, SHOT.COLS, SHOT.FILAS);
+      t.radio = Math.max(SHOT.COLS, SHOT.FILAS) * 4 + 12; // margen de salida ≈ media diagonal (como el grande)
+      aplicarVelocidadShot(t);
+      return t;
+    }
+    if (esPush()) {
+      const t = F.crearTarget({ w: W, h: H }, PUSH.COLS, PUSH.FILAS);
+      t.radio = Math.max(PUSH.COLS, PUSH.FILAS) * 4 + 12;
+      aplicarMovimientoPush(t);
+      return t;
+    }
+    return F.crearTarget({ w: W, h: H });
+  }
+  // Pushcloude (CAMBIO 8.1): velocidad base con variación + ROTACIÓN aleatoria del vector velocidad →
+  // los targets entran desde más ángulos que en los otros juegos. La gravedad NO se toca (motor
+  // sellado): sólo se gira la velocidad inicial. Todo dentro de PUSH (un solo sitio, 8.4).
+  function aplicarMovimientoPush(t) {
+    const f = PUSH.VEL_BASE * sortearVariacion(PUSH.VEL_VARIA);
+    t.vx *= f; t.vy *= f;
+    const a = (Math.random() * 2 - 1) * PUSH.ANG_SPREAD;
+    const ca = Math.cos(a), sa = Math.sin(a), vx = t.vx, vy = t.vy;
+    t.vx = vx * ca - vy * sa;
+    t.vy = vx * sa + vy * ca;
   }
 
   // CAMBIO 3 — velocidad de ShotClaud: base (SHOT.VEL_BASE) × variación por target sorteada
@@ -1607,11 +1667,14 @@
     const f = SHOT.VEL_BASE * sortearVariacionVel();
     t.vx *= f; t.vy *= f;
   }
-  function sortearVariacionVel() {
+  function sortearVariacionVel() { return sortearVariacion(SHOT.VEL_VARIA); }
+  // Sortea un multiplicador de una tabla [{mult,prob}] cuyas probabilidades suman 1 (genérico:
+  // lo usan ShotClaud y Pushcloude sin duplicar la lógica).
+  function sortearVariacion(tabla) {
     const r = Math.random();
     let acc = 0;
-    for (let i = 0; i < SHOT.VEL_VARIA.length; i++) { acc += SHOT.VEL_VARIA[i].prob; if (r < acc) return SHOT.VEL_VARIA[i].mult; }
-    return SHOT.VEL_VARIA[SHOT.VEL_VARIA.length - 1].mult; // fallback por redondeo
+    for (let i = 0; i < tabla.length; i++) { acc += tabla[i].prob; if (r < acc) return tabla[i].mult; }
+    return tabla[tabla.length - 1].mult; // fallback por redondeo
   }
 
   // Lanza un target ROJO (parpadea, termina la partida). Sale como cualquier otro
@@ -1729,6 +1792,10 @@
   canvas.addEventListener('pointerdown', function (e) {
     if (secuencia) return; // durante la secuencia de CloudOver se ignora todo toque
     if (esDesktop) { dispararHitscan(e.clientX, e.clientY); return; }
+    // PUSHCLOUDE (CAMBIO 2): el toque APLASTA lo que haya debajo, INMEDIATO (sin arrastre ni
+    // esperar a soltar). Varios dedos: cada toque aplasta de forma independiente (documentado, 2.4).
+    // El zoom por doble toque y el scroll ya están bloqueados por touch-action:none + viewport (2.3).
+    if (esPush()) { try { e.preventDefault(); } catch (er) {} aplastar(e.clientX, e.clientY); return; }
     if (gesto.activo) return;
     if (distHitmaker(e.clientX, e.clientY) > RADIO_HITMAKER) return;
     gesto.activo = true;
@@ -1962,6 +2029,99 @@
     derribarShot(tg, HIT_DERRIBO);
   }
 
+  // ═══ PUSHCLOUDE (v2.9): aplastar con el dedo ═══════════════════════════════════════════════════
+  // Cuenta atrás de reinicio RÁPIDA (5.3): tinte+sacudida (FLASH) y luego 3-2-1 (CUENTA c/u).
+  const PUSH_RESET_FLASH_MS = 320;   // tinte rojo + sacudida FUERTE al tocar el rojo / stop (5.2)
+  const PUSH_RESET_CUENTA_MS = 260;  // cada número de la cuenta atrás → total ≈ 320 + 3·260 = 1100ms
+  const PUSH_SACUDIDA_AMP = 9;       // px: sacudida FUERTE (más marcada que SACUDIDA_AMP=2 de siempre, 5.2)
+
+  // APLASTAR (CAMBIO 2/3): resuelve un toque. CENTRO de un target intacto → destruye entero, 200×racha
+  // (3.3). FUERA → arranca ~1/3 y el resto SIGUE SU RUTA sin desplomarse, 50 sin multiplicar, rompe
+  // racha (3.4). ROJO → reinicia la partida entera (5). VACÍO → resta y rompe racha (3.5). Cada toque
+  // cuenta para el medidor de efectividad (3.8). Puntuación pura en js/pushclaud.js.
+  function aplastar(mx, my) {
+    if (!jugando || secuencia || pushReset) return;   // ignora toques durante el reinicio/fin
+    const ahora = performance.now();
+    marcarActividad();
+    pTiros += 1;                                       // un TOQUE (denominador del medidor, 3.8)
+    for (let ti = targets.length - 1; ti >= 0; ti--) {
+      const tg = targets[ti];
+      if (!tg.haEntrado) continue;
+      if (F.celdaEnPunto(tg, mx, my) < 0) continue;   // el toque no cae sobre este target
+      pAciertos += 1;
+      if (tg.rojo) { reinicioPorRojoPush(tg, mx, my); return; } // ROJO → reinicia la partida (5)
+      tg.destelloHasta = ahora + DESTELLO_MS;
+      if (!tg.tocado && PU.enZonaCentral(tg, mx, my)) { // CENTRO de un target intacto → destruye entero
+        const r = PU.anotarCentro(marcador);
+        if (marcador.racha > pRachaMax) pRachaMax = marcador.racha;
+        const centros = [];
+        for (let k = 0; k < tg.celdas.length; k++) { if (tg.celdas[k]) { centros.push(F.celdaMundo(tg, k)); tg.celdas[k] = false; } }
+        tg.vivos = 0;
+        explotarCubos(centros, mx, my, 1.0, tg.vx, tg.vy, ACENTO.base);
+        targets.splice(ti, 1);
+        sacudidaHasta = ahora + SACUDIDA_MS;
+        mostrarBonoCentro(mx, my, r.ganancia);        // celebración dorada (200 × racha)
+        popMarcador();
+        actualizarMarcador();
+        return;
+      }
+      // FUERA del centro (3.4): arranca ~1/3 en la zona del toque; el RESTO SIGUE SU RUTA (NO se
+      // desploma: no se toca la gravedad ni se parte en islas). 50 sin multiplicar, rompe la racha.
+      const n = Math.min(tg.vivos, Math.max(1, Math.ceil(tg.vivos * PUSH.ARRANCA_FRAC)));
+      const arrancadas = F.celdasCercanas(tg, mx, my, n);
+      const centros = [];
+      for (let k = 0; k < arrancadas.length; k++) { centros.push(F.celdaMundo(tg, arrancadas[k])); tg.celdas[arrancadas[k]] = false; }
+      tg.vivos -= arrancadas.length;
+      tg.masa = F.FISICA.MASA_TARGET * (tg.vivos / 20);
+      tg.tocado = true;                               // ya mordido → re-tocarlo vale lateral, no centro
+      tg.vy += PUSH.EMPUJON;                          // leve empujón del golpe (sigue su ruta con su gravedad)
+      explotarCubos(centros, mx, my, 1.0, tg.vx, tg.vy, ACENTO.base);
+      if (tg.vivos <= 0) targets.splice(ti, 1);       // si no quedó nada, se retira
+      const r = PU.anotarLateral(marcador);
+      flotante(mx, my, '+' + r.ganancia, ACENTO.vivo, tamGanancia(r.ganancia), false);
+      actualizarMarcador();
+      return;
+    }
+    // No tocó ningún target → VACÍO: resta y rompe racha (3.5).
+    const r = PU.anotarFallo(marcador);
+    actualizarMarcador();
+    registrarPerdida(r.castigo);
+  }
+
+  // ROJO → REINICIA la partida entera, sin salir de la pantalla (CAMBIO 5). Explota el rojo, resta
+  // los puntos VISIBLEMENTE, y arranca la máquina de reinicio (tinte rojo + sacudida fuerte + cuenta
+  // atrás 3-2-1). El reloj/ciclo/racha vuelven a cero al TERMINAR la cuenta (loop). Esta partida NO
+  // cuenta para récord ni ranking (5.5): nunca se llama a terminarPartida.
+  function reinicioPorRojoPush(tg, mx, my) {
+    const ahora = performance.now();
+    try { explotarCubos(F.cubosVivosMundo(tg), mx, my, 1.6, tg.vx, tg.vy, COLOR.cloudoverB); } catch (e) {}
+    const i = targets.indexOf(tg); if (i >= 0) targets.splice(i, 1);
+    if (marcador.puntos > 0) registrarPerdida(marcador.puntos); // resta visible (bordes + monto rojos)
+    marcador.puntos = 0; marcador.racha = 0; actualizarMarcador();
+    try { if (navigator && navigator.vibrate) navigator.vibrate(200); } catch (e) {}
+    gesto.activo = false;
+    pushReset = { modo: 'reinicio', inicio: ahora }; // el loop congela y corre la cuenta atrás
+  }
+
+  // STOP (CAMBIO 7): sacudida con tinte rojo y SALE al home de Pushcloude. Esta partida no cuenta
+  // (7.3): no se guarda récord ni se envía. Reusa la máquina de reinicio en modo 'salir' (sólo el
+  // flash, sin cuenta atrás) → al terminar el flash va al home.
+  function salirPush() {
+    if (!jugando || secuencia || pushReset) return;
+    const ahora = performance.now();
+    if (marcador.puntos > 0) registrarPerdida(marcador.puntos);
+    marcador.puntos = 0; actualizarMarcador();
+    try { if (navigator && navigator.vibrate) navigator.vibrate(200); } catch (e) {}
+    gesto.activo = false;
+    pushReset = { modo: 'salir', inicio: ahora };
+  }
+  // Fase de la cuenta atrás de reinicio: -1 durante el flash; 3/2/1 durante los números; 0 = terminó.
+  function pushResetNumero(elapsed) {
+    if (elapsed < PUSH_RESET_FLASH_MS) return -1;
+    const n = 3 - Math.floor((elapsed - PUSH_RESET_FLASH_MS) / PUSH_RESET_CUENTA_MS);
+    return n; // 3,2,1 y luego ≤0 (terminó)
+  }
+
   // Ejecuta la suelta desde la posición del dedo. forzar=true (frenos) siempre
   // dispara y respeta la velocidad de suelta real (tiro rápido = tiro real;
   // lento = cae). forzar=false (pointerup) aplica umbral y cancelación.
@@ -2028,6 +2188,13 @@
     if (secuencia) return; // la caída del CloudOver está corriendo → no se interrumpe
     abandonarPartida();
   });
+  // STOP (CAMBIO 7): sólo Pushcloude. Sacudida con tinte rojo y sale al home; esa partida no cuenta.
+  // Obligatorio: como Pushcloude no se detiene solo (7.5), este botón es la salida garantizada.
+  const botonStop = document.getElementById('botonStop');
+  if (botonStop) botonStop.addEventListener('click', function () {
+    if (secuencia || pushReset) return;
+    salirPush();
+  });
 
   // FUNDACIONAL: "puedes bloquear sin temor a perder tu progreso". Al ocultarse
   // el documento (bloqueo, segundo plano, cambio de pestaña) el reloj no corre;
@@ -2078,6 +2245,25 @@
       } catch (e) { saltarAlOverlay(); dibujar(); return; }
     }
 
+    // PUSHCLOUDE — REINICIO por rojo (5) / SALIDA por stop (7): congela el juego y corre el flash
+    // (+ cuenta atrás 3-2-1 en 'reinicio'). NO cuenta para récord ni ranking (nunca llama a
+    // terminarPartida). Al terminar: 'reinicio' arranca una partida nueva del mismo modo, sin salir
+    // de la pantalla (5.4); 'salir' va al home de Pushcloude (7.2).
+    if (pushReset) {
+      const el = t - pushReset.inicio;
+      if (pushReset.modo === 'salir') {
+        if (el >= PUSH_RESET_FLASH_MS) { pushReset = null; mostrarHome('pushclaud', false); dibujar(); return; }
+      } else if (el >= PUSH_RESET_FLASH_MS + 3 * PUSH_RESET_CUENTA_MS) {
+        pushReset = null;
+        reiniciarEstado();
+        tiempoRestante = DURACIONES[modoJuego] || 0;   // el reloj de la partida vuelve a cero (5.2)
+        pushCicloBase = 0; pushCicloRestante = PU.CICLO_MS; pushCicloCumplido = false;
+        actualizarTiempo();
+        dibujar(); return;
+      }
+      dibujar(); return; // congelado durante el flash/cuenta atrás
+    }
+
     // Pausado o SIN PARTIDA (overlay de inicio/fin arriba): congela toda
     // actualización (física, spawn, colisión, cobro); solo re-dibuja el estado.
     if (pausado || !jugando) { cobrando = false; dibujar(); return; }
@@ -2091,11 +2277,28 @@
       actualizarTiempo(); // refresca el temporizador de la barra (texto y estado <5s)
     }
 
+    // PUSHCLOUDE — CICLO DE METAS de 15 s (CAMBIO 4), en paralelo al reloj de la partida. Al cerrar
+    // el ciclo: si ganó ≥1000 conserva y sigue acumulando (4.2); si no, puntos y racha a 0 (4.3). El
+    // reloj de la partida NO se toca aquí. La meta es SIEMPRE 1000 (la exigencia no sube, 4.2).
+    if (esPush() && DURACIONES[modoJuego]) {
+      pushCicloRestante -= dt;
+      if (pushCicloRestante <= 0) {
+        const antes = marcador.puntos;
+        const res = PU.cerrarCiclo(marcador, pushCicloBase);
+        if (!res.cumplida && antes > 0) registrarPerdida(antes); // pérdida visible al fallar la meta
+        pushCicloBase = res.base;
+        pushCicloRestante = PU.CICLO_MS;
+        actualizarMarcador();
+      }
+      pushCicloCumplido = PU.metaCumplida(marcador, pushCicloBase); // aviso "vas a salvo" (4.5)
+    }
+
     // Costo de INACTIVIDAD: tras la gracia, cada segundo quieto cuesta el 25%
     // del castigo del tramo actual. El reloj NO corre si el documento está
     // oculto (ya gateado) ni mientras hay un gesto activo. Piso en 0.
     cobrando = false;
-    if (!document.hidden && !gesto.activo && !secuencia) {
+    // Pushcloude no cobra inactividad: su presión es el ciclo de 15 s, no el reloj de gracia.
+    if (!document.hidden && !gesto.activo && !secuencia && !esPush()) {
       const idle = t - ultimoGesto;
       if (idle > GRACIA_MS) {
         const debidos = Math.floor((idle - GRACIA_MS) / 1000);
@@ -2248,16 +2451,16 @@
       // Si ya hay tantos rojos como naranjas, se salta el turno (el timer vencido reintenta en
       // cuanto aparezca un naranja). En HitClaud no aplica: escala como siempre.
       const c = contarTargets();
-      const puedeRojo = !esShot() || c.rojos < c.naranjas;
+      const puedeRojo = !(esShot() || esPush()) || c.rojos < c.naranjas; // tope duro: rojos ≤ naranjas
       if (puedeRojo) {
         generarRojo();
-        // ShotClaud: 5× más rojos → el intervalo se acorta con SHOT.ROJO_FACTOR (CAMBIO 4).
-        const factorRojo = esShot() ? SHOT.ROJO_FACTOR : 1;
+        // ShotClaud/Pushcloude ajustan la frecuencia de rojos con su ROJO_FACTOR (menor factor → más rojos).
+        const factorRojo = esPush() ? PUSH.ROJO_FACTOR : esShot() ? SHOT.ROJO_FACTOR : 1;
         proximoRojo = t + P.intervaloRojo(escalada.nivel) * factorRojo * rnd(ROJO_JITTER[0], ROJO_JITTER[1]);
       }
     }
     // GRANDE: mínimo 8s entre apariciones; nunca dos a la vez; tope de 2. ShotClaud NO lanza Big Claude.
-    if (!(esShot() && SHOT.SIN_GRANDE) && targets.length < capEnPantalla() && t >= proximoGrande && !targets.some(function (x) { return x.grande; })) {
+    if (!sinGrande() && targets.length < capEnPantalla() && t >= proximoGrande && !targets.some(function (x) { return x.grande; })) {
       generarGrande();
       proximoGrande = t + GRANDE_MIN_MS + Math.random() * GRANDE_JITTER_MS;
     }
@@ -2369,6 +2572,15 @@
       ox = (Math.random() * 2 - 1) * SACUDIDA_AMP * p;
       oy = (Math.random() * 2 - 1) * SACUDIDA_AMP * p;
     }
+    // PUSHCLOUDE: sacudida FUERTE durante el flash del reinicio por rojo / stop (5.2, más marcada).
+    if (pushReset) {
+      const elp = performance.now() - pushReset.inicio;
+      if (elp < PUSH_RESET_FLASH_MS) {
+        const p = 1 - elp / PUSH_RESET_FLASH_MS;
+        ox += (Math.random() * 2 - 1) * PUSH_SACUDIDA_AMP * p;
+        oy += (Math.random() * 2 - 1) * PUSH_SACUDIDA_AMP * p;
+      }
+    }
     ctx.save();
     try {
     // SACUDIDA de CloudOver (FASE 16: revert del zoom). El acercamiento/centrado de
@@ -2446,6 +2658,9 @@
         ctx.beginPath(); ctx.arc(miraX, miraY, 1.5, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       }
+    } else if (esPush()) {
+      // PUSHCLOUDE (móvil, SIN bola ni mira, 2.1): sólo el medidor de efectividad (3.8), como Shotcloude.
+      dibujarMedidorShot();
     } else {
       // MÓVIL: hitball lanzada + estela; y la bolita en reposo/agarrada.
       for (let i = 0; i < bolitas.length; i++) {
@@ -2636,9 +2851,69 @@
     // TEMPORIZADOR: ya NO se dibuja en el canvas. Vive en la barra (DOM), junto al puntaje
     // (D3: antes estaba lejos del puntaje y los targets lo tapaban). Lo maneja actualizarTiempo().
 
+    // PUSHCLOUDE: indicador del CICLO de 15 s (4.4/4.5) y, encima, el overlay de REINICIO por rojo
+    // (tinte rojo + cuenta atrás 3-2-1) o de STOP (tinte, 5/7). Capa de UI, sin cámara, siempre arriba.
+    if (esPush()) { dibujarCicloPush(); if (pushReset) dibujarReinicioPush(nowP); }
+
     // (FASE 16) El recuadro del medidor v41-fps se ELIMINÓ: sus cifras (F, D, peor,
     // conteos) ahora caen como líneas de la CASCADA, como cualquier otro dato real.
     ultimoDibujoMs = performance.now() - _dib0; // (debug v41-fps) duración total del dibujo
+  }
+
+  // PUSHCLOUDE — indicador del CICLO de 15 s (CAMBIO 4.4): claramente DISTINTO del reloj de la
+  // partida (que vive en la barra y en la marca de agua del canvas). Muestra los segundos que faltan
+  // del ciclo y el progreso hacia la meta de 1000; cuando la meta ya está cumplida, se pone verde y
+  // avisa "A SALVO" (4.5). Canvas puro (no captura toques). SIN shadowBlur.
+  function dibujarCicloPush() {
+    if (!jugando || !DURACIONES[modoJuego]) return;
+    const seg = Math.max(0, Math.ceil(pushCicloRestante / 1000));
+    const prog = Math.max(0, PU.progresoCiclo(marcador, pushCicloBase));
+    const cumplida = prog >= PU.META_PUNTOS;
+    const cx = W / 2, y = 84;
+    const col = cumplida ? tk('--push-safe', '#6FFF2C') : tk('--push-ciclo', '#FFC6B5');
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 0.92;
+    ctx.font = '800 22px ' + COLOR.fuente;
+    ctx.fillText('CICLO ' + seg + 's', cx, y);
+    ctx.globalAlpha = 0.82;
+    ctx.font = '700 15px ' + COLOR.fuente;
+    ctx.fillText((cumplida ? '✓ A SALVO · ' : '') + prog + ' / ' + PU.META_PUNTOS, cx, y + 21);
+    // Barra de progreso hacia la meta.
+    const bw = 168, bh = 6, bx = cx - bw / 2, by = y + 34;
+    ctx.globalAlpha = 0.28; ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 3); ctx.fill();
+    ctx.globalAlpha = 0.95;
+    ctx.beginPath(); ctx.roundRect(bx, by, bw * Math.min(1, prog / PU.META_PUNTOS), bh, 3); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+  // PUSHCLOUDE — overlay del REINICIO por rojo / STOP (CAMBIO 5/7): tinte rojo que se desvanece y, en
+  // 'reinicio', la cuenta atrás 3-2-1 grande y centrada. La sacudida fuerte la aplica el bloque de ox/oy.
+  function dibujarReinicioPush(now) {
+    if (!pushReset) return;
+    const el = now - pushReset.inicio;
+    const flashP = Math.max(0, 1 - el / PUSH_RESET_FLASH_MS);
+    const alpha = (el < PUSH_RESET_FLASH_MS) ? (0.5 * flashP + 0.14) : (pushReset.modo === 'reinicio' ? 0.10 : 0);
+    if (alpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = tk('--push-tinte', '#FF0033');
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+    if (pushReset.modo === 'reinicio') {
+      const n = pushResetNumero(el);
+      if (n >= 1 && n <= 3) {
+        ctx.save();
+        ctx.globalAlpha = 0.95; ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = '900 120px ' + COLOR.fuente;
+        ctx.fillText(String(n), W / 2, H / 2);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+    }
   }
 
   // Estela METEORO: UNA cola continua (no fantasmas). Un solo path con dos bordes
@@ -2720,6 +2995,22 @@
       const oi = ojos[k];
       if (!t.celdas[oi]) continue;
       ctx.fillRect(x + (oi % COLS) * CUBO + 2, y + ((oi / COLS) | 0) * CUBO + 2, 4, 4);
+    }
+    // CAMBIO 3.2 — PUSHCLOUDE: la ZONA CENTRAL SE DIBUJA (dónde apuntar). El cuarto central (mitad
+    // del ancho × mitad del alto, centrado — MISMA geometría que S.enZonaCentral). Un marco claro que
+    // se distingue sin parecer otro objeto: contorno blanco tenue. Sólo en targets intactos (no rojo,
+    // no mordido: ya no tienen centro que dé 200). SIN shadowBlur.
+    if (esPush() && !t.rojo && !t.tocado) {
+      const hw = COLS * 2, hh = FILAS * 2; // medio-eje del cuarto central (COLS*8/2 * 0.5 = COLS*2)
+      ctx.save();
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(-hw, -hh, hw * 2, hh * 2, 2);
+      ctx.stroke();
+      ctx.restore();
+      ctx.globalAlpha = 1;
     }
   }
 

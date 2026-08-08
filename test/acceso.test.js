@@ -1,6 +1,6 @@
 // hitclaud — ACCESO ANTICIPADO a Pushcloude con clave (v2.8): la puerta, el distintivo ADMIN, y
-// Pushcloude jugable SÓLO con clave (pero su mecánica aún no existe → "llega pronto", sin arrancar
-// ni mandar nada al ranking). Verifica comportamiento en Node (sin navegador). node test/acceso.test.js
+// Pushcloude jugable SÓLO con clave (desde v2.9 ya tiene mecánica; el envío al ranking sigue
+// inactivo hasta que el servidor acepte 60/180). Verifica comportamiento en Node. node test/acceso.test.js
 
 const fs = require('fs');
 const { crearApp } = require('./harness_dom.js');
@@ -120,17 +120,16 @@ console.log('=== El distintivo aparece en los TRES juegos con acceso, en ninguno
   chk('sin acceso: NO hay distintivo en ningún juego', s1 && s2);
 }
 
-console.log('=== Con acceso, tocar la duración de Pushcloude NO arranca partida ni manda nada (3.3/3.6) ===');
+console.log('=== Con acceso, Pushcloude ES jugable (v2.9): duraciones 60/180 y arranca la partida ===');
 {
   const a = app({ movil: true, acceso: true });
   a.irAJuego('pushclaud');
   const modos = a.byId['durModos'].children;
-  chk('Pushcloude ofrece su duración de 15 segundos', modos.length === 1 && modos[0]._attrs['data-dur'] === '15');
-  a.jugar('15');
+  chk('Pushcloude ofrece 60 y 180 segundos (ya no 15)', modos.length === 2 && modos[0]._attrs['data-dur'] === '60' && modos[1]._attrs['data-dur'] === '180');
+  a.jugar('60');
   a.step(32);
-  chk('NO arrancó partida: el home sigue visible (no entró a un juego vacío)', !tieneOculto(a, 'duracion'));
-  chk('avisa "llega pronto" (3.3)', !tieneOculto(a, 'homePronto') && /pronto/i.test(a.byId['homePronto'].textContent));
-  chk('NO mandó nada al ranking ni a estadísticas (3.6)', a._cap.puntaje.length === 0 && a._cap.partida.length === 0);
+  chk('tocar la duración ARRANCA la partida de Pushcloude (home oculto)', tieneOculto(a, 'duracion'));
+  chk('sigue sin mandar nada al ranking mientras es acceso anticipado (9.5)', a._cap.puntaje.length === 0 && a._cap.partida.length === 0);
 }
 
 console.log('=== En computadora, Pushcloude sigue no disponible aunque haya acceso (3.4) ===');

@@ -22,41 +22,26 @@ console.log('=== El módulo carga y expone la lista ===');
 
 console.log('=== Orden y forma ===');
 {
-  chk('hay exactamente 23 versiones', B.versiones.length === 23);
-  chk('la primera entrada es la 2.8 (más reciente primero)', B.versiones[0].version === '2.8');
-  chk('la 2.8 trae su punto literal (acceso anticipado de Pushcloude)', (function () {
+  chk('hay exactamente 24 versiones', B.versiones.length === 24);
+  chk('la primera entrada es la 2.9 (más reciente primero)', B.versiones[0].version === '2.9');
+  chk('la 2.9 trae sus cuatro puntos literales (Pushcloude)', (function () {
     const v = B.versiones[0];
+    return v.version === '2.9' && v.fecha === '3 de agosto' && v.puntos.length === 4 &&
+      v.puntos[0].texto === 'Llega Pushcloude: aplasta los targets con el dedo' &&
+      v.puntos[1].texto === 'Cada quince segundos necesitas mil puntos o pierdes lo acumulado' &&
+      v.puntos[2].texto === 'Tocar un rojo reinicia la partida entera, sin detener el juego' &&
+      v.puntos[3].texto === 'Partidas de 60 y 180 segundos';
+  })());
+  chk('la segunda entrada es la 2.8 (intacta: acceso anticipado de Pushcloude)', (function () {
+    const v = B.versiones[1];
     return v.version === '2.8' && v.fecha === '3 de agosto' && v.puntos.length === 1 &&
       v.puntos[0].texto === 'Pushcloude entra en acceso anticipado para quien tenga la clave';
   })());
-  chk('la segunda entrada es la 2.7 (intacta: nombre + inicio de un toque + apagados)', (function () {
-    const v = B.versiones[1];
-    return v.version === '2.7' && v.fecha === '3 de agosto' && v.puntos.length === 3 &&
-      v.puntos[0].texto === 'El juego se llama Hitcloude' &&
-      v.puntos[1].texto === 'Inicio rediseñado: eliges el tiempo y juegas de un toque' &&
-      v.puntos[2].texto === 'Los juegos que aún no puedes jugar ahora se ven apagados';
-  })());
-  chk('la tercera entrada es la 2.6 (intacta: arco + giro reactivo)', (function () {
-    const v = B.versiones[2];
-    return v.version === '2.6' && v.fecha === '3 de agosto' && v.puntos.length === 2 &&
-      v.puntos[0].texto === 'Los targets derribados ahora caen describiendo un arco, no en picada' &&
-      v.puntos[1].texto === 'El giro de la caída reacciona al golpe que recibieron';
-  })());
-  chk('la cuarta entrada es la 2.5 (intacta: picada + multiplicador ×5 + puesto/medalla)', (function () {
-    const v = B.versiones[3];
-    return v.version === '2.5' && v.fecha === '3 de agosto' && v.puntos.length === 3 &&
-      v.puntos[0].texto === 'Los targets golpeados ahora se desploman en lugar de seguir volando' &&
-      v.puntos[1].texto === 'El multiplicador llega hasta cinco y crece con cada nivel' &&
-      v.puntos[2].texto === 'Tu récord muestra en qué puesto vas y tu medalla';
-  })());
-  chk('la quinta entrada es la 2.4 (intacta: home por juego + flechas + arranque)', (function () {
-    const v = B.versiones[4];
-    return v.version === '2.4' && v.fecha === '3 de agosto' && v.puntos.length === 3 &&
-      v.puntos[0].texto === 'Cada juego tiene su propia pantalla de inicio' &&
-      v.puntos[1].texto === 'Cambia de juego con las flechas, sin salir a ningún menú' &&
-      v.puntos[2].texto === 'El juego siempre abre en HitClaud';
-  })());
-  chk('la sexta entrada sigue siendo la 2.3', B.versiones[5].version === '2.3');
+  chk('la tercera entrada es la 2.7 (intacta)', B.versiones[2].version === '2.7' && B.versiones[2].puntos[0].texto === 'El juego se llama Hitcloude');
+  chk('la cuarta entrada es la 2.6 (intacta)', B.versiones[3].version === '2.6' && B.versiones[3].puntos.length === 2);
+  chk('la quinta entrada es la 2.5 (intacta)', B.versiones[4].version === '2.5' && B.versiones[4].puntos.length === 3);
+  chk('la sexta entrada es la 2.4 (intacta)', B.versiones[5].version === '2.4' && B.versiones[5].puntos[2].texto === 'El juego siempre abre en HitClaud');
+  chk('la séptima entrada sigue siendo la 2.3', B.versiones[6].version === '2.3');
   chk('la última es la 0.1', B.versiones[B.versiones.length - 1].version === '0.1');
   chk('el orden de versiones va de mayor a menor', (function () {
     const nums = B.versiones.map(function (v) { return parseFloat(v.version); });

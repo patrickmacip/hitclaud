@@ -24,7 +24,7 @@ console.log('=== CAMBIO 2 — Tamaño: targets de ShotClaud 40% mayores que HitC
   chk('grilla propia de ShotClaud 7×6 (COLS/FILAS en SHOT)', COLS === 7 && FILAS === 6);
   chk('un 40% más ancho que HitClaud (7/5 = 1.4)', Math.abs(COLS / 5 - 1.4) < 1e-9);
   chk('claramente más grande en área (42 vs 20 celdas)', COLS * FILAS > 5 * 4);
-  chk('nuevoTarget pasa la grilla propia al motor sólo en ShotClaud', /function nuevoTarget\(\) \{\s*if \(!esShot\(\)\) return F\.crearTarget\(\{ w: W, h: H \}\);[\s\S]{0,160}F\.crearTarget\(\{ w: W, h: H \}, SHOT\.COLS, SHOT\.FILAS\)/.test(main));
+  chk('nuevoTarget pasa la grilla propia al motor en ShotClaud (rama esShot)', /function nuevoTarget\(\) \{\s*if \(esShot\(\)\) \{[\s\S]{0,200}F\.crearTarget\(\{ w: W, h: H \}, SHOT\.COLS, SHOT\.FILAS\)/.test(main));
   chk('ajusta el radio de salida al tamaño mayor (no se culle antes de tiempo)', /t\.radio = Math\.max\(SHOT\.COLS, SHOT\.FILAS\) \* 4 \+ 12/.test(main));
   // El motor NO cambia: la grilla se pasa por parámetro (crearTarget(limites, cols, filas)).
   const t = F.crearTarget({ w: 800, h: 600 }, COLS, FILAS);
@@ -74,7 +74,7 @@ console.log('=== CAMBIO 3 — Rojos: el DOBLE que la ShotClaud previa + TOPE DUR
 {
   chk('ROJO_FACTOR = 0.025 (el doble de rojos que la previa de 0.05)', ROJO_FACTOR === 0.025);
   chk('cupos propios mayores para llenar la pantalla (spawn 6, vivos 16)', MAX_EN_PANTALLA === 6 && MAX_VIVOS === 16);
-  chk('el spawn de rojos exige rojos < naranjas en ShotClaud', /const c = contarTargets\(\);\s*const puedeRojo = !esShot\(\) \|\| c\.rojos < c\.naranjas;/.test(main));
+  chk('el spawn de rojos exige rojos < naranjas en ShotClaud/Pushcloude', /const c = contarTargets\(\);\s*const puedeRojo = !\(esShot\(\) \|\| esPush\(\)\) \|\| c\.rojos < c\.naranjas;/.test(main));
   chk('contarTargets separa rojos de naranjas (todo lo no-rojo)', /function contarTargets\(\) \{[\s\S]{0,200}if \(targets\[i\]\.rojo\) rojos\+\+; else naranjas\+\+;/.test(main));
 
   // PRUEBA de comportamiento del TOPE DURO (4.2 "pruébalo"): simula el spawn EXACTO del juego
@@ -131,19 +131,22 @@ console.log('=== CAMBIO 5 — Juegos por plataforma (regla en la estructura, no 
   chk('en TÁCTIL ShotClaud NO es jugable', !disp(byId.shotclaud, false).jugable);
   chk('en TÁCTIL HitClaud sí es jugable (su lógica intacta)', disp(byId.hitclaud, false).jugable);
   chk('HitClaud en computadora dice "Disponible en móvil", no "Pronto"', disp(byId.hitclaud, true).aviso === 'Disponible en móvil');
-  chk('PushClaud (sin terminar) dice "Pronto" en AMBAS plataformas ("Pronto" manda, 2.6)', disp(byId.pushclaud, false).aviso === 'Pronto' && disp(byId.pushclaud, true).aviso === 'Pronto');
+  // v2.9: Pushcloude ya tiene mecánica (jugable) pero es de ACCESO ANTICIPADO (gate real en
+  // disponibilidad(), probado en acceso.test). Aquí sólo se comprueba que es TÁCTIL: en computadora
+  // no se juega. La duración 15 ya no existe (60/180).
+  chk('PushCloude es táctil: en computadora "Disponible en móvil"; sin duración 15', disp(byId.pushclaud, true).aviso === 'Disponible en móvil' && byId.pushclaud.plataforma === 'tactil' && !/id: 'pushclaud'[\s\S]*?duraciones: \['15'\]/.test(main));
 }
 
 console.log('=== Integración: hitscan de ShotClaud, Big Claude apagado, SW ===');
 {
   chk('dispararHitscan deriva a dispararHitscanShot cuando esShot()', /if \(esShot\(\)\) \{ dispararHitscanShot\(mx, my, ahora\); return; \}/.test(main));
-  chk('Big Claude NO se lanza en ShotClaud (guard SIN_GRANDE)', /if \(!\(esShot\(\) && SHOT\.SIN_GRANDE\) && targets\.length < capEnPantalla\(\) && t >= proximoGrande/.test(main));
-  chk('el service worker subió a v89', /hitclaud-shell-v89/.test(sw));
+  chk('Big Claude NO se lanza en ShotClaud/Pushcloude (guard sinGrande)', /if \(!sinGrande\(\) && targets\.length < capEnPantalla\(\) && t >= proximoGrande/.test(main) && /function sinGrande\(\) \{ return \(esShot\(\) && SHOT\.SIN_GRANDE\) \|\| \(esPush\(\) && PUSH\.SIN_GRANDE\); \}/.test(main));
+  chk('el service worker subió a v90', /hitclaud-shell-v90/.test(sw));
 }
 
 console.log('=== V4 REGRESIÓN de HitClaud — su camino queda intacto ===');
 {
-  chk('HitClaud: nuevoTarget devuelve el crearTarget 5×4 tal cual (sin tamaño ni velocidad extra)', /if \(!esShot\(\)\) return F\.crearTarget\(\{ w: W, h: H \}\);/.test(main));
+  chk('HitClaud: nuevoTarget devuelve el crearTarget 5×4 tal cual (sin tamaño ni velocidad extra)', /return F\.crearTarget\(\{ w: W, h: H \}\);\s*\}\s*\/\/ Pushcloude/.test(main) || /\n    return F\.crearTarget\(\{ w: W, h: H \}\);\n  \}/.test(main));
   chk('HitClaud sigue con P.anotarHit + P.anotarDestruidos en su hitscan', /function dispararHitscan\(mx, my\)[\s\S]{0,2200}P\.anotarHit\(marcador\)[\s\S]{0,300}P\.anotarDestruidos\(marcador, arrancadas\.length\)/.test(main));
   chk('HitClaud sigue con P.anotarFallo al no tocar nada', /No tocó ningún cubo → FALLO\.\s*const pen = P\.anotarFallo\(marcador\)/.test(main));
   chk('rojos de HitClaud sin cambio (factorRojo = 1 fuera de ShotClaud)', /esShot\(\) \? SHOT\.ROJO_FACTOR : 1/.test(main));

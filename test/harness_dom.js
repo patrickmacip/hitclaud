@@ -95,7 +95,7 @@ function crearApp(opts) {
     const code = fs.readFileSync(ROOT + '/js/' + f, 'utf8');
     new Function('window', 'globalThis', 'console', 'Math', 'JSON', 'Date', code)(window, window, console, Math, JSON, Date);
   }
-  ['util.js', 'fisica.js', 'puntuacion.js', 'shotclaud.js', 'render.js', 'bitacora.js', 'ranking.js', 'compartir.js'].forEach(load);
+  ['util.js', 'fisica.js', 'puntuacion.js', 'shotclaud.js', 'pushclaud.js', 'render.js', 'bitacora.js', 'ranking.js', 'compartir.js'].forEach(load);
   if (opts.antesDeMain) opts.antesDeMain(window); // p.ej. envolver window.Fisica
 
   const mc = fs.readFileSync(ROOT + '/js/main.js', 'utf8');

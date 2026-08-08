@@ -14,6 +14,15 @@
 
   const versiones = [
     {
+      version: '2.9', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Llega Pushcloude: aplasta los targets con el dedo' },
+        { texto: 'Cada quince segundos necesitas mil puntos o pierdes lo acumulado' },
+        { texto: 'Tocar un rojo reinicia la partida entera, sin detener el juego' },
+        { texto: 'Partidas de 60 y 180 segundos' },
+      ],
+    },
+    {
       version: '2.8', fecha: '3 de agosto',
       puntos: [
         { texto: 'Pushcloude entra en acceso anticipado para quien tenga la clave' },

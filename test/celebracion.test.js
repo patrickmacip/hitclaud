@@ -23,7 +23,7 @@ console.log('=== CAMBIO 3.4: fuera del centro NO se celebra — su +50 discreto 
 {
   // El lateral y el caído usan el flotante normal (pintarGananciaShot), sin dorado ni bono.
   chk('el lateral usa el flotante discreto, no el bono dorado', /const r = S\.anotarLateral\(marcador\);\s*flashShot[\s\S]{0,80}pintarGananciaShot\(mx, my, r\.ganancia, false\)/.test(main));
-  chk('sólo el CENTRO llama a mostrarBonoCentro (una sola vez en el hitscan)', (main.match(/mostrarBonoCentro\(mx, my, r\.ganancia\)/g) || []).length === 1);
+  chk('el CENTRO celebra con mostrarBonoCentro: en ShotClaud (hitscan) y en Pushcloude (aplastar), una vez c/u', (main.match(/mostrarBonoCentro\(mx, my, r\.ganancia\)/g) || []).length === 2);
   chk('pintarGananciaShot dibuja un flotante normal (no un bono)', /function pintarGananciaShot\(mx, my, g, centro\) \{\s*flotante\(mx, my, '\+' \+ g/.test(main));
 }
 

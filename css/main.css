@@ -82,11 +82,12 @@ body {
 /* El CONTADOR de tiempo ya NO vive en la barra: es una marca de agua enorme en el canvas
    (js/main.js → dibujarContadorTiempo). Rojo + latido de los últimos 5 s también en el canvas. */
 
-/* DERECHA — salir: casa, mismo peso que el récord. Área táctil 44×44 (P4). */
+/* DERECHA — acciones: STOP (sólo Pushcloude) + casa. En fila, separadas para no confundirlas (7.4). */
+.barra-acciones { display: flex; align-items: center; gap: 6px; }
+/* salir: casa, mismo peso que el récord. Área táctil 44×44 (P4). */
 .barra-salir {
   width: 44px;
   height: 44px;
-  margin-right: -10px; /* alinea el icono al borde sin achicar el área táctil */
   border: none;
   background: transparent; /* nada de fondo sólido en la barra (D4/P2) */
   color: var(--texto-apagado, #8989B1);
@@ -94,6 +95,9 @@ body {
   place-items: center;
   cursor: pointer;
 }
+.barra-acciones .barra-salir:last-child { margin-right: -10px; } /* la casa pega su icono al borde */
+/* STOP (CAMBIO 7): mismo área táctil 44×44, color DISTINTO (rojo suave) para no confundirlo con la casa. */
+.barra-stop { color: var(--push-stop, #FF6B6B); }
 
 /* ── Canvas de juego ────────────────────────────── */
 
