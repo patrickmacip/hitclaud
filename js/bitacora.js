@@ -14,6 +14,13 @@
 
   const versiones = [
     {
+      version: '3.3', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Pushcloude ahora es puro reflejo: los objetivos aparecen y se van' },
+        { texto: 'Cada objetivo entra con un rebote' },
+      ],
+    },
+    {
       version: '3.2', fecha: '3 de agosto',
       puntos: [
         { texto: 'En Pushcloude los targets ahora caen desde arriba' },

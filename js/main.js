@@ -1385,24 +1385,27 @@
     DERIVA_TAN: 0.4,             // v3.3 (CAMBIO 1.2) — deriva lateral máx durante la caída: tan(≈22°) del vy (no lluvia recta)
     BARRA_PX: 58,                // v3.3 (CAMBIO 1.3) — alto de la franja de la barra (= --barra-alto): nacen DEBAJO
     ROJO_FACTOR: 0.6,            // (heredado; el spawn de Pushcloude usa P_ROJO — ver spawnPush)
-    P_ROJO: 0.28,               // prob. de que un normal sea ROJO (respeta el tope rojos ≤ naranjas)
-    // CAMBIO 3 (v3.3) — MÁS AIRE: no aparece uno nuevo hasta que el anterior lleve el 60% de su CAÍDA
-    // (3.1) Y hayan pasado ≥ SPAWN_MIN ms (3.2) — se cumplen LAS DOS. Máx 3 NORMALES vivos (naranja+rojo);
-    // los RELÁMPAGO cuentan APARTE (su propio cupo). Reintento corto si no cupo sin solaparse.
-    SEP_RECORRIDO: 0.6,          // v3.3 (CAMBIO 3.1) — 60% de la caída del anterior
-    MAX_NORMALES: 3,             // tope de targets normales vivos (2.2/3.3)
-    SPAWN_MIN: 900,              // v3.3 (CAMBIO 3.2) — ms mínimos entre apariciones (piso de cadencia)
+    P_ROJO: 0.28,               // prob. de que un target sea ROJO. v3.4 (CAMBIO 2): ahora se aplica a los RELÁMPAGO
+    //                             (los rojos también son relámpago). Frecuencia CONSERVADA: misma P_ROJO y mismo tope.
+    // v3.4 (CAMBIO 1/3) — Pushcloude es SÓLO RELÁMPAGO: nada cae, nada recorre. Por eso la condición de
+    // "60% del recorrido" (SEP_RECORRIDO) y el cupo de NORMALES quedan SIN USO (se conservan sólo para que
+    // revertir este commit los reactive; ver lanzarPush/intentarNormal, aún definidos pero no llamados).
+    SEP_RECORRIDO: 0.6,          // (v3.4: SIN USO — nada recorre; se elimina la condición en spawnPush, 3.2)
+    MAX_NORMALES: 3,             // (v3.4: SIN USO — ya no se generan normales; ver intentarNormal, sin llamar)
+    SPAWN_MIN: 450,              // v3.4 (CAMBIO 3.1) — ms mínimos entre apariciones = LA MITAD de 900. Ritmo regular
     SPAWN_REINTENTO: 120,        // ms para reintentar si un intento no cupo sin solaparse (3.3)
-    // CAMBIO 3 (v3.1) — SIN CRUCES: antes de soltar, se comprueba que la trayectoria no se solape con las
-    // de los vivos; si se solapa, se prueba otro ángulo/entrada hasta INTENTOS veces; si ninguno cabe, se
-    // pospone (3.2/3.3). SEP_FACTOR = margen extra sobre la suma de radios.
+    // CAMBIO 3 (v3.1) — SIN CRUCES: antes de soltar, se comprueba que no se solape con los vivos; si se
+    // solapa, se reintenta hasta INTENTOS veces; si ninguno cabe, se pospone. SEP_FACTOR = margen extra.
     SEP_FACTOR: 1.15,
     INTENTOS: 10,
-    // CAMBIO 5 (v3.1) — RELÁMPAGO: LA MITAD de las apariciones. Quieto, dura 400 ms, 200 en cualquier
-    // parte, alimenta la racha, sin castigo si no se toca. Cupo propio (cuentan aparte de los normales).
-    RELAMP_FRAC: 0.5,           // ~mitad de las apariciones son relámpago (5.1)
-    RELAMP_MS: 800,             // duración del relámpago (v3.2 CAMBIO 2: 400 → 800, valor de Pat)
-    MAX_RELAMPAGOS: 3,          // cupo propio de relámpagos (aparte de los 3 normales, 2.2)
+    // CAMBIO 5 (conservado) — RELÁMPAGO: quieto, dura 800 ms, 200 en cualquier parte, alimenta la racha,
+    // sin castigo si no se toca, se ve igual que un normal. v3.4 (CAMBIO 4): entra con REBOTE (easeOutBack).
+    RELAMP_FRAC: 0.5,           // (heredado; v3.4: todo es relámpago, sin uso real)
+    RELAMP_MS: 800,             // duración del relámpago (5.1)
+    REBOTE_MS: 180,             // v3.4 (CAMBIO 4) — duración del rebote de aparición (breve, discreto)
+    REBOTE_OVER: 1.70158,       // v3.4 (CAMBIO 4) — sobrepaso del easeOutBack → escala máx ≈ 1.10 (+10%)
+    SALIDA_MS: 140,             // v3.4 (CAMBIO 4.5) — fundido de salida (sólo opacidad; sin color ni anillo)
+    MAX_RELAMPAGOS: 3,          // cupo de relámpagos vivos (tope conservado, 3.4)
     MAX_EN_PANTALLA: 6,          // (heredado; el spawn de Pushcloude lo gobierna spawnPush)
     MAX_VIVOS: 16,               // tope duro de dibujo (seguridad)
     SPAWN_GAP_MAX: 420,          // (heredado)
@@ -1746,13 +1749,20 @@
     const top = PUSH.BARRA_PX + rRot;                       // debajo de la franja de la barra (1.3/5.5)
     const bot = H - rRot;                                   // 2.3: la forma entera dentro de la pantalla
     const left = rRot, right = W - rRot;
+    // CAMBIO 2 — los ROJOS también son relámpago. Frecuencia CONSERVADA: misma P_ROJO y mismo tope que
+    // antes (rojos ≤ no-rojos vivos), sólo que ahora nacen quietos. Su color/aspecto no cambian y su
+    // función tampoco: tocar un rojo REINICIA la partida (lo enruta aplastar → reinicioPorRojoPush).
+    let rojosVivos = 0, otrosVivos = 0;
+    for (let i = 0; i < targets.length; i++) { const t = targets[i]; if (!t.relampago) continue; if (t.rojo) rojosVivos++; else otrosVivos++; }
+    const rojo = (rojosVivos < otrosVivos) && Math.random() < PUSH.P_ROJO;
     for (let intento = 0; intento < PUSH.INTENTOS; intento++) {
       const t = F.crearTarget({ w: W, h: H }, PUSH.COLS, PUSH.FILAS);
       t.radio = Math.max(PUSH.COLS, PUSH.FILAS) * 4 + 12;
       t.x = left + Math.random() * Math.max(1, right - left);
       t.y = top + Math.random() * Math.max(1, bot - top);
       t.vx = 0; t.vy = 0; t.gravedad = 1e-9; t.rot = 0; t.velRot = 0;
-      t.haEntrado = true; t.relampago = true;   // QUIETO y tocable de inmediato (5.2)
+      t.haEntrado = true; t.relampago = true;   // QUIETO y tocable de inmediato (5.2/4.4)
+      if (rojo) t.rojo = true;                   // se distingue por ser ROJO (2.3); su función no cambia (2.2)
       t.__nace = now; t.__cruce = PUSH.RELAMP_MS; t.__muereEn = now + PUSH.RELAMP_MS; t.__borde = 'relampago';
       if (!pushSolapa(t, PUSH.RELAMP_MS, now)) { t.__enJuego = true; targets.push(t); return true; }
     }
@@ -1763,27 +1773,37 @@
   // reparte ~mitad relámpago (5.1). Todo sin solaparse (3).
   function spawnPush(now) {
     for (let i = targets.length - 1; i >= 0; i--) { if (targets[i].relampago && now >= targets[i].__muereEn) { targets[i].viva = false; targets.splice(i, 1); } } // caduca 800ms, sin castigo (5.4)
-    if (now < pushProxSpawn) return;                    // CAMBIO 3.2 — piso de 900 ms entre apariciones (SPAWN_MIN)
-    let normales = 0, relamp = 0, ultNormal = null;
-    for (let i = 0; i < targets.length; i++) { const t = targets[i]; if (t.relampago) { relamp++; } else { normales++; if (!ultNormal || t.__nace > ultNormal.__nace) ultNormal = t; } }
-    // CAMBIO 5.1 — ~LA MITAD de las APARICIONES son relámpago. Como los relámpago viven 400ms y los
-    // normales ~2s, contar 50/50 por sorteo los sobre-representaría; en su lugar se alterna por CONTEO
-    // (spawnea el tipo que va por detrás en apariciones). Si el elegido no cabe/está gateado, ESPERA
-    // (no sustituye) → mantiene el balance ~50/50.
-    const preferRelamp = pushCountRelamp <= pushCountNormal;
-    if (preferRelamp) {
-      if (relamp < PUSH.MAX_RELAMPAGOS && intentarRelampago(now)) { pushCountRelamp++; pushProxSpawn = now + PUSH.SPAWN_MIN; return; }
-    } else if (normales < PUSH.MAX_NORMALES && (!ultNormal || (now - ultNormal.__nace) / ultNormal.__cruce >= PUSH.SEP_RECORRIDO)) {
-      // CAMBIO 3.1 — 60% de la CAÍDA del anterior (SEP_RECORRIDO) + cupo de 3 normales (3.3)
-      if (intentarNormal(now)) { pushCountNormal++; pushProxSpawn = now + PUSH.SPAWN_MIN; return; }
-    }
-    pushProxSpawn = now + PUSH.SPAWN_REINTENTO; // no cupo / gateado → reintenta pronto sin romper el balance (3.3)
+    if (now < pushProxSpawn) return;                    // CAMBIO 3.1 — piso de 450 ms entre apariciones (SPAWN_MIN)
+    // v3.4 (CAMBIO 1) — TODO lo que aparece es RELÁMPAGO. Ya NO se generan normales que caigan (intentarNormal
+    // queda definido pero SIN LLAMAR → revertir este commit lo reactiva). La condición de "60% del recorrido"
+    // se ELIMINA (CAMBIO 3.2): nada recorre nada; el ritmo lo rige sólo SPAWN_MIN (regular, no ráfagas, 3.3).
+    let relamp = 0;
+    for (let i = 0; i < targets.length; i++) { if (targets[i].relampago) relamp++; }
+    if (relamp < PUSH.MAX_RELAMPAGOS && intentarRelampago(now)) { pushProxSpawn = now + PUSH.SPAWN_MIN; return; } // tope conservado (3.4)
+    pushProxSpawn = now + PUSH.SPAWN_REINTENTO; // no cupo sin solaparse → reintenta pronto (mantiene el ritmo, 3.3)
   }
   // CAMBIO 3.5 — ¿el toque cae sobre este target? Área GENEROSA (un dedo, no un cursor): dentro de
   // radio × TOQUE_FACTOR del centro. Reemplaza la exigencia de caer sobre una celda viva exacta.
   function tocaTargetPush(tg, mx, my) {
     const r = (tg.radio || 30) * PUSH.TOQUE_FACTOR;
     return Math.hypot(mx - tg.x, my - tg.y) <= r;
+  }
+  // CAMBIO 4 (v3.4) — REBOTE de aparición y fundido de salida, SÓLO visual. La escala crece desde
+  // pequeño, se pasa un poco (~+10%) y se asienta en REBOTE_MS (easeOutBack, UN rebote breve, discreto).
+  // NO roba vida: la vida (800 ms) y el toque (radio pleno) son plenos desde t=0 (4.4). La salida se
+  // suaviza sólo con opacidad (4.5): sin color, sin anillo, SIN shadowBlur (4.6).
+  function rebotePush(t, now) {
+    const edad = now - t.__nace;
+    let esc = 1;
+    if (edad < PUSH.REBOTE_MS) {
+      const p = Math.max(0, edad / PUSH.REBOTE_MS);
+      const c1 = PUSH.REBOTE_OVER, c3 = c1 + 1, q = p - 1;
+      esc = 1 + c3 * q * q * q + c1 * q * q;      // 0 → sobrepasa ~1.10 → 1 (easeOutBack estándar)
+    }
+    let alpha = 1;
+    const restante = PUSH.RELAMP_MS - edad;
+    if (restante < PUSH.SALIDA_MS) alpha = Math.max(0, restante / PUSH.SALIDA_MS); // fundido de salida (sólo opacidad)
+    return { esc: Math.max(0, esc), alpha: alpha };
   }
 
   // CAMBIO 3 — velocidad de ShotClaud: base (SHOT.VEL_BASE) × variación por target sorteada
@@ -2748,6 +2768,7 @@
       const destella = t.destelloHasta && performance.now() < t.destelloHasta;
       ctx.save();
       ctx.translate(t.x, t.y);
+      if (t.relampago) { const rb = rebotePush(t, performance.now()); ctx.scale(rb.esc, rb.esc); ctx.globalAlpha = rb.alpha; } // v3.4 CAMBIO 4
       ctx.rotate(t.rot);
       dibujarSpriteTarget(t, destella); // la grilla (cols×filas) ya define el tamaño
       ctx.restore();

@@ -108,30 +108,29 @@ function traerAlCentro(app, tipo) {
   return tg;
 }
 
-console.log('=== JUEGO — Toque al CENTRO destruye entero (200); BORDE arranca ≥ la mitad, el resto sigue ===');
+console.log('=== v3.4 CAMBIO 1 — Pushcloude es SÓLO RELÁMPAGO: no se genera ningún target que se mueva ===');
 {
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
-  const tg = traerAlCentro(app, 'normal');
-  chk('salió un target 7×6 y se trajo al centro', !!tg && tg.cols === 7 && tg.filas === 6);
-  app.disparar(400, 300); // CENTRO exacto
-  chk('CENTRO: destruye el target ENTERO (vivos 0) y suma 200', !!tg && tg.vivos === 0 && score(app) === '200');
-
+  const norm = traerAlCentro(app, 'normal');   // busca 900 pasos un normal (de los que caían)
+  chk('NO aparece ningún target normal que caiga: todo es relámpago (1.1/1.3)', !norm);
+  // El toque al CENTRO de un relámpago lo destruye ENTERO y suma 200 (misma economía de centro).
   const app2 = appPush(); app2.irAJuego('pushclaud'); app2.jugar('60');
-  const t2 = traerAlCentro(app2, 'normal');
-  const vivosAntes = t2.vivosMax, gAntes = t2.gravedad, vxAntes = t2.vx;
-  app2.disparar(420, 300); // BORDE (20px > cuarto central 14px, dentro del target)
-  const arrancadas = vivosAntes - t2.vivos;
-  chk('BORDE: arranca AL MENOS la mitad de las celdas (radio 55%, 3.2)', arrancadas >= Math.ceil(vivosAntes / 2) && t2.vivos > 0);
-  chk('BORDE: suma 50 sin multiplicar (3.4)', score(app2) === '50');
-  chk('BORDE: el resto SIGUE SU RUTA — NO se desploma (gravedad y horizontal intactas, 3.3)', t2.gravedad === gAntes && t2.vx === vxAntes);
+  const rel = traerAlCentro(app2, 'relampago');
+  chk('salió un relámpago 7×6 y se trajo al centro', !!rel && rel.cols === 7 && rel.filas === 6);
+  if (rel) app2.disparar(400, 300);
+  chk('CENTRO: destruye el relámpago ENTERO y suma 200', !!rel && score(app2) === '200');
+  // La demolición del 55% (borde) y la generación de los que caen quedan INTACTAS en el código, para que
+  // revertir este commit las devuelva completas (PROHIBIDO cambiar la demolición 55%; CAMBIO 1.2).
+  chk('FUENTE: la demolición 55% (ARRANCA_FRAC) sigue intacta en aplastar (revert-safe)', /ARRANCA_FRAC: 0\.55,/.test(main) && /Math\.ceil\(tg\.vivos \* PUSH\.ARRANCA_FRAC\)/.test(main));
+  chk('FUENTE: lanzarPush e intentarNormal siguen DEFINIDOS pero spawnPush ya NO los llama (revert-safe, 1.2)', /function lanzarPush\(t\)/.test(main) && /function intentarNormal\(now\)/.test(main) && !/if \(intentarNormal\(now\)\)/.test(main));
 }
 
-console.log('=== JUEGO — Toque al VACÍO resta; el medidor se dibuja en el canvas (no captura) ===');
+console.log('=== JUEGO — Toque al VACÍO resta y rompe racha (5.8); el medidor se dibuja en el canvas ===');
 {
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
-  const tg = traerAlCentro(app, 'normal');
-  app.disparar(400, 300);          // centro (+200)
-  app.disparar(40, 570);           // vacío, lejos de todo (resta 50)
+  const tg = traerAlCentro(app, 'relampago');
+  app.disparar(400, 300);          // relámpago al centro (+200)
+  app.disparar(40, 570);           // vacío, lejos de todo (resta 50, 5.8)
   chk('VACÍO: resta (200 → 150)', !!tg && score(app) === '150');
   chk('el medidor de efectividad se dibuja en el canvas (no captura toques, 3.8)', /esPush\(\)\) \{[\s\S]{0,120}dibujarMedidorShot\(\)/.test(main));
 }
@@ -139,11 +138,11 @@ console.log('=== JUEGO — Toque al VACÍO resta; el medidor se dibuja en el can
 console.log('=== JUEGO — Tocar un ROJO reinicia la partida (no termina): puntos a 0, sin salir, sin enviar ===');
 {
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
-  // Los rojos son escasos (spawnPush los sortea con P_ROJO y tope); para ejercitar el camino de forma
-  // determinista, marco como ROJO un target normal VIVO (es el mismo objeto del juego) y lo toco.
-  const rojo = traerAlCentro(app, 'normal');
-  chk('hay un target para marcar como rojo', !!rojo);
-  if (rojo) { rojo.rojo = true; rojo.relampago = false; }
+  // v3.4: los rojos son RELÁMPAGO. Para ejercitar el camino de forma determinista, traigo un relámpago
+  // VIVO al centro y lo marco ROJO (sigue siendo relámpago); tocarlo debe REINICIAR la partida (2.2).
+  const rojo = traerAlCentro(app, 'relampago');
+  chk('hay un relámpago para marcar como rojo', !!rojo);
+  if (rojo) { rojo.rojo = true; } // rojo Y relámpago a la vez (2.1)
   if (rojo) app.disparar(400, 300);  // toca el rojo → REINICIO de la partida
   chk('tras tocar el rojo: puntos a 0 y NO se sale de la pantalla (home/fin ocultos, 5.4)', score(app) === '0' && ocultoDur(app) && ocultoFin(app));
   for (let i = 0; i < 45; i++) app.step(32); // cuenta atrás (flash 320 + 3×260 ≈ 1100ms)
@@ -166,36 +165,31 @@ console.log('=== CAMBIO 1/2 — El hitmaker NO se dibuja en Pushcloude (sí en H
   chk('jugando Hitcloude: <html> NO tiene juego-push (el hitmaker se dibuja)', !hit.document.documentElement.classList.contains('juego-push'));
 }
 
-console.log('=== v3.3 CAMBIO 1/2 — Todos CAEN desde arriba, enteros y dentro del ancho; nada bajo la barra ===');
+console.log('=== v3.4 CAMBIO 1 — Nada se mueve: todo quieto, entero dentro del ancho, nada bajo la barra ===');
 {
-  // Recorre una partida: todo NORMAL entra por arriba y cae; nadie asoma fuera del ancho ni cruza la barra.
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
-  const H = app.window.innerHeight, W = app.window.innerWidth; // 600×800 en el arnés
-  const rRot = Math.hypot(7 * 4, 6 * 4);            // radio rotación-seguro (igual que la fuente)
+  const W = app.window.innerWidth;                   // 800 en el arnés
+  const rRot = Math.hypot(7 * 4, 6 * 4);             // radio rotación-seguro (igual que la fuente)
   const barra = 58;
-  let porArriba = 0, otroBorde = 0, fueraAncho = 0, bajoBarra = 0, cayendo = 0, normVistos = 0, relVistos = 0;
+  let quietos = 0, movidos = 0, fueraAncho = 0, bajoBarra = 0, vistos = 0;
   for (let i = 0; i < 500; i++) {
     app.step(16);
     app._cap.caps.forEach(function (t) {
       if (!t.__enJuego || t.viva === false || !t.haEntrado || t.x < -9000 || Math.abs(t.x) > 99000) return;
-      if (t.x - rRot < -0.5 || t.x + rRot > W + 0.5) fueraAncho++;          // 2.1: parte de la forma fuera del ancho (rotada)
-      if (t.relampago) { relVistos++; if (t.y - rRot < barra - 0.5) bajoBarra++; return; }
-      normVistos++;
-      if (t.__borde === 'arriba') porArriba++; else otroBorde++;            // 1.1: sólo por arriba
-      if (t.y - rRot < barra - 0.5) bajoBarra++;                            // 1.3: no cruza la franja de la barra
-      if (t.vy > 0) cayendo++;                                              // 1.1: cae hacia abajo
+      vistos++;
+      if (t.vx === 0 && t.vy === 0) quietos++; else movidos++;               // 1.3: TODO aparece quieto
+      if (t.x - rRot < -0.5 || t.x + rRot > W + 0.5) fueraAncho++;           // 5.7: entero dentro del ancho, ni rotado
+      if (t.y - rRot < barra - 0.5) bajoBarra++;                             // 5.5: nada bajo la franja de la barra
     });
   }
-  chk('se observaron normales y relámpagos en juego', normVistos > 20 && relVistos > 5);
-  chk('TODOS los normales entran por ARRIBA; ninguno por los lados ni por abajo (1.1)', porArriba > 0 && otroBorde === 0);
-  chk('TODOS los normales caen hacia abajo (vy > 0, 1.1)', cayendo === normVistos);
-  chk('NINGÚN target asoma fuera del ancho, ni rotado (2.1/2.4)', fueraAncho === 0);
-  chk('NINGÚN target aparece bajo la franja de la barra (1.3)', bajoBarra === 0);
-  chk('FUENTE: lanzarPush nace debajo de la barra y cae en recta (vy = vBase, sin bordes laterales)', /t\.y = PUSH\.BARRA_PX \+ rRot;[\s\S]{0,500}t\.vy = vBase;/.test(main) && !/const bordes = \[/.test(main));
-  chk('FUENTE: la x deja margen rotación-seguro (rRot) a ambos lados → forma entera dentro del ancho (2.2/2.4)', /const rRot = Math\.hypot\(PUSH\.COLS \* 4, PUSH\.FILAS \* 4\);/.test(main) && /const left = rRot, right = W - rRot;/.test(main));
+  chk('se observaron objetivos en juego', vistos > 20);
+  chk('NADA se mueve: todos vx/vy 0 (1.3, sólo relámpagos quietos)', quietos > 0 && movidos === 0);
+  chk('NINGÚN objetivo asoma fuera del ancho, ni rotado (5.7/2.4)', fueraAncho === 0);
+  chk('NINGÚN objetivo aparece bajo la franja de la barra (5.5)', bajoBarra === 0);
+  chk('FUENTE: spawnPush sólo intenta RELÁMPAGO (no llama a intentarNormal)', /function spawnPush[\s\S]{0,900}intentarRelampago\(now\)/.test(main) && !/function spawnPush[\s\S]{0,900}intentarNormal\(/.test(main));
 }
 
-console.log('=== v3.3 CAMBIO 3 — Más aire: ≥900 ms entre apariciones y ≥60% de caída del anterior ===');
+console.log('=== v3.4 CAMBIO 3 — La mitad del tiempo de espera: ≥450 ms, ritmo regular, sin condición de recorrido ===');
 {
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
   const naceVistos = [];
@@ -206,11 +200,16 @@ console.log('=== v3.3 CAMBIO 3 — Más aire: ≥900 ms entre apariciones y ≥6
   naceVistos.sort(function (a, b) { return a - b; });
   let minGap = Infinity;
   for (let k = 1; k < naceVistos.length; k++) minGap = Math.min(minGap, naceVistos[k] - naceVistos[k - 1]);
-  chk('hubo varias apariciones', naceVistos.length > 5);
-  chk('entre dos apariciones pasan al menos 900 ms (3.2)', minGap >= 900);
-  chk('FUENTE: SPAWN_MIN = 900 ms como piso de cadencia (3.2), un solo sitio', /SPAWN_MIN: 900,/.test(main));
-  chk('FUENTE: no aparece uno nuevo antes del 60% de la caída del anterior (SEP_RECORRIDO 0.6, 3.1)', /SEP_RECORRIDO: 0\.6,/.test(main) && /\(now - ultNormal\.__nace\) \/ ultNormal\.__cruce >= PUSH\.SEP_RECORRIDO/.test(main));
-  chk('FUENTE: los topes de vivos se conservan (3 normales + 3 relámpagos)', /MAX_NORMALES: 3,/.test(main) && /MAX_RELAMPAGOS: 3,/.test(main));
+  chk('hubo varias apariciones', naceVistos.length > 8);
+  chk('entre dos apariciones pasan al menos 450 ms = la mitad de 900 (3.1)', minGap >= 450);
+  chk('el ritmo es REGULAR (no ráfagas): casi todas las esperas rondan los 450 ms (3.3)', (function () {
+    let irregulares = 0;
+    for (let k = 1; k < naceVistos.length; k++) { const g = naceVistos[k] - naceVistos[k - 1]; if (g > 900) irregulares++; }
+    return irregulares <= 1;
+  })());
+  chk('FUENTE: SPAWN_MIN = 450 ms (la mitad de 900), un solo sitio', /SPAWN_MIN: 450,/.test(main));
+  chk('FUENTE: la condición del 60% de recorrido se ELIMINÓ de spawnPush (nada recorre, 3.2)', !/ultNormal\.__cruce >= PUSH\.SEP_RECORRIDO/.test(main));
+  chk('FUENTE: los topes de vivos se conservan (MAX_RELAMPAGOS 3, 3.4)', /MAX_RELAMPAGOS: 3,/.test(main));
 }
 
 console.log('=== FUENTE — Rojo reinicia puntos/racha/ciclo/reloj; sólo el tiempo guarda récord; sin envío ===');
@@ -249,13 +248,13 @@ console.log('=== CAMBIO 5 — RELÁMPAGO: quieto 400 ms, 200 en cualquier punto,
   chk('la racha se conservó pese a las caducidades: siguiente centro ×1.4 = 280 → 920 (5.4)', !!r4 && score(app) === '920');
 }
 
-console.log('=== CAMBIO 5 — Ni rojos, ni bajo la barra, ni encimados; ~la mitad de las apariciones ===');
+console.log('=== v3.4 CAMBIO 2 — TODO es relámpago; algunos son ROJOS; nada bajo la barra ni encimado ===');
 {
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
   const r = Math.max(7, 6) * 4, barra = 58;
   let relRojo = 0, relBajoBarra = 0, relSolapado = 0, relVistos = 0;
   let apRelamp = 0, apNormal = 0; const vistos = new Set();
-  for (let i = 0; i < 1200; i++) {
+  for (let i = 0; i < 2000; i++) {
     app.step(16);
     app._cap.caps.forEach(function (t) {
       if (!t.__enJuego) return;                                       // ignora candidatos rechazados (nunca entraron al juego)
@@ -266,33 +265,49 @@ console.log('=== CAMBIO 5 — Ni rojos, ni bajo la barra, ni encimados; ~la mita
       if (t.y - r < barra) relBajoBarra++;
       app._cap.caps.forEach(function (o) {
         if (o === t || !o.__enJuego || o.viva === false || !o.haEntrado || o.x < -9000) return;
-        if (Math.hypot(t.x - o.x, t.y - o.y) < (r + (o.relampago ? r : Math.max(7, 6) * 4))) relSolapado++;
+        if (Math.hypot(t.x - o.x, t.y - o.y) < (r + r)) relSolapado++;
       });
     });
   }
   chk('se observaron relámpagos vivos', relVistos > 20);
-  chk('NINGÚN relámpago es ROJO (5.6)', relRojo === 0);
+  chk('TODAS las apariciones son relámpago; NINGÚN normal (1.1/1.3)', apRelamp > 0 && apNormal === 0);
+  chk('ALGUNOS relámpagos son ROJOS (los rojos también son relámpago, 2.1)', relRojo > 0);
   chk('NINGÚN relámpago aparece bajo la barra (5.5)', relBajoBarra === 0);
-  chk('NINGÚN relámpago aparece encimado a otro target (3/5.5)', relSolapado === 0);
-  const frac = apRelamp / Math.max(1, apRelamp + apNormal);
-  console.log('  apariciones: relámpago=' + apRelamp + ', normal=' + apNormal + ' (relámpago ' + Math.round(frac * 100) + '%)');
-  chk('~LA MITAD de las apariciones son relámpago (40–60%, 5.1)', frac >= 0.4 && frac <= 0.6);
-  chk('FUENTE: el balance alterna por conteo de apariciones (pushCountRelamp ≤ pushCountNormal)', /const preferRelamp = pushCountRelamp <= pushCountNormal;/.test(main));
-  chk('FUENTE: intentarRelampago NO crea rojos y verifica no-solape (pushSolapa) antes de soltar', /function intentarRelampago[\s\S]{0,900}t\.relampago = true;[\s\S]{0,320}if \(!pushSolapa\(t, PUSH\.RELAMP_MS, now\)\) \{ t\.__enJuego = true; targets\.push\(t\); return true; \}/.test(main) && !/function intentarRelampago[\s\S]{0,900}t\.rojo = true/.test(main));
+  chk('NINGÚN relámpago aparece encimado a otro (5.6)', relSolapado === 0);
+  chk('FUENTE: intentarRelampago sortea ROJO con P_ROJO y tope (rojos ≤ no-rojos vivos), verifica no-solape', /const rojo = \(rojosVivos < otrosVivos\) && Math\.random\(\) < PUSH\.P_ROJO;/.test(main) && /if \(rojo\) t\.rojo = true;/.test(main) && /if \(!pushSolapa\(t, PUSH\.RELAMP_MS, now\)\) \{ t\.__enJuego = true; targets\.push\(t\); return true; \}/.test(main));
+  chk('FUENTE: la frecuencia de rojos se CONSERVA (P_ROJO sin cambios: 0.28)', /P_ROJO: 0\.28,/.test(main));
 }
 
-console.log('=== CAMBIO 1 (v3.2) — El relámpago se ve IGUAL que un normal: sin color propio ni anillo ===');
+console.log('=== CAMBIO 5.4 — El relámpago se ve IGUAL que un normal: sin color propio ni anillo ===');
 {
   chk('ya NO existe dibujarRelampago: el dibujo propio (rombo dorado + anillo) se eliminó', !/dibujarRelampago/.test(main));
-  chk('el bucle de dibujo NO desvía al relámpago (cae al dibujo normal dibujarSpriteTarget)', !/if \(t\.relampago\) \{ dibujarRelampago/.test(main));
+  chk('el bucle de dibujo NO desvía al relámpago a un dibujo propio (usa dibujarSpriteTarget)', !/if \(t\.relampago\) \{ dibujarRelampago/.test(main) && /dibujarSpriteTarget\(t, destella\)/.test(main));
   chk('el reventón del relámpago usa ACENTO.base, igual que un acierto al centro (sin dorado propio)', /if \(tg\.relampago\) \{[\s\S]{0,600}explotarCubos\(centros, mx, my, 1\.0, 0, 0, ACENTO\.base\)/.test(main));
-  // Comportamiento: un relámpago tiene la MISMA grilla (color/forma/tamaño) que un target normal.
+  // Comportamiento: un relámpago usa la MISMA grilla (color/forma/tamaño) que cualquier target del juego.
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
   const relN = traerAlCentro(app, 'relampago');
-  chk('un relámpago tiene la MISMA grilla que un normal (7×6, 42 celdas)', !!relN && relN.cols === 7 && relN.filas === 6 && relN.celdas.length === 42);
+  chk('un relámpago tiene la grilla normal (7×6, 42 celdas)', !!relN && relN.cols === 7 && relN.filas === 6 && relN.celdas.length === 42);
+}
+
+console.log('=== v3.4 CAMBIO 4 — Aparición con REBOTE (sólo visual): no roba vida ni retrasa el toque ===');
+{
+  const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
+  // Un relámpago recién nacido: vida COMPLETA (800) y tocable YA, aunque el rebote aún esté creciendo.
+  let rel = null;
+  for (let i = 0; i < 900 && !rel; i++) { app.step(16); rel = app._cap.caps.find(function (t) { return t.relampago && t.__enJuego && t.viva !== false; }); }
+  chk('el rebote NO recorta la vida: __muereEn − __nace === 800 (4.4)', !!rel && (rel.__muereEn - rel.__nace) === 800);
+  chk('tocable desde el primer instante: haEntrado y radio plenos al nacer (4.4)', !!rel && rel.haEntrado === true && rel.radio > 0);
+  // El rebote es escala visual: crece desde ~0, sobrepasa (>1) y se asienta en 1 al terminar REBOTE_MS.
+  const RB = main.slice(main.indexOf('function rebotePush'), main.indexOf('function rebotePush') + 700);
+  chk('FUENTE: rebotePush es escala+opacidad, SIN color, SIN anillo (arc/stroke), SIN shadowBlur (4.5/4.6)', !/shadowBlur/.test(RB) && !/strokeStyle/.test(RB) && !/\.arc\(/.test(RB) && !/fillStyle/.test(RB));
+  chk('FUENTE: el rebote se aplica con ctx.scale (no cambia radio ni vida), sólo a relámpagos', /if \(t\.relampago\) \{ const rb = rebotePush\(t, performance\.now\(\)\); ctx\.scale\(rb\.esc, rb\.esc\); ctx\.globalAlpha = rb\.alpha; \}/.test(main));
+  chk('FUENTE: duración y sobrepaso del rebote documentados en un solo sitio (REBOTE_MS/REBOTE_OVER)', /REBOTE_MS: 180,/.test(main) && /REBOTE_OVER: 1\.70158,/.test(main));
+  // Comportamiento del easeOutBack: en t=0 escala ~0 (crece desde pequeño); a mitad ya sobrepasa 1.
   const app2 = appPush(); app2.irAJuego('pushclaud'); app2.jugar('60');
-  const normN = traerAlCentro(app2, 'normal');
-  chk('coincide con la grilla de un target normal (mismas dimensiones)', !!normN && normN.cols === relN.cols && normN.filas === relN.filas && normN.celdas.length === relN.celdas.length);
+  let rel2 = null; for (let i = 0; i < 900 && !rel2; i++) { app2.step(16); rel2 = app2._cap.caps.find(function (t) { return t.relampago && t.__enJuego; }); }
+  // Reconstruye la escala del rebote como la fuente para verificar la forma (crece → sobrepasa → asienta).
+  function esc(edad) { const p = Math.max(0, edad / 180); const c1 = 1.70158, c3 = c1 + 1, q = p - 1; return 1 + c3 * q * q * q + c1 * q * q; }
+  chk('la escala arranca pequeña (t=0 → ~0) y sobrepasa el 100% antes de asentarse (4.2)', esc(0) < 0.05 && esc(130) > 1.0 && Math.abs(esc(180) - 1) < 1e-9);
 }
 
 console.log(`\n== RESUMEN pushcloude: ${ok} OK, ${ko} NO ==`);
