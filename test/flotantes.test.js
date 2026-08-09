@@ -35,8 +35,9 @@ console.log('\n=== Badge de multiplicador refleja la racha (×N, sin emoji) ==='
   console.log(`  racha ${r} → ${texto}`);
 });
 {
-  const ok = P.multRacha(2) === 1 && P.multRacha(3) === 1.2 && P.multRacha(12) === 3;
-  console.log(`  oculto <3, ×1.2 al 3º, ×3 tope: ${ok ? 'OK ✓' : 'NO ✗'}`);
+  const ok = P.multRacha(1) === 1 && P.multRacha(2) === 1.5 && P.multRacha(12) === 5;
+  console.log(`  oculto sólo en el 1º, ×1.5 al 2º, ×5 tope: ${ok ? 'OK ✓' : 'NO ✗'}`);
+  if (!ok) process.exit(1);
 }
 console.log('\n  Todo canvas puro (fillText/fillRect/shadowBlur/scale) — sin librerías. OK ✓');
 

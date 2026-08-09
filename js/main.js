@@ -1406,7 +1406,7 @@
     REBOTE_MS: 180,             // v3.4 (CAMBIO 4) — duración del rebote de aparición (breve, discreto)
     REBOTE_OVER: 1.70158,       // v3.4 (CAMBIO 4) — sobrepaso del easeOutBack → escala máx ≈ 1.10 (+10%)
     SALIDA_MS: 140,             // v3.4 (CAMBIO 4.5) — fundido de salida (sólo opacidad; sin color ni anillo)
-    MAX_RELAMPAGOS: 3,          // cupo de relámpagos vivos (tope conservado, 3.4)
+    MAX_RELAMPAGOS: 5,          // v3.4 (CAMBIO 3.2) — sube de 3 a 5 para que el ritmo (270 ms) se note
     MAX_EN_PANTALLA: 6,          // (heredado; el spawn de Pushcloude lo gobierna spawnPush)
     MAX_VIVOS: 16,               // tope duro de dibujo (seguridad)
     SPAWN_GAP_MAX: 420,          // (heredado)

@@ -18,17 +18,17 @@ console.log('=== PURO — Toque al CENTRO: 200 × racha, sube la racha (misma pr
   const m = PU.crearMarcador();
   const r1 = PU.anotarCentro(m);
   chk('1.er centro: 200×1, racha 1', r1.ganancia === 200 && r1.mult === 1 && m.racha === 1 && m.puntos === 200);
-  PU.anotarCentro(m); // racha 2 (×1)
-  const r3 = PU.anotarCentro(m); // racha 3 → ×1.2
-  chk('3.er centro: 200×1.2 = 240 (progresión de Hitcloude)', r3.mult === P.multRacha(3) && r3.ganancia === Math.round(200 * P.multRacha(3)));
-  chk('la racha usa EXACTAMENTE P.multRacha (una sola economía, 3.6)', PU.multRacha(5) === P.multRacha(5) && PU.multRacha(22) === P.multRacha(22));
+  PU.anotarCentro(m); // racha 2 (×1.5)
+  const r3 = PU.anotarCentro(m); // racha 3 → ×2.0
+  chk('3.er centro: 200×2.0 = 400 (progresión de Hitcloude, CAMBIO 2)', r3.mult === P.multRacha(3) && r3.ganancia === Math.round(200 * P.multRacha(3)));
+  chk('la racha usa EXACTAMENTE P.multRacha (una sola economía, 3.6)', PU.multRacha(5) === P.multRacha(5) && PU.multRacha(9) === P.multRacha(9));
 }
 
-console.log('=== PURO — La racha llega a ×5 con la misma progresión que Hitcloude (3.6) ===');
+console.log('=== PURO — La racha llega a ×5 al 9º centro, misma progresión que Hitcloude (3.6) ===');
 {
   const m = PU.crearMarcador();
-  for (let i = 0; i < 22; i++) PU.anotarCentro(m);
-  chk('a los 22 centros seguidos, ×5 (tope, como Hitcloude)', PU.multRacha(m.racha) === 5 && PU.RACHA_TOPE === 5);
+  for (let i = 0; i < 9; i++) PU.anotarCentro(m);
+  chk('a los 9 centros seguidos, ×5 (tope, como Hitcloude)', PU.multRacha(m.racha) === 5 && PU.RACHA_TOPE === 5);
   for (let i = 0; i < 10; i++) PU.anotarCentro(m);
   chk('no supera ×5', PU.multRacha(m.racha) === 5);
 }
@@ -213,7 +213,25 @@ console.log('=== v3.5 CAMBIO 3 — Más ritmo: ≥270 ms entre apariciones, regu
   })());
   chk('FUENTE: SPAWN_MIN = 270 ms, un solo sitio', /SPAWN_MIN: 270,/.test(main));
   chk('FUENTE: la condición del 60% de recorrido se ELIMINÓ de spawnPush (nada recorre, 3.2)', !/ultNormal\.__cruce >= PUSH\.SEP_RECORRIDO/.test(main));
-  chk('FUENTE: los topes de vivos se conservan (MAX_RELAMPAGOS 3, 3.4)', /MAX_RELAMPAGOS: 3,/.test(main));
+  chk('FUENTE: MAX_RELAMPAGOS sube a 5 (CAMBIO 3.2) para que el ritmo se note', /MAX_RELAMPAGOS: 5,/.test(main));
+}
+
+console.log('=== v3.4 CAMBIO 3.2/3.3 — El tope permite 5 y CABEN 5 sin solaparse en la banda del 45% ===');
+{
+  // El cupo es 5. Espacialmente: la banda del 45% central × todo el ancho tiene sitio de sobra para 5
+  // relámpagos sin solaparse (min. distancia entre centros = (radio+radio)·SEP_FACTOR, radio 40 → 92 px).
+  chk('FUENTE: MAX_RELAMPAGOS = 5', /MAX_RELAMPAGOS: 5,/.test(main));
+  const H = 600, W = 800, BARRA = 58, BF = 0.45, radio = Math.max(7, 6) * 4 + 12, SEP = 1.15;
+  const rRot = Math.hypot(7 * 4, 6 * 4), margen = (1 - BF) / 2;
+  const top = Math.max(H * margen, BARRA) + rRot, bot = H * (1 - margen) - rRot;
+  const left = rRot, right = W - rRot;
+  const minD = (radio + radio) * SEP;                         // misma regla que pushSolapa
+  const columnas = Math.floor((right - left) / minD) + 1;     // cuántos caben en una fila de la banda
+  chk('CABEN 5 sin solaparse (una sola fila de la banda ya alcanza): columnas ≥ 5', columnas >= 5 && (bot - top) > 0);
+  // Verificación constructiva: 5 posiciones a min. distancia dentro de la banda.
+  const xs = []; for (let k = 0; k < 5; k++) xs.push(left + k * minD);
+  let ok5 = xs[4] <= right; for (let a = 0; a < 5; a++) for (let b = a + 1; b < 5; b++) if (Math.abs(xs[a] - xs[b]) < minD - 1e-6) ok5 = false;
+  chk('5 posiciones a ≥92 px caben dentro del ancho de la banda', ok5);
 }
 
 console.log('=== FUENTE — Rojo reinicia puntos/racha/ciclo/reloj; sólo el tiempo guarda récord; sin envío ===');
@@ -237,19 +255,19 @@ console.log('=== CAMBIO 5 — RELÁMPAGO: quieto 400 ms, 200 en cualquier punto,
   chk('FUENTE: el relámpago dura RELAMP_MS=800 y caduca sin castigo (splice, no anotarFallo, 5.2/5.4)', /RELAMP_MS: 800,/.test(main) && /if \(targets\[i\]\.relampago && now >= targets\[i\]\.__muereEn\) \{ targets\[i\]\.viva = false; targets\.splice\(i, 1\); \}/.test(main));
   chk('FUENTE: la velocidad de cruce se DUPLICA (v3.2 CAMBIO 3): VEL_PX = 0.416 = 0.208 × 2, en un solo sitio', /VEL_PX: 0\.416,/.test(main) && /0\.208 × 2 =[\s\S]{0,20}0\.416/.test(main) && (main.match(/VEL_PX:/g) || []).length === 1);
 
-  // 200 EN CUALQUIER PUNTO + la racha sube igual que un centro: tres relámpagos seguidos → 200+200+240.
+  // 200 EN CUALQUIER PUNTO + la racha sube igual que un centro (CAMBIO 2): 200×1 + 200×1.5 + 200×2 = 900.
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
   const r1 = traerAlCentro(app, 'relampago'); if (r1) app.disparar(422, 300); // toque FUERA del centro exacto
   chk('tocar un relámpago fuera del centro da 200 (vale en cualquier punto, 5.3)', !!r1 && score(app) === '200');
   const r2 = traerAlCentro(app, 'relampago'); if (r2) app.disparar(400, 300);
   const r3 = traerAlCentro(app, 'relampago'); if (r3) app.disparar(378, 300);
-  chk('la racha sube como un centro: 200+200+240 = 640 (misma progresión, 5.3)', !!r2 && !!r3 && score(app) === '640');
+  chk('la racha sube como un centro: 200×1 + 200×1.5 + 200×2 = 900 (nueva progresión, 5.3)', !!r2 && !!r3 && score(app) === '900');
 
-  // NO tocarlo: ni castiga ni rompe la racha. Con racha 3 (640), dejar caducar relámpagos y seguir.
+  // NO tocarlo: ni castiga ni rompe la racha. Con racha 3 (900), dejar caducar relámpagos y seguir.
   for (let i = 0; i < 60; i++) app.step(16); // ~960 ms sin tocar (> 800 de vida): los relámpagos caducan solos
-  chk('dejar caducar relámpagos NO resta puntos (no es un fallo, 5.4)', score(app) === '640');
+  chk('dejar caducar relámpagos NO resta puntos (no es un fallo, 5.4)', score(app) === '900');
   const r4 = traerAlCentro(app, 'relampago'); if (r4) app.disparar(400, 300);
-  chk('la racha se conservó pese a las caducidades: siguiente centro ×1.4 = 280 → 920 (5.4)', !!r4 && score(app) === '920');
+  chk('la racha se conservó pese a las caducidades: siguiente centro ×2.5 = 500 → 1400 (5.4)', !!r4 && score(app) === '1400');
 }
 
 console.log('=== v3.4 CAMBIO 2 — TODO es relámpago; algunos son ROJOS; nada bajo la barra ni encimado ===');

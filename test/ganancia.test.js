@@ -26,8 +26,8 @@ console.log('\n=== Impacto parcial: n cubos → n×5 (×racha) ===');
 
 console.log('\n=== El multiplicador de racha amplifica la ganancia ===');
 {
-  const m = P.crearMarcador(); m.racha = 3;        // ×1.2
-  chk('20 cubos con racha 3 → +120 (100 ×1.2)', P.anotarDestruidos(m, 20) === 120);
+  const m = P.crearMarcador(); m.racha = 3;        // ×2.0 (CAMBIO 2)
+  chk('20 cubos con racha 3 → +200 (100 ×2.0)', P.anotarDestruidos(m, 20) === 200);
   const m2 = P.crearMarcador(); m2.racha = 100;    // tope ×5 (CAMBIO 2)
   chk('20 cubos con racha enorme → +500 (tope ×5)', P.anotarDestruidos(m2, 20) === 500);
 }

@@ -14,6 +14,14 @@
 
   const versiones = [
     {
+      version: '3.4', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'El multiplicador ahora llega a cinco mucho antes' },
+        { texto: 'En Pushcloude los objetivos aparecen concentrados en el centro' },
+        { texto: 'Más objetivos a la vez y más ritmo' },
+      ],
+    },
+    {
       version: '3.3', fecha: '3 de agosto',
       puntos: [
         { texto: 'Pushcloude ahora es puro reflejo: los objetivos aparecen y se van' },

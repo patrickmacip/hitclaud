@@ -2,24 +2,25 @@
 
 const P = require('../js/puntuacion.js');
 
-console.log(`Curva: ×1 hasta el 2º hit; desde el ${P.RACHA_DESDE}º +0.2/hit, tope ×${P.RACHA_TOPE}.`);
+console.log(`Curva: ×1 hasta el 1º hit; desde el ${P.RACHA_DESDE}º +0.5/hit, tope ×${P.RACHA_TOPE} al 9º.`);
 
-console.log('\n=== Multiplicador desde el 3er hit (CAMBIO 2: tope ×5, tramo bajo intacto) ===');
-[1, 2, 3, 4, 5, 12, 20, 22, 100].forEach(function (r) {
+console.log('\n=== Multiplicador: medio punto por golpe desde el 1º (CAMBIO 2: ×5 al 9º hit) ===');
+[1, 2, 3, 4, 5, 8, 9, 10, 100].forEach(function (r) {
   console.log(`  racha ${r} → ×${P.multRacha(r).toFixed(2)}`);
 });
 {
-  // El tramo bajo NO cambió (3º ×1.2, 4º ×1.4); el techo subió a ×5, que se alcanza al 22º hit
-  // (1 + (22-2)·0.2 = 5.0) y no se supera. racha 12 sigue en ×3.0 (ya no es el tope, es de paso).
-  const ok = P.multRacha(1) === 1 && P.multRacha(2) === 1 && P.multRacha(3) === 1.2 && P.multRacha(4) === 1.4 &&
-    P.multRacha(12) === 3 && P.multRacha(20) === 4.6 && P.multRacha(22) === 5 && P.multRacha(100) === 5;
-  console.log(`  3º=×1.2, 4º=×1.4, ×5 al 22º hit y no lo pasa: ${ok ? 'OK ✓' : 'NO ✗'}`);
+  // Medio punto por golpe empezando en el primero: racha 1 → ×1.0, racha 2 → ×1.5 … racha 9 → ×5.0
+  // (1 + (9-1)·0.5 = 5.0) y no se supera. racha 8 → ×4.5 (aún no tope).
+  const ok = P.multRacha(1) === 1 && P.multRacha(2) === 1.5 && P.multRacha(3) === 2 && P.multRacha(4) === 2.5 &&
+    P.multRacha(5) === 3 && P.multRacha(8) === 4.5 && P.multRacha(9) === 5 && P.multRacha(100) === 5;
+  console.log(`  1º=×1.0, 2º=×1.5, 3º=×2.0, ×5 al 9º hit y no lo pasa: ${ok ? 'OK ✓' : 'NO ✗'}`);
+  if (!ok) process.exit(1);
 }
 
 console.log('\n=== El multiplicador aplica a la ganancia (después del tramo) ===');
 {
   const m = P.crearMarcador();
-  m.puntos = 30000; m.racha = 5; // ×1.6
+  m.puntos = 30000; m.racha = 5; // ×3.0
   const g = P.anotarDestruidos(m, 1);
   const esperado = Math.round(1 * P.valorCubo(30000) * P.multRacha(5));
   console.log(`  1 cubo a 30k con racha 5 (×${P.multRacha(5)}) → +${g} (=${esperado})  ${g === esperado ? 'OK ✓' : 'NO ✗'}`);

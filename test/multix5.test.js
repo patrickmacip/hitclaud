@@ -13,15 +13,15 @@ function chk(n, c) { console.log(`  ${n}  ${c ? 'OK ✓' : 'NO ✗'}`); if (c) o
 
 console.log('=== El tope del multiplicador es ×5 y no se supera (2.1) ===');
 {
-  chk('RACHA_TOPE = 5.0 (subió de 3.0)', P.RACHA_TOPE === 5.0);
-  chk('el multiplicador nunca pasa de ×5 (racha enorme)', P.multRacha(1000) === 5 && P.multRacha(22) === 5);
-  chk('llega EXACTAMENTE a ×5 en el 22º hit y no antes (21º < 5)', P.multRacha(22) === 5 && P.multRacha(21) < 5);
+  chk('RACHA_TOPE = 5.0', P.RACHA_TOPE === 5.0);
+  chk('el multiplicador nunca pasa de ×5 (racha enorme)', P.multRacha(1000) === 5 && P.multRacha(9) === 5);
+  chk('llega EXACTAMENTE a ×5 en el 9º hit y no antes (8º < 5)', P.multRacha(9) === 5 && P.multRacha(8) < 5);
 }
 
-console.log('=== Progresión ganada, no regalada: el tramo bajo NO cambió (2.2) ===');
+console.log('=== Medio punto por golpe desde el primero (CAMBIO 2, v3.4) ===');
 {
-  chk('×1 hasta el 2º hit', P.multRacha(1) === 1 && P.multRacha(2) === 1);
-  chk('3º ×1.2, 4º ×1.4, 5º ×1.6 (mismo paso +0.2 de antes)', P.multRacha(3) === 1.2 && P.multRacha(4) === 1.4 && P.multRacha(5) === 1.6);
+  chk('×1 sólo en el 1º hit; el 2º ya sube (×1.5)', P.multRacha(1) === 1 && P.multRacha(2) === 1.5);
+  chk('3º ×2.0, 4º ×2.5, 5º ×3.0 (medio punto por golpe)', P.multRacha(3) === 2 && P.multRacha(4) === 2.5 && P.multRacha(5) === 3);
   // Monótona y creciente hasta el tope: cada hit sube o mantiene, nunca baja.
   let creceOk = true; for (let r = 1; r <= 30; r++) if (P.multRacha(r + 1) < P.multRacha(r)) creceOk = false;
   chk('la curva sólo sube hasta ×5 (monótona)', creceOk);
