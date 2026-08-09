@@ -165,31 +165,35 @@ console.log('=== CAMBIO 1/2 — El hitmaker NO se dibuja en Pushcloude (sí en H
   chk('jugando Hitcloude: <html> NO tiene juego-push (el hitmaker se dibuja)', !hit.document.documentElement.classList.contains('juego-push'));
 }
 
-console.log('=== v3.4 CAMBIO 1 — Nada se mueve: todo quieto, entero dentro del ancho, nada bajo la barra ===');
+console.log('=== v3.5 — Todo quieto, dentro del 45% central, entero en el ancho, nada bajo la barra ===');
 {
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
-  const W = app.window.innerWidth;                   // 800 en el arnés
+  const W = app.window.innerWidth, H = app.window.innerHeight; // 800×600 en el arnés
   const rRot = Math.hypot(7 * 4, 6 * 4);             // radio rotación-seguro (igual que la fuente)
-  const barra = 58;
-  let quietos = 0, movidos = 0, fueraAncho = 0, bajoBarra = 0, vistos = 0;
+  const barra = 58, margen = (1 - 0.45) / 2;         // 45% central → 0.275 arriba/abajo
+  const bandaTop = H * margen, bandaBot = H * (1 - margen);
+  let quietos = 0, movidos = 0, fueraAncho = 0, bajoBarra = 0, fuera45 = 0, vistos = 0;
   for (let i = 0; i < 500; i++) {
     app.step(16);
     app._cap.caps.forEach(function (t) {
       if (!t.__enJuego || t.viva === false || !t.haEntrado || t.x < -9000 || Math.abs(t.x) > 99000) return;
       vistos++;
-      if (t.vx === 0 && t.vy === 0) quietos++; else movidos++;               // 1.3: TODO aparece quieto
-      if (t.x - rRot < -0.5 || t.x + rRot > W + 0.5) fueraAncho++;           // 5.7: entero dentro del ancho, ni rotado
-      if (t.y - rRot < barra - 0.5) bajoBarra++;                             // 5.5: nada bajo la franja de la barra
+      if (t.vx === 0 && t.vy === 0) quietos++; else movidos++;               // TODO aparece quieto
+      if (t.x - rRot < -0.5 || t.x + rRot > W + 0.5) fueraAncho++;           // 4: entero dentro del ancho, ni rotado
+      if (t.y - rRot < barra - 0.5) bajoBarra++;                             // 4: nada bajo la franja de la barra
+      if (t.y - rRot < bandaTop - 0.5 || t.y + rRot > bandaBot + 0.5) fuera45++; // 1: dentro del 45% central
     });
   }
   chk('se observaron objetivos en juego', vistos > 20);
-  chk('NADA se mueve: todos vx/vy 0 (1.3, sólo relámpagos quietos)', quietos > 0 && movidos === 0);
-  chk('NINGÚN objetivo asoma fuera del ancho, ni rotado (5.7/2.4)', fueraAncho === 0);
-  chk('NINGÚN objetivo aparece bajo la franja de la barra (5.5)', bajoBarra === 0);
+  chk('NADA se mueve: todos vx/vy 0 (sólo relámpagos quietos)', quietos > 0 && movidos === 0);
+  chk('NINGÚN objetivo aparece fuera del 45% CENTRAL de la altura (CAMBIO 1)', fuera45 === 0);
+  chk('NINGÚN objetivo asoma fuera del ancho, ni rotado (2/4)', fueraAncho === 0);
+  chk('NINGÚN objetivo aparece bajo la franja de la barra (4)', bajoBarra === 0);
+  chk('FUENTE: la franja de aparición usa el 45% central (BANDA_FRAC 0.45) centrado', /BANDA_FRAC: 0\.45,/.test(main) && /const margen = \(1 - PUSH\.BANDA_FRAC\) \/ 2;/.test(main) && /const top = Math\.max\(H \* margen, PUSH\.BARRA_PX\) \+ rRot;/.test(main) && /const bot = H \* \(1 - margen\) - rRot;/.test(main));
   chk('FUENTE: spawnPush sólo intenta RELÁMPAGO (no llama a intentarNormal)', /function spawnPush[\s\S]{0,900}intentarRelampago\(now\)/.test(main) && !/function spawnPush[\s\S]{0,900}intentarNormal\(/.test(main));
 }
 
-console.log('=== v3.4 CAMBIO 3 — La mitad del tiempo de espera: ≥450 ms, ritmo regular, sin condición de recorrido ===');
+console.log('=== v3.5 CAMBIO 3 — Más ritmo: ≥270 ms entre apariciones, regular, sin condición de recorrido ===');
 {
   const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
   const naceVistos = [];
@@ -201,13 +205,13 @@ console.log('=== v3.4 CAMBIO 3 — La mitad del tiempo de espera: ≥450 ms, rit
   let minGap = Infinity;
   for (let k = 1; k < naceVistos.length; k++) minGap = Math.min(minGap, naceVistos[k] - naceVistos[k - 1]);
   chk('hubo varias apariciones', naceVistos.length > 8);
-  chk('entre dos apariciones pasan al menos 450 ms = la mitad de 900 (3.1)', minGap >= 450);
-  chk('el ritmo es REGULAR (no ráfagas): casi todas las esperas rondan los 450 ms (3.3)', (function () {
+  chk('entre dos apariciones pasan al menos 270 ms (baja de 450 a 270, CAMBIO 3)', minGap >= 270);
+  chk('el ritmo es REGULAR (no ráfagas): ninguna espera se dispara (3)', (function () {
     let irregulares = 0;
     for (let k = 1; k < naceVistos.length; k++) { const g = naceVistos[k] - naceVistos[k - 1]; if (g > 900) irregulares++; }
     return irregulares <= 1;
   })());
-  chk('FUENTE: SPAWN_MIN = 450 ms (la mitad de 900), un solo sitio', /SPAWN_MIN: 450,/.test(main));
+  chk('FUENTE: SPAWN_MIN = 270 ms, un solo sitio', /SPAWN_MIN: 270,/.test(main));
   chk('FUENTE: la condición del 60% de recorrido se ELIMINÓ de spawnPush (nada recorre, 3.2)', !/ultNormal\.__cruce >= PUSH\.SEP_RECORRIDO/.test(main));
   chk('FUENTE: los topes de vivos se conservan (MAX_RELAMPAGOS 3, 3.4)', /MAX_RELAMPAGOS: 3,/.test(main));
 }

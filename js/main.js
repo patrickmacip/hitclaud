@@ -1384,6 +1384,7 @@
     VEL_VARIA: [{ mult: 1.0, prob: 0.6 }, { mult: 1.2, prob: 0.3 }, { mult: 1.4, prob: 0.1 }],
     DERIVA_TAN: 0.4,             // v3.3 (CAMBIO 1.2) — deriva lateral máx durante la caída: tan(≈22°) del vy (no lluvia recta)
     BARRA_PX: 58,                // v3.3 (CAMBIO 1.3) — alto de la franja de la barra (= --barra-alto): nacen DEBAJO
+    BANDA_FRAC: 0.45,            // v3.5 (CAMBIO 1) — FRANJA de aparición: 45% CENTRAL de la altura (arriba/abajo libres)
     ROJO_FACTOR: 0.6,            // (heredado; el spawn de Pushcloude usa P_ROJO — ver spawnPush)
     P_ROJO: 0.28,               // prob. de que un target sea ROJO. v3.4 (CAMBIO 2): ahora se aplica a los RELÁMPAGO
     //                             (los rojos también son relámpago). Frecuencia CONSERVADA: misma P_ROJO y mismo tope.
@@ -1392,7 +1393,7 @@
     // revertir este commit los reactive; ver lanzarPush/intentarNormal, aún definidos pero no llamados).
     SEP_RECORRIDO: 0.6,          // (v3.4: SIN USO — nada recorre; se elimina la condición en spawnPush, 3.2)
     MAX_NORMALES: 3,             // (v3.4: SIN USO — ya no se generan normales; ver intentarNormal, sin llamar)
-    SPAWN_MIN: 450,              // v3.4 (CAMBIO 3.1) — ms mínimos entre apariciones = LA MITAD de 900. Ritmo regular
+    SPAWN_MIN: 270,              // v3.5 (CAMBIO 3) — ms mínimos entre apariciones (baja de 450 a 270). Ritmo regular
     SPAWN_REINTENTO: 120,        // ms para reintentar si un intento no cupo sin solaparse (3.3)
     // CAMBIO 3 (v3.1) — SIN CRUCES: antes de soltar, se comprueba que no se solape con los vivos; si se
     // solapa, se reintenta hasta INTENTOS veces; si ninguno cabe, se pospone. SEP_FACTOR = margen extra.
@@ -1746,9 +1747,10 @@
   // Intenta colocar un RELÁMPAGO quieto en la zona de juego, sin solaparse ni bajo la barra (5.5).
   function intentarRelampago(now) {
     const rRot = Math.hypot(PUSH.COLS * 4, PUSH.FILAS * 4); // radio rotación-seguro (2.3/2.4)
-    const top = PUSH.BARRA_PX + rRot;                       // debajo de la franja de la barra (1.3/5.5)
-    const bot = H - rRot;                                   // 2.3: la forma entera dentro de la pantalla
-    const left = rRot, right = W - rRot;
+    const margen = (1 - PUSH.BANDA_FRAC) / 2;               // v3.5 — 45% central → 0.275 arriba/abajo libres
+    const top = Math.max(H * margen, PUSH.BARRA_PX) + rRot; // forma entera dentro del 45% central y BAJO la barra (5.5)
+    const bot = H * (1 - margen) - rRot;                    // la forma entera dentro de la banda (y de la pantalla)
+    const left = rRot, right = W - rRot;                    // el ANCHO no cambia (2): todo el ancho con margen rRot
     // CAMBIO 2 — los ROJOS también son relámpago. Frecuencia CONSERVADA: misma P_ROJO y mismo tope que
     // antes (rojos ≤ no-rojos vivos), sólo que ahora nacen quietos. Su color/aspecto no cambian y su
     // función tampoco: tocar un rojo REINICIA la partida (lo enruta aplastar → reinicioPorRojoPush).
