@@ -14,6 +14,12 @@
 
   const versiones = [
     {
+      version: '3.6', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Siempre aparece un objetivo bueno al que apuntar' },
+      ],
+    },
+    {
       version: '3.5', fecha: '3 de agosto',
       puntos: [
         { texto: 'Llega un objetivo nuevo: la equis te corta la racha' },

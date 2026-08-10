@@ -221,7 +221,7 @@ console.log('=== v3.5 — Todo quieto, dentro del 45% central, entero en el anch
   chk('NINGÚN objetivo asoma fuera del ancho, ni rotado (2/4)', fueraAncho === 0);
   chk('NINGÚN objetivo aparece bajo la franja de la barra (4)', bajoBarra === 0);
   chk('FUENTE: la franja de aparición usa el 45% central (BANDA_FRAC 0.45) centrado', /BANDA_FRAC: 0\.45,/.test(main) && /const margen = \(1 - PUSH\.BANDA_FRAC\) \/ 2;/.test(main) && /const top = Math\.max\(H \* margen, PUSH\.BARRA_PX\) \+ rRot;/.test(main) && /const bot = H \* \(1 - margen\) - rRot;/.test(main));
-  chk('FUENTE: spawnPush sólo intenta RELÁMPAGO (no llama a intentarNormal)', /function spawnPush[\s\S]{0,900}intentarRelampago\(now\)/.test(main) && !/function spawnPush[\s\S]{0,900}intentarNormal\(/.test(main));
+  chk('FUENTE: spawnPush llama a intentarAparicion (no a intentarNormal)', /function spawnPush[\s\S]{0,900}intentarAparicion\(now\)/.test(main) && !/function spawnPush[\s\S]{0,900}intentarNormal\(/.test(main));
 }
 
 console.log('=== v3.5 CAMBIO 3 — Más aire: ≥450 ms entre apariciones y ≥2 anchos de separación ===');
@@ -239,7 +239,7 @@ console.log('=== v3.5 CAMBIO 3 — Más aire: ≥450 ms entre apariciones y ≥2
   chk('entre dos apariciones pasan al menos 450 ms (sube de 270 a 450, CAMBIO 3.1)', minGap >= 450);
   chk('FUENTE: SPAWN_MIN = 450 ms, un solo sitio', /SPAWN_MIN: 450,/.test(main));
   chk('FUENTE: separación mínima = SEP_ANCHOS anchos de target (CAMBIO 3.2), un solo sitio', /SEP_ANCHOS: 2,/.test(main) && /const minD = PUSH\.SEP_ANCHOS \* \(PUSH\.COLS \* 8\);/.test(main));
-  chk('FUENTE: MAX_RELAMPAGOS sigue en 5', /MAX_RELAMPAGOS: 5,/.test(main));
+  chk('FUENTE: MAX_RELAMPAGOS sube a 8 (cabe una aparición de 3 targets, punto 7)', /MAX_RELAMPAGOS: 8,/.test(main));
 }
 
 console.log('=== v3.5 CAMBIO 3.2 — Dos targets nunca nacen a menos de DOS ANCHOS de distancia ===');
@@ -322,9 +322,10 @@ console.log('=== v3.4 CAMBIO 2 — TODO es relámpago; algunos son ROJOS; nada b
   chk('ALGUNOS relámpagos son ROJOS (los rojos también son relámpago, 2.1)', relRojo > 0);
   chk('NINGÚN relámpago aparece bajo la barra (5.5)', relBajoBarra === 0);
   chk('NINGÚN relámpago aparece encimado a otro (5.6)', relSolapado === 0);
-  chk('FUENTE: intentarRelampago pide UN tipo (sortearTipoPush) y verifica no-solape antes de soltar', /const tipo = sortearTipoPush\(\);/.test(main) && /if \(tipo === 'rojo'\) t\.rojo = true;/.test(main) && /else if \(tipo === 'equis'\) t\.equis = true;/.test(main) && /if \(!pushSolapa\(t, PUSH\.RELAMP_MS, now\)\) \{ t\.__enJuego = true; targets\.push\(t\); return true; \}/.test(main));
-  chk('FUENTE: probabilidades del sorteo (veto de Pat): rojo 0.15, equis 0.20, naranja el resto', /P_ROJO: 0\.15,/.test(main) && /P_EQUIS: 0\.20,/.test(main));
-  chk('FUENTE: el sorteo respeta el tope de rojos (no dominan) y corta rachas largas (2.2/2.4)', /const puedeRojo = rojosVivos < otrosVivos;/.test(main) && /if \(tipo === 'rojo' && !puedeRojo\) tipo = 'naranja';/.test(main) && /pushUltimoTipo && pushRunTipo >= 2/.test(main));
+  chk('FUENTE: cada aparición pone SIEMPRE el naranja primero (prioridad) y acompañantes independientes', /if \(!colocarUnoPush\(now, 'naranja'\)\) return false;/.test(main) && /if \(Math\.random\(\) < PUSH\.P_EQUIS\) colocarUnoPush\(now, 'equis'\);/.test(main) && /if \(Math\.random\(\) < PUSH\.P_ROJO && rojosVivos < otrosVivos\) colocarUnoPush\(now, 'rojo'\);/.test(main));
+  chk('FUENTE: colocarUnoPush respeta el tope de vivos y verifica no-solape antes de soltar', /if \(contarRelampVivos\(\) >= PUSH\.MAX_RELAMPAGOS\) return false;/.test(main) && /if \(!pushSolapa\(t, PUSH\.RELAMP_MS, now\)\) \{ t\.__enJuego = true; targets\.push\(t\); return true; \}/.test(main));
+  chk('FUENTE: probabilidades de acompañante (veto de Pat): rojo 0.15, equis 0.20 (independientes)', /P_ROJO: 0\.15,/.test(main) && /P_EQUIS: 0\.20,/.test(main));
+  chk('FUENTE: el rojo respeta su tope (no domina) y el naranja igual sale', /if \(Math\.random\(\) < PUSH\.P_ROJO && rojosVivos < otrosVivos\)/.test(main));
 }
 
 console.log('=== CAMBIO 5.4 — El relámpago se ve IGUAL que un normal: sin color propio ni anillo ===');
@@ -410,6 +411,57 @@ console.log('=== v3.5 CAMBIO 4 — La META se cumple UNA sola vez: antes reinici
   for (let i = 0; i < 1200; i++) app2.step(16);    // ~19 s sin tocar: si los ciclos volvieran, reiniciarían
   chk('cumplida la meta, el jugador ACUMULA LIBRE: los puntos NO se reinician (4.2/4.4)', score(app2) === '1400');
   chk('FUENTE: la meta es una sola vez (pushMetaLograda) y el contador DESAPARECE al lograrla (4.2)', /if \(pushMetaLograda \|\| pushEspera\) return;/.test(main) && /!pushMetaLograda\) \{/.test(main) && /pushMetaLograda = true;/.test(main));
+}
+
+console.log('=== v3.6 — CADA aparición trae SIEMPRE un naranja bueno (+ quizá equis y/o rojo) ===');
+{
+  // Agrupa por __nace: naranja y acompañantes de una misma aparición comparten el instante de nacimiento.
+  const aps = [];
+  for (let g = 0; g < 2; g++) {                        // dos partidas de ~57 s → ≥200 apariciones
+    const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
+    const grupos = {};
+    for (let i = 0; i < 3500; i++) {
+      app.step(16);
+      app._cap.caps.forEach(function (t) {
+        if (!t.__enJuego || t.__borde === 'espera') return;
+        const k = String(t.__nace);
+        (grupos[k] = grupos[k] || new Set()).add(t);
+      });
+    }
+    Object.keys(grupos).forEach(function (k) {
+      let naranja = 0, equis = 0, rojo = 0;
+      grupos[k].forEach(function (t) { if (t.rojo) rojo++; else if (t.equis) equis++; else naranja++; });
+      aps.push({ naranja: naranja, equis: equis, rojo: rojo });
+    });
+  }
+  chk('se simularon ≥200 apariciones', aps.length >= 200);
+  chk('TODAS las apariciones traen EXACTAMENTE un naranja bueno (V3)', aps.every(function (a) { return a.naranja === 1; }));
+  chk('NUNCA hay una aparición sin naranja (4)', aps.filter(function (a) { return a.naranja === 0; }).length === 0);
+  const solo = aps.filter(function (a) { return a.equis === 0 && a.rojo === 0; }).length;
+  const conE = aps.filter(function (a) { return a.equis > 0 && a.rojo === 0; }).length;
+  const conR = aps.filter(function (a) { return a.equis === 0 && a.rojo > 0; }).length;
+  const conAmbos = aps.filter(function (a) { return a.equis > 0 && a.rojo > 0; }).length;
+  console.log('  casos: solo=' + solo + ', +equis=' + conE + ', +rojo=' + conR + ', +ambos=' + conAmbos + ' (de ' + aps.length + ')');
+  chk('OCURREN los CUATRO casos: solo / +equis / +rojo / +ambos (2/3)', solo > 0 && conE > 0 && conR > 0 && conAmbos > 0);
+  chk('la mayoría son solo-naranja; los acompañantes ensucian sin dominar', solo > conE && solo > conR && solo > conAmbos);
+}
+
+console.log('=== v3.6 — El tope de rojos se respeta y el naranja tiene PRIORIDAD de sitio ===');
+{
+  const app = appPush(); app.irAJuego('pushclaud'); app.jugar('60');
+  let violaTope = 0;
+  for (let i = 0; i < 2000; i++) {
+    app.step(16);
+    let rojos = 0, otros = 0;
+    app._cap.caps.forEach(function (t) {
+      if (!t.__enJuego || t.viva === false || !t.haEntrado || t.__borde === 'espera' || t.x < -9000) return;
+      if (t.rojo) rojos++; else otros++;
+    });
+    if (rojos > otros) violaTope++;   // el naranja siempre presente ⇒ otros ≥ rojos
+  }
+  chk('el tope de rojos se respeta: nunca hay más rojos que no-rojos vivos (5)', violaTope === 0);
+  chk('FUENTE: el NARANJA se coloca PRIMERO; si no cabe, se pospone TODO (nunca al revés, 6)', /if \(!colocarUnoPush\(now, 'naranja'\)\) return false;[\s\S]{0,260}colocarUnoPush\(now, 'equis'\)/.test(main));
+  chk('FUENTE: se subió MAX_RELAMPAGOS a 8 para que quepan apariciones de 3 targets (7)', /MAX_RELAMPAGOS: 8,/.test(main));
 }
 
 console.log(`\n== RESUMEN pushcloude: ${ok} OK, ${ko} NO ==`);

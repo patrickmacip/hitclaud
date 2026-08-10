@@ -249,7 +249,7 @@
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; bonos.length = 0; disparos.length = 0; multAnterior = 1;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null; sacudidaCloudover = null;
     pushReset = null; pushCicloBase = 0; pushCicloRestante = (PU ? PU.CICLO_MS : 15000); pushCicloCumplido = false; pushProxSpawn = performance.now(); pushCountNormal = 0; pushCountRelamp = 0; // ciclo/spawn de Pushcloude
-    pushEspera = false; targetEspera = null; pushMetaLograda = false; pushMetaFlashHasta = 0; equisSacudeHasta = 0; pushUltimoTipo = ''; pushRunTipo = 0; // v3.5 (meta única / espera / equis)
+    pushEspera = false; targetEspera = null; pushMetaLograda = false; pushMetaFlashHasta = 0; equisSacudeHasta = 0; // v3.5 (meta única / espera / equis)
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
     const ahora = performance.now();
@@ -1388,11 +1388,11 @@
     BARRA_PX: 58,                // v3.3 (CAMBIO 1.3) — alto de la franja de la barra (= --barra-alto): nacen DEBAJO
     BANDA_FRAC: 0.45,            // v3.5 (CAMBIO 1) — FRANJA de aparición: 45% CENTRAL de la altura (arriba/abajo libres)
     ROJO_FACTOR: 0.6,            // (heredado; el spawn de Pushcloude usa P_ROJO — ver spawnPush)
-    // v3.5 (CAMBIO 2) — SORTEO ÚNICO de tipo por aparición: naranja, EQUIS o ROJO. Probabilidades (para
-    // veto de Pat): rojo 0.15, equis 0.20, naranja 0.65. Los rojos respetan su tope (no dominan, 2.4) y no
-    // se permiten rachas largas del mismo tipo (anti-racha en sortearTipoPush, 2.2).
-    P_ROJO: 0.15,               // prob. de ROJO (detiene el juego, 5)
-    P_EQUIS: 0.20,              // v3.5 (CAMBIO 1.6) — prob. de EQUIS (rompe la racha, ni suma ni resta)
+    // v3.6 (EL CAMBIO) — cada aparición trae SIEMPRE un NARANJA bueno; equis y rojo son ACOMPAÑANTES
+    // INDEPENDIENTES (ya no hay sorteo de tipo único). Probabilidades por aparición (veto de Pat): equis
+    // 0.20, rojo 0.15 → solo 0.68, +equis 0.17, +rojo 0.12, +ambos 0.03 (el rojo además respeta su tope).
+    P_ROJO: 0.15,               // prob. de que la aparición TRAIGA un rojo (detiene el juego, 5)
+    P_EQUIS: 0.20,              // prob. de que la aparición TRAIGA un equis (rompe la racha, ni suma ni resta)
     SEP_RECORRIDO: 0.6,          // (v3.4: SIN USO — nada recorre; ver lanzarPush/intentarNormal, sin llamar)
     MAX_NORMALES: 3,             // (v3.4: SIN USO — ya no se generan normales; revert-safe)
     SPAWN_MIN: 450,              // v3.5 (CAMBIO 3.1) — ms mínimos entre apariciones (sube de 270 a 450)
@@ -1409,7 +1409,7 @@
     REBOTE_MS: 180,             // v3.4 (CAMBIO 4) — duración del rebote de aparición (breve, discreto)
     REBOTE_OVER: 1.70158,       // v3.4 (CAMBIO 4) — sobrepaso del easeOutBack → escala máx ≈ 1.10 (+10%)
     SALIDA_MS: 140,             // v3.4 (CAMBIO 4.5) — fundido de salida (sólo opacidad; sin color ni anillo)
-    MAX_RELAMPAGOS: 5,          // v3.4 (CAMBIO 3.2) — sube de 3 a 5 para que el ritmo (270 ms) se note
+    MAX_RELAMPAGOS: 8,          // v3.6 (7) — sube de 5 a 8: una aparición trae hasta 3 targets (naranja+equis+rojo)
     MAX_EN_PANTALLA: 6,          // (heredado; el spawn de Pushcloude lo gobierna spawnPush)
     MAX_VIVOS: 16,               // tope duro de dibujo (seguridad)
     SPAWN_GAP_MAX: 420,          // (heredado)
@@ -1525,7 +1525,6 @@
   let pushMetaLograda = false;      // v3.5 (CAMBIO 4) — la meta de 1000 ya se cumplió esta partida (una sola vez)
   let pushMetaFlashHasta = 0;       // destello del logro de la meta (4.5)
   let equisSacudeHasta = 0;         // v3.5 (CAMBIO 1.3) — sacudida media al tocar una EQUIS (menor que el rojo)
-  let pushUltimoTipo = '', pushRunTipo = 0; // anti-racha del sorteo de tipo (2.2)
   let pushProxSpawn = 0;            // timestamp mínimo del próximo intento de spawn de Pushcloude (v3.1)
   let pushCountNormal = 0, pushCountRelamp = 0; // apariciones por tipo → balance ~50/50 (5.1)
   // Cubos de explosión: animación PURA, sin colisión con nada.
@@ -1754,57 +1753,52 @@
     return false;
   }
   // Intenta colocar un RELÁMPAGO quieto en la zona de juego, sin solaparse ni bajo la barra (5.5).
-  function intentarRelampago(now) {
-    const rRot = Math.hypot(PUSH.COLS * 4, PUSH.FILAS * 4); // radio rotación-seguro (2.3/2.4)
-    const margen = (1 - PUSH.BANDA_FRAC) / 2;               // v3.5 — 45% central → 0.275 arriba/abajo libres
-    const top = Math.max(H * margen, PUSH.BARRA_PX) + rRot; // forma entera dentro del 45% central y BAJO la barra (5.5)
-    const bot = H * (1 - margen) - rRot;                    // la forma entera dentro de la banda (y de la pantalla)
-    const left = rRot, right = W - rRot;                    // el ANCHO no cambia (2): todo el ancho con margen rRot
-    const tipo = sortearTipoPush();            // CAMBIO 2 — un solo sorteo: 'naranja' | 'equis' | 'rojo'
+  function contarRelampVivos() { let n = 0; for (let i = 0; i < targets.length; i++) if (targets[i].relampago) n++; return n; }
+  // v3.6 — coloca UN target del `tipo` pedido ('naranja'|'equis'|'rojo') dentro de la banda, sin solaparse
+  // (≥2 anchos entre centros) y bajo el tope de vivos. Hasta INTENTOS posiciones; devuelve true si lo puso.
+  function colocarUnoPush(now, tipo) {
+    if (contarRelampVivos() >= PUSH.MAX_RELAMPAGOS) return false; // tope duro (2.4/7)
+    const rRot = Math.hypot(PUSH.COLS * 4, PUSH.FILAS * 4); // radio rotación-seguro
+    const margen = (1 - PUSH.BANDA_FRAC) / 2;               // 45% central → 0.275 arriba/abajo libres
+    const top = Math.max(H * margen, PUSH.BARRA_PX) + rRot; // forma entera dentro del 45% central y BAJO la barra
+    const bot = H * (1 - margen) - rRot;
+    const left = rRot, right = W - rRot;                    // todo el ancho con margen rRot
     for (let intento = 0; intento < PUSH.INTENTOS; intento++) {
       const t = F.crearTarget({ w: W, h: H }, PUSH.COLS, PUSH.FILAS);
       t.radio = Math.max(PUSH.COLS, PUSH.FILAS) * 4 + 12;
       t.x = left + Math.random() * Math.max(1, right - left);
       t.y = top + Math.random() * Math.max(1, bot - top);
       t.vx = 0; t.vy = 0; t.gravedad = 1e-9; t.rot = 0; t.velRot = 0;
-      t.haEntrado = true; t.relampago = true;   // QUIETO y tocable de inmediato (5.2/4.4)
-      if (tipo === 'rojo') t.rojo = true;        // detiene el juego al tocarlo (5); se distingue por rojo (2.3)
-      else if (tipo === 'equis') t.equis = true; // rompe la racha; naranja MÁS OSCURO con una EQUIS (1.2)
+      t.haEntrado = true; t.relampago = true;   // QUIETO y tocable de inmediato
+      if (tipo === 'rojo') t.rojo = true;        // detiene el juego al tocarlo
+      else if (tipo === 'equis') t.equis = true; // rompe la racha; naranja MÁS OSCURO con una EQUIS
       t.__nace = now; t.__cruce = PUSH.RELAMP_MS; t.__muereEn = now + PUSH.RELAMP_MS; t.__borde = 'relampago';
-      if (!pushSolapa(t, PUSH.RELAMP_MS, now)) { t.__enJuego = true; targets.push(t); return true; }
+      if (!pushSolapa(t, PUSH.RELAMP_MS, now)) { t.__enJuego = true; targets.push(t); return true; } // ≥2 anchos incluso con los recién puestos
     }
     return false;
   }
-  // CAMBIO 2 (v3.5) — SORTEO ÚNICO de tipo por aparición. Probabilidades: rojo P_ROJO, equis P_EQUIS,
-  // naranja el resto. Los ROJOS respetan su tope (rojos ≤ no-rojos vivos, 2.4) → si no puede, va a naranja.
-  // ANTI-RACHA (2.2): no permite 3 seguidos del mismo tipo (si ya van 2 iguales, re-sortea hasta 4 veces).
-  function sortearTipoPush() {
+  // v3.6 (EL CAMBIO) — cada APARICIÓN trae SIEMPRE un NARANJA bueno (prioridad de sitio, nunca se pospone
+  // por sus acompañantes) y, de forma INDEPENDIENTE, quizá un EQUIS (P_EQUIS) y/o un ROJO (P_ROJO, si el
+  // tope de rojos lo permite). Los cuatro casos ocurren: solo / +equis / +rojo / +ambos. Si el naranja no
+  // cabe (banda llena), la aparición se pospone (el naranja igual tiene prioridad sobre los acompañantes).
+  function intentarAparicion(now) {
+    if (!colocarUnoPush(now, 'naranja')) return false;     // el NARANJA primero (6); si no cabe, posponer
+    if (Math.random() < PUSH.P_EQUIS) colocarUnoPush(now, 'equis'); // acompañante independiente (2/3)
     let rojosVivos = 0, otrosVivos = 0;
     for (let i = 0; i < targets.length; i++) { const t = targets[i]; if (!t.relampago) continue; if (t.rojo) rojosVivos++; else otrosVivos++; }
-    const puedeRojo = rojosVivos < otrosVivos;
-    let tipo = 'naranja';
-    for (let intento = 0; intento < 4; intento++) {
-      const r = Math.random();
-      tipo = r < PUSH.P_ROJO ? 'rojo' : (r < PUSH.P_ROJO + PUSH.P_EQUIS ? 'equis' : 'naranja');
-      if (tipo === 'rojo' && !puedeRojo) tipo = 'naranja';   // tope de rojos (2.4)
-      if (!(tipo === pushUltimoTipo && pushRunTipo >= 2)) break; // corta rachas largas (2.2)
-    }
-    if (tipo === pushUltimoTipo) pushRunTipo += 1; else { pushUltimoTipo = tipo; pushRunTipo = 1; }
-    return tipo;
+    if (Math.random() < PUSH.P_ROJO && rojosVivos < otrosVivos) colocarUnoPush(now, 'rojo'); // respeta el tope (5)
+    return true;
   }
   // SPAWN de Pushcloude (reemplaza los gates genéricos): caduca relámpagos, respeta la cadencia mínima,
   // el 1/3 de recorrido del último normal (2.1), el cupo de 3 normales (2.2) y el cupo de relámpagos, y
   // reparte ~mitad relámpago (5.1). Todo sin solaparse (3).
   function spawnPush(now) {
     for (let i = targets.length - 1; i >= 0; i--) { if (targets[i].relampago && now >= targets[i].__muereEn) { targets[i].viva = false; targets.splice(i, 1); } } // caduca 800ms, sin castigo (5.4)
-    if (now < pushProxSpawn) return;                    // CAMBIO 3.1 — piso de 450 ms entre apariciones (SPAWN_MIN)
-    // v3.4 (CAMBIO 1) — TODO lo que aparece es RELÁMPAGO. Ya NO se generan normales que caigan (intentarNormal
-    // queda definido pero SIN LLAMAR → revertir este commit lo reactiva). La condición de "60% del recorrido"
-    // se ELIMINA (CAMBIO 3.2): nada recorre nada; el ritmo lo rige sólo SPAWN_MIN (regular, no ráfagas, 3.3).
-    let relamp = 0;
-    for (let i = 0; i < targets.length; i++) { if (targets[i].relampago) relamp++; }
-    if (relamp < PUSH.MAX_RELAMPAGOS && intentarRelampago(now)) { pushProxSpawn = now + PUSH.SPAWN_MIN; return; } // tope conservado (3.4)
-    pushProxSpawn = now + PUSH.SPAWN_REINTENTO; // no cupo sin solaparse → reintenta pronto (mantiene el ritmo, 3.3)
+    if (now < pushProxSpawn) return;                    // piso de 450 ms entre apariciones (SPAWN_MIN)
+    // v3.6 (EL CAMBIO) — cada aparición trae SIEMPRE un naranja bueno (+ quizá equis y/o rojo). El pre-gate
+    // deja sitio al menos para el naranja; los acompañantes chequean el tope dentro de intentarAparicion.
+    if (contarRelampVivos() < PUSH.MAX_RELAMPAGOS && intentarAparicion(now)) { pushProxSpawn = now + PUSH.SPAWN_MIN; return; }
+    pushProxSpawn = now + PUSH.SPAWN_REINTENTO; // el naranja no cupo (banda llena) → reintenta pronto (3.3)
   }
   // CAMBIO 3.5 — ¿el toque cae sobre este target? Área GENEROSA (un dedo, no un cursor): dentro de
   // radio × TOQUE_FACTOR del centro. Reemplaza la exigencia de caer sobre una celda viva exacta.
