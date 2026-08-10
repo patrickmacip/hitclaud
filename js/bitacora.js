@@ -14,6 +14,15 @@
 
   const versiones = [
     {
+      version: '3.5', fecha: '3 de agosto',
+      puntos: [
+        { texto: 'Llega un objetivo nuevo: la equis te corta la racha' },
+        { texto: 'Tocar un rojo detiene el juego hasta que tú decidas seguir' },
+        { texto: 'La meta de mil puntos ahora se cumple una sola vez por partida' },
+        { texto: 'Más aire entre objetivos' },
+      ],
+    },
+    {
       version: '3.4', fecha: '3 de agosto',
       puntos: [
         { texto: 'El multiplicador ahora llega a cinco mucho antes' },

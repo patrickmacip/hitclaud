@@ -249,6 +249,7 @@
     targets.length = 0; bolitas.length = 0; cubos.length = 0; flotantes.length = 0; bonos.length = 0; disparos.length = 0; multAnterior = 1;
     ultimoDisparo = -Infinity; gesto.activo = false; marcadorPopHasta = 0; secuencia = null; sacudidaCloudover = null;
     pushReset = null; pushCicloBase = 0; pushCicloRestante = (PU ? PU.CICLO_MS : 15000); pushCicloCumplido = false; pushProxSpawn = performance.now(); pushCountNormal = 0; pushCountRelamp = 0; // ciclo/spawn de Pushcloude
+    pushEspera = false; targetEspera = null; pushMetaLograda = false; pushMetaFlashHasta = 0; equisSacudeHasta = 0; pushUltimoTipo = ''; pushRunTipo = 0; // v3.5 (meta única / espera / equis)
     perdidaInicio = -Infinity; contadorRojoHasta = 0; montoPerdido = 0; montoInicio = -Infinity; montoHasta = 0;
     if (elActual) elActual.style.transform = 'scale(1)';
     const ahora = performance.now();
@@ -646,6 +647,7 @@
   // quemado. NADA es pulsable en el apagado salvo las flechas. El nombre va entre las flechas.
   function mostrarHome(juego, reiniciar) {
     const j = juegoPorId(juego); if (!j) return;
+    pushEspera = false; targetEspera = null; pushReset = null; // CAMBIO 5.7 — salir al home corta la espera del rojo
     juegoSel = juego;
     if (reiniciar || j.duraciones.indexOf(modoInicioSel) === -1) modoInicioSel = duracionMasCorta(j);
     if (elDurJuego) elDurJuego.textContent = j.nombre;
@@ -1386,18 +1388,19 @@
     BARRA_PX: 58,                // v3.3 (CAMBIO 1.3) — alto de la franja de la barra (= --barra-alto): nacen DEBAJO
     BANDA_FRAC: 0.45,            // v3.5 (CAMBIO 1) — FRANJA de aparición: 45% CENTRAL de la altura (arriba/abajo libres)
     ROJO_FACTOR: 0.6,            // (heredado; el spawn de Pushcloude usa P_ROJO — ver spawnPush)
-    P_ROJO: 0.28,               // prob. de que un target sea ROJO. v3.4 (CAMBIO 2): ahora se aplica a los RELÁMPAGO
-    //                             (los rojos también son relámpago). Frecuencia CONSERVADA: misma P_ROJO y mismo tope.
-    // v3.4 (CAMBIO 1/3) — Pushcloude es SÓLO RELÁMPAGO: nada cae, nada recorre. Por eso la condición de
-    // "60% del recorrido" (SEP_RECORRIDO) y el cupo de NORMALES quedan SIN USO (se conservan sólo para que
-    // revertir este commit los reactive; ver lanzarPush/intentarNormal, aún definidos pero no llamados).
-    SEP_RECORRIDO: 0.6,          // (v3.4: SIN USO — nada recorre; se elimina la condición en spawnPush, 3.2)
-    MAX_NORMALES: 3,             // (v3.4: SIN USO — ya no se generan normales; ver intentarNormal, sin llamar)
-    SPAWN_MIN: 270,              // v3.5 (CAMBIO 3) — ms mínimos entre apariciones (baja de 450 a 270). Ritmo regular
-    SPAWN_REINTENTO: 120,        // ms para reintentar si un intento no cupo sin solaparse (3.3)
-    // CAMBIO 3 (v3.1) — SIN CRUCES: antes de soltar, se comprueba que no se solape con los vivos; si se
-    // solapa, se reintenta hasta INTENTOS veces; si ninguno cabe, se pospone. SEP_FACTOR = margen extra.
-    SEP_FACTOR: 1.15,
+    // v3.5 (CAMBIO 2) — SORTEO ÚNICO de tipo por aparición: naranja, EQUIS o ROJO. Probabilidades (para
+    // veto de Pat): rojo 0.15, equis 0.20, naranja 0.65. Los rojos respetan su tope (no dominan, 2.4) y no
+    // se permiten rachas largas del mismo tipo (anti-racha en sortearTipoPush, 2.2).
+    P_ROJO: 0.15,               // prob. de ROJO (detiene el juego, 5)
+    P_EQUIS: 0.20,              // v3.5 (CAMBIO 1.6) — prob. de EQUIS (rompe la racha, ni suma ni resta)
+    SEP_RECORRIDO: 0.6,          // (v3.4: SIN USO — nada recorre; ver lanzarPush/intentarNormal, sin llamar)
+    MAX_NORMALES: 3,             // (v3.4: SIN USO — ya no se generan normales; revert-safe)
+    SPAWN_MIN: 450,              // v3.5 (CAMBIO 3.1) — ms mínimos entre apariciones (sube de 270 a 450)
+    SPAWN_REINTENTO: 120,        // ms para reintentar si un intento no cupo con la separación (3.3)
+    // CAMBIO 3.2 (v3.5) — SEPARACIÓN: dos targets no nacen a menos de SEP_ANCHOS anchos de target entre
+    // centros (ancho = COLS·8). Si no caben los vivos con esa separación, se POSPONE (no se acercan, 3.3).
+    SEP_ANCHOS: 2,               // v3.5 (CAMBIO 3.2) — separación mínima entre centros = 2 anchos de target
+    SEP_FACTOR: 1.15,            // (heredado; la separación ahora la fija SEP_ANCHOS)
     INTENTOS: 10,
     // CAMBIO 5 (conservado) — RELÁMPAGO: quieto, dura 800 ms, 200 en cualquier parte, alimenta la racha,
     // sin castigo si no se toca, se ve igual que un normal. v3.4 (CAMBIO 4): entra con REBOTE (easeOutBack).
@@ -1516,7 +1519,13 @@
   let pushCicloBase = 0;            // puntos que había al INICIO del ciclo en curso
   let pushCicloRestante = 0;        // ms restantes del ciclo de 15 s (independiente del reloj de partida)
   let pushCicloCumplido = false;    // ¿la meta del ciclo ya está cumplida? (aviso "vas a salvo", 4.5)
-  let pushReset = null;             // {modo:'reinicio'|'salir', inicio} máquina del rojo (5) / stop (7)
+  let pushReset = null;             // {modo:'reinicio'|'salir', inicio} máquina del FLASH del rojo (5) / stop (7)
+  let pushEspera = false;           // v3.5 (CAMBIO 5) — juego DETENIDO tras un rojo: espera un toque para arrancar
+  let targetEspera = null;          // el único target quieto en el centro durante la espera (no caduca, 5.3/5.4)
+  let pushMetaLograda = false;      // v3.5 (CAMBIO 4) — la meta de 1000 ya se cumplió esta partida (una sola vez)
+  let pushMetaFlashHasta = 0;       // destello del logro de la meta (4.5)
+  let equisSacudeHasta = 0;         // v3.5 (CAMBIO 1.3) — sacudida media al tocar una EQUIS (menor que el rojo)
+  let pushUltimoTipo = '', pushRunTipo = 0; // anti-racha del sorteo de tipo (2.2)
   let pushProxSpawn = 0;            // timestamp mínimo del próximo intento de spawn de Pushcloude (v3.1)
   let pushCountNormal = 0, pushCountRelamp = 0; // apariciones por tipo → balance ~50/50 (5.1)
   // Cubos de explosión: animación PURA, sin colisión con nada.
@@ -1716,12 +1725,12 @@
   // recta (o quietos, los relámpago), se muestrea la distancia mínima en el tiempo compartido de vida.
   function pushVida(t, now) { return (t.__muereEn != null ? t.__muereEn : now + 4000) - now; }
   function pushSolapa(cand, candVida, now) {
-    const rC = cand.radio || 40;
+    // CAMBIO 3.2 (v3.5) — separación mínima entre CENTROS = SEP_ANCHOS anchos de target (ancho = COLS·8).
+    const minD = PUSH.SEP_ANCHOS * (PUSH.COLS * 8);
     for (let i = 0; i < targets.length; i++) {
       const o = targets[i];
       const hasta = Math.min(candVida, pushVida(o, now));
       if (hasta <= 0) continue;
-      const minD = (rC + (o.radio || 40)) * PUSH.SEP_FACTOR;
       for (let dt = 0; dt <= hasta; dt += 60) {
         const ax = cand.x + cand.vx * dt, ay = cand.y + cand.vy * dt;
         const ox = o.x + (o.vx || 0) * dt, oy = o.y + (o.vy || 0) * dt;
@@ -1751,12 +1760,7 @@
     const top = Math.max(H * margen, PUSH.BARRA_PX) + rRot; // forma entera dentro del 45% central y BAJO la barra (5.5)
     const bot = H * (1 - margen) - rRot;                    // la forma entera dentro de la banda (y de la pantalla)
     const left = rRot, right = W - rRot;                    // el ANCHO no cambia (2): todo el ancho con margen rRot
-    // CAMBIO 2 — los ROJOS también son relámpago. Frecuencia CONSERVADA: misma P_ROJO y mismo tope que
-    // antes (rojos ≤ no-rojos vivos), sólo que ahora nacen quietos. Su color/aspecto no cambian y su
-    // función tampoco: tocar un rojo REINICIA la partida (lo enruta aplastar → reinicioPorRojoPush).
-    let rojosVivos = 0, otrosVivos = 0;
-    for (let i = 0; i < targets.length; i++) { const t = targets[i]; if (!t.relampago) continue; if (t.rojo) rojosVivos++; else otrosVivos++; }
-    const rojo = (rojosVivos < otrosVivos) && Math.random() < PUSH.P_ROJO;
+    const tipo = sortearTipoPush();            // CAMBIO 2 — un solo sorteo: 'naranja' | 'equis' | 'rojo'
     for (let intento = 0; intento < PUSH.INTENTOS; intento++) {
       const t = F.crearTarget({ w: W, h: H }, PUSH.COLS, PUSH.FILAS);
       t.radio = Math.max(PUSH.COLS, PUSH.FILAS) * 4 + 12;
@@ -1764,11 +1768,29 @@
       t.y = top + Math.random() * Math.max(1, bot - top);
       t.vx = 0; t.vy = 0; t.gravedad = 1e-9; t.rot = 0; t.velRot = 0;
       t.haEntrado = true; t.relampago = true;   // QUIETO y tocable de inmediato (5.2/4.4)
-      if (rojo) t.rojo = true;                   // se distingue por ser ROJO (2.3); su función no cambia (2.2)
+      if (tipo === 'rojo') t.rojo = true;        // detiene el juego al tocarlo (5); se distingue por rojo (2.3)
+      else if (tipo === 'equis') t.equis = true; // rompe la racha; naranja MÁS OSCURO con una EQUIS (1.2)
       t.__nace = now; t.__cruce = PUSH.RELAMP_MS; t.__muereEn = now + PUSH.RELAMP_MS; t.__borde = 'relampago';
       if (!pushSolapa(t, PUSH.RELAMP_MS, now)) { t.__enJuego = true; targets.push(t); return true; }
     }
     return false;
+  }
+  // CAMBIO 2 (v3.5) — SORTEO ÚNICO de tipo por aparición. Probabilidades: rojo P_ROJO, equis P_EQUIS,
+  // naranja el resto. Los ROJOS respetan su tope (rojos ≤ no-rojos vivos, 2.4) → si no puede, va a naranja.
+  // ANTI-RACHA (2.2): no permite 3 seguidos del mismo tipo (si ya van 2 iguales, re-sortea hasta 4 veces).
+  function sortearTipoPush() {
+    let rojosVivos = 0, otrosVivos = 0;
+    for (let i = 0; i < targets.length; i++) { const t = targets[i]; if (!t.relampago) continue; if (t.rojo) rojosVivos++; else otrosVivos++; }
+    const puedeRojo = rojosVivos < otrosVivos;
+    let tipo = 'naranja';
+    for (let intento = 0; intento < 4; intento++) {
+      const r = Math.random();
+      tipo = r < PUSH.P_ROJO ? 'rojo' : (r < PUSH.P_ROJO + PUSH.P_EQUIS ? 'equis' : 'naranja');
+      if (tipo === 'rojo' && !puedeRojo) tipo = 'naranja';   // tope de rojos (2.4)
+      if (!(tipo === pushUltimoTipo && pushRunTipo >= 2)) break; // corta rachas largas (2.2)
+    }
+    if (tipo === pushUltimoTipo) pushRunTipo += 1; else { pushUltimoTipo = tipo; pushRunTipo = 1; }
+    return tipo;
   }
   // SPAWN de Pushcloude (reemplaza los gates genéricos): caduca relámpagos, respeta la cadencia mínima,
   // el 1/3 de recorrido del último normal (2.1), el cupo de 3 normales (2.2) y el cupo de relámpagos, y
@@ -2177,16 +2199,24 @@
   }
 
   // ═══ PUSHCLOUDE (v2.9): aplastar con el dedo ═══════════════════════════════════════════════════
-  // Cuenta atrás de reinicio RÁPIDA (5.3): tinte+sacudida (FLASH) y luego 3-2-1 (CUENTA c/u).
+  // v3.5 (CAMBIO 5) — al tocar un rojo: FLASH (tinte + sacudida fuerte) y el juego se DETIENE hasta un
+  // toque. Ya NO hay cuenta atrás automática 3-2-1 (5.8): se eliminó por no usarse en ningún otro sitio.
   const PUSH_RESET_FLASH_MS = 320;   // tinte rojo + sacudida FUERTE al tocar el rojo / stop (5.2)
-  const PUSH_RESET_CUENTA_MS = 260;  // cada número de la cuenta atrás → total ≈ 320 + 3·260 = 1100ms
   const PUSH_SACUDIDA_AMP = 9;       // px: sacudida FUERTE (más marcada que SACUDIDA_AMP=2 de siempre, 5.2)
+  const EQUIS_SACUDIDA_MS = 300;     // v3.5 (CAMBIO 1.3) — duración de la sacudida media de la equis
+  const EQUIS_SACUDIDA_AMP = 5;      // px: NOTORIA pero MENOR que la del rojo (9) — el rojo sigue siendo lo peor
 
   // APLASTAR (CAMBIO 2/3): resuelve un toque. CENTRO de un target intacto → destruye entero, 200×racha
   // (3.3). FUERA → arranca ~1/3 y el resto SIGUE SU RUTA sin desplomarse, 50 sin multiplicar, rompe
   // racha (3.4). ROJO → reinicia la partida entera (5). VACÍO → resta y rompe racha (3.5). Cada toque
   // cuenta para el medidor de efectividad (3.8). Puntuación pura en js/pushclaud.js.
   function aplastar(mx, my) {
+    // CAMBIO 5 — ESPERA tras un rojo: el juego está detenido y sólo el target del centro responde. Al
+    // tocarlo, arranca una partida nueva desde cero (5.5). Cualquier otro toque se ignora.
+    if (pushEspera) {
+      if (targetEspera && tocaTargetPush(targetEspera, mx, my)) arrancarDesdeEspera();
+      return;
+    }
     if (!jugando || secuencia || pushReset) return;   // ignora toques durante el reinicio/fin
     const ahora = performance.now();
     marcarActividad();
@@ -2196,8 +2226,18 @@
       if (!tg.haEntrado) continue;
       if (!tocaTargetPush(tg, mx, my)) continue;      // área GENEROSA de toque (dedo, no cursor) — 3.5
       pAciertos += 1;
-      if (tg.rojo) { reinicioPorRojoPush(tg, mx, my); return; } // ROJO → reinicia la partida (5); nunca hay rojos relámpago (5.6)
+      if (tg.rojo) { reinicioPorRojoPush(tg, mx, my); return; } // ROJO → DETIENE el juego (5)
       tg.destelloHasta = ahora + DESTELLO_MS;
+      if (tg.equis) {                                 // CAMBIO 1.3 — EQUIS: ni suma ni resta, ROMPE la racha y SACUDE (medio)
+        marcador.racha = 0;
+        const centros = [];
+        for (let k = 0; k < tg.celdas.length; k++) { if (tg.celdas[k]) { centros.push(F.celdaMundo(tg, k)); tg.celdas[k] = false; } }
+        explotarCubos(centros, mx, my, 1.0, 0, 0, ACENTO.profundo); // reviente en el naranja OSCURO de la equis
+        tg.viva = false; targets.splice(ti, 1);
+        equisSacudeHasta = ahora + EQUIS_SACUDIDA_MS; // sacudida NOTORIA pero menor que la del rojo (1.3)
+        actualizarMarcador();
+        return;
+      }
       if (tg.relampago) {                             // CAMBIO 5.2 — RELÁMPAGO: 200 en CUALQUIER parte, sube la racha
         const r = PU.anotarCentro(marcador);          // misma economía que un acierto al centro
         if (marcador.racha > pRachaMax) pRachaMax = marcador.racha;
@@ -2248,10 +2288,9 @@
     registrarPerdida(r.castigo);
   }
 
-  // ROJO → REINICIA la partida entera, sin salir de la pantalla (CAMBIO 5). Explota el rojo, resta
-  // los puntos VISIBLEMENTE, y arranca la máquina de reinicio (tinte rojo + sacudida fuerte + cuenta
-  // atrás 3-2-1). El reloj/ciclo/racha vuelven a cero al TERMINAR la cuenta (loop). Esta partida NO
-  // cuenta para récord ni ranking (5.5): nunca se llama a terminarPartida.
+  // ROJO → DETIENE el juego (CAMBIO 5). Explota el rojo, resta los puntos VISIBLEMENTE y arranca el FLASH
+  // (tinte + sacudida fuerte). Al terminar el flash (en el loop) el juego queda DETENIDO con un solo target
+  // quieto en el centro (pushEspera). No cuenta para récord ni ranking (nunca llama a terminarPartida).
   function reinicioPorRojoPush(tg, mx, my) {
     const ahora = performance.now();
     try { explotarCubos(F.cubosVivosMundo(tg), mx, my, 1.6, tg.vx, tg.vy, COLOR.cloudoverB); } catch (e) {}
@@ -2260,7 +2299,28 @@
     marcador.puntos = 0; marcador.racha = 0; actualizarMarcador();
     try { if (navigator && navigator.vibrate) navigator.vibrate(200); } catch (e) {}
     gesto.activo = false;
-    pushReset = { modo: 'reinicio', inicio: ahora }; // el loop congela y corre la cuenta atrás
+    pushReset = { modo: 'reinicio', inicio: ahora }; // FLASH; el loop pasa a ESPERA al terminar
+  }
+
+  // ESPERA (CAMBIO 5.3/5.4): deja UN solo target QUIETO en el centro que NO caduca. Se dibuja con un
+  // latido (respira) para invitar a tocarlo (5.6). El juego queda detenido hasta que se lo toque.
+  function crearTargetEspera() {
+    const t = F.crearTarget({ w: W, h: H }, PUSH.COLS, PUSH.FILAS);
+    t.radio = Math.max(PUSH.COLS, PUSH.FILAS) * 4 + 12;
+    t.x = W / 2; t.y = H / 2; t.vx = 0; t.vy = 0; t.gravedad = 1e-9; t.rot = 0; t.velRot = 0;
+    t.haEntrado = true; t.relampago = true; t.espera = true;
+    t.__nace = performance.now(); t.__cruce = Infinity; t.__muereEn = Infinity; t.__borde = 'espera'; // no caduca (5.4)
+    t.__enJuego = true;
+    targets.length = 0; targets.push(t);
+    targetEspera = t;
+  }
+  // Toque al target de espera → PARTIDA NUEVA desde cero (5.5): reinicia estado, reloj y meta, y reanuda.
+  function arrancarDesdeEspera() {
+    pushEspera = false; targetEspera = null;
+    reiniciarEstado();
+    tiempoRestante = DURACIONES[modoJuego] || 0;
+    marcarActividad();
+    dibujar();
   }
 
   // STOP (CAMBIO 7): sacudida con tinte rojo y SALE al home de Pushcloude. Esta partida no cuenta
@@ -2269,17 +2329,12 @@
   function salirPush() {
     if (!jugando || secuencia || pushReset) return;
     const ahora = performance.now();
+    pushEspera = false; targetEspera = null;         // CAMBIO 5.7 — el stop TAMBIÉN sale durante la espera
     if (marcador.puntos > 0) registrarPerdida(marcador.puntos);
     marcador.puntos = 0; actualizarMarcador();
     try { if (navigator && navigator.vibrate) navigator.vibrate(200); } catch (e) {}
     gesto.activo = false;
     pushReset = { modo: 'salir', inicio: ahora };
-  }
-  // Fase de la cuenta atrás de reinicio: -1 durante el flash; 3/2/1 durante los números; 0 = terminó.
-  function pushResetNumero(elapsed) {
-    if (elapsed < PUSH_RESET_FLASH_MS) return -1;
-    const n = 3 - Math.floor((elapsed - PUSH_RESET_FLASH_MS) / PUSH_RESET_CUENTA_MS);
-    return n; // 3,2,1 y luego ≤0 (terminó)
   }
 
   // Ejecuta la suelta desde la posición del dedo. forzar=true (frenos) siempre
@@ -2405,24 +2460,27 @@
       } catch (e) { saltarAlOverlay(); dibujar(); return; }
     }
 
-    // PUSHCLOUDE — REINICIO por rojo (5) / SALIDA por stop (7): congela el juego y corre el flash
-    // (+ cuenta atrás 3-2-1 en 'reinicio'). NO cuenta para récord ni ranking (nunca llama a
-    // terminarPartida). Al terminar: 'reinicio' arranca una partida nueva del mismo modo, sin salir
-    // de la pantalla (5.4); 'salir' va al home de Pushcloude (7.2).
+    // PUSHCLOUDE — FLASH del rojo (5) / stop (7): congela el juego durante el tinte + sacudida. NO cuenta
+    // para récord ni ranking. Al terminar el flash: 'salir' va al home (7.2); 'reinicio' pasa a ESPERA —
+    // reinicia estado/reloj/meta y deja un solo target quieto en el centro hasta que se lo toque (5.3).
     if (pushReset) {
       const el = t - pushReset.inicio;
       if (pushReset.modo === 'salir') {
         if (el >= PUSH_RESET_FLASH_MS) { pushReset = null; mostrarHome('pushclaud', false); dibujar(); return; }
-      } else if (el >= PUSH_RESET_FLASH_MS + 3 * PUSH_RESET_CUENTA_MS) {
+      } else if (el >= PUSH_RESET_FLASH_MS) {
         pushReset = null;
-        reiniciarEstado();
+        reiniciarEstado();                             // puntos/racha/ciclo/meta a cero (5.2)
         tiempoRestante = DURACIONES[modoJuego] || 0;   // el reloj de la partida vuelve a cero (5.2)
-        pushCicloBase = 0; pushCicloRestante = PU.CICLO_MS; pushCicloCumplido = false;
         actualizarTiempo();
+        pushEspera = true; crearTargetEspera();        // DETENIDO: un solo target en el centro (5.3)
         dibujar(); return;
       }
-      dibujar(); return; // congelado durante el flash/cuenta atrás
+      dibujar(); return; // congelado durante el flash
     }
+
+    // PUSHCLOUDE — ESPERA (CAMBIO 5): el juego está DETENIDO tras un rojo. Nada aparece, nada corre; sólo
+    // se dibuja el target del centro (que respira). El stop y la casa siguen funcionando (5.7).
+    if (pushEspera) { cobrando = false; dibujar(); return; }
 
     // Pausado o SIN PARTIDA (overlay de inicio/fin arriba): congela toda
     // actualización (física, spawn, colisión, cobro); solo re-dibuja el estado.
@@ -2437,16 +2495,21 @@
       actualizarTiempo(); // refresca el temporizador de la barra (texto y estado <5s)
     }
 
-    // PUSHCLOUDE — CICLO DE METAS de 15 s (CAMBIO 4), en paralelo al reloj de la partida. Al cerrar
-    // el ciclo: si ganó ≥1000 conserva y sigue acumulando (4.2); si no, puntos y racha a 0 (4.3). El
-    // reloj de la partida NO se toca aquí. La meta es SIEMPRE 1000 (la exigencia no sube, 4.2).
-    if (esPush() && DURACIONES[modoJuego]) {
+    // PUSHCLOUDE — META de 1000, UNA SOLA VEZ por partida (CAMBIO 4). ANTES de cumplirla: ciclos de 15 s
+    // que reinician puntos/racha si no se llega a 1000 (4.3); el reloj de la PARTIDA no se toca. AL
+    // CUMPLIRLA (llegar a 1000 en un ciclo): se marca lograda, se celebra (4.5) y los ciclos NO vuelven
+    // (4.4) — el jugador acumula libre hasta que se acabe el tiempo (4.2). Su contador/barra desaparecen.
+    if (esPush() && DURACIONES[modoJuego] && !pushMetaLograda) {
       pushCicloRestante -= dt;
-      if (pushCicloRestante <= 0) {
+      if (PU.metaCumplida(marcador, pushCicloBase)) {   // ¡llegó a 1000! — se cumple una sola vez (4.1)
+        pushMetaLograda = true;
+        pushMetaFlashHasta = t + 800;                   // logro: se nota sin interrumpir (4.5)
+        flotante(W / 2, Math.max(150, H * 0.24), 'META ✓', tk('--push-safe', '#6FFF2C'), 40, false);
+      } else if (pushCicloRestante <= 0) {
         const antes = marcador.puntos;
-        const res = PU.cerrarCiclo(marcador, pushCicloBase);
-        if (!res.cumplida && antes > 0) registrarPerdida(antes); // pérdida visible al fallar la meta
-        pushCicloBase = res.base;
+        PU.cerrarCiclo(marcador, pushCicloBase);        // <1000 → puntos y racha a 0 (4.3)
+        if (antes > 0) registrarPerdida(antes);         // pérdida visible al fallar la meta
+        pushCicloBase = 0;
         pushCicloRestante = PU.CICLO_MS;
         actualizarMarcador();
       }
@@ -2747,6 +2810,15 @@
         oy += (Math.random() * 2 - 1) * PUSH_SACUDIDA_AMP * p;
       }
     }
+    // PUSHCLOUDE: sacudida MEDIA de la EQUIS (CAMBIO 1.3) — notoria pero MENOR que la del rojo (amp 5 < 9).
+    if (equisSacudeHasta) {
+      const elq = equisSacudeHasta - performance.now();
+      if (elq > 0) {
+        const p = elq / EQUIS_SACUDIDA_MS;
+        ox += (Math.random() * 2 - 1) * EQUIS_SACUDIDA_AMP * p;
+        oy += (Math.random() * 2 - 1) * EQUIS_SACUDIDA_AMP * p;
+      } else { equisSacudeHasta = 0; }
+    }
     ctx.save();
     try {
     // SACUDIDA de CloudOver (FASE 16: revert del zoom). El acercamiento/centrado de
@@ -2770,7 +2842,13 @@
       const destella = t.destelloHasta && performance.now() < t.destelloHasta;
       ctx.save();
       ctx.translate(t.x, t.y);
-      if (t.relampago) { const rb = rebotePush(t, performance.now()); ctx.scale(rb.esc, rb.esc); ctx.globalAlpha = rb.alpha; } // v3.4 CAMBIO 4
+      if (t.relampago) {
+        const now = performance.now();
+        const rb = rebotePush(t, now);
+        let esc = rb.esc;
+        if (t.espera) esc *= 1 + 0.06 * Math.sin(now / 260); // CAMBIO 5.6 — el target de espera RESPIRA: invita a tocarlo
+        ctx.scale(esc, esc); ctx.globalAlpha = t.espera ? 1 : rb.alpha; // el de espera no se desvanece (no caduca)
+      } // v3.4 CAMBIO 4
       ctx.rotate(t.rot);
       dibujarSpriteTarget(t, destella); // la grilla (cols×filas) ya define el tamaño
       ctx.restore();
@@ -3022,7 +3100,7 @@
 
     // PUSHCLOUDE: indicador del CICLO de 15 s (4.4/4.5) y, encima, el overlay de REINICIO por rojo
     // (tinte rojo + cuenta atrás 3-2-1) o de STOP (tinte, 5/7). Capa de UI, sin cámara, siempre arriba.
-    if (esPush()) { dibujarCicloPush(); if (pushReset) dibujarReinicioPush(nowP); }
+    if (esPush()) { dibujarCicloPush(); dibujarLogroMeta(nowP); if (pushReset) dibujarReinicioPush(nowP); if (pushEspera) dibujarEsperaPush(); }
 
     // (FASE 16) El recuadro del medidor v41-fps se ELIMINÓ: sus cifras (F, D, peor,
     // conteos) ahora caen como líneas de la CASCADA, como cualquier otro dato real.
@@ -3035,6 +3113,7 @@
   // avisa "A SALVO" (4.5). Canvas puro (no captura toques). SIN shadowBlur.
   function dibujarCicloPush() {
     if (!jugando || !DURACIONES[modoJuego]) return;
+    if (pushMetaLograda || pushEspera) return;         // CAMBIO 4.2 — cumplida la meta, el contador DESAPARECE; en espera tampoco
     const seg = Math.max(0, Math.ceil(pushCicloRestante / 1000));
     const prog = Math.max(0, PU.progresoCiclo(marcador, pushCicloBase));
     const cumplida = prog >= PU.META_PUNTOS;
@@ -3063,26 +3142,38 @@
     if (!pushReset) return;
     const el = now - pushReset.inicio;
     const flashP = Math.max(0, 1 - el / PUSH_RESET_FLASH_MS);
-    const alpha = (el < PUSH_RESET_FLASH_MS) ? (0.5 * flashP + 0.14) : (pushReset.modo === 'reinicio' ? 0.10 : 0);
+    const alpha = (el < PUSH_RESET_FLASH_MS) ? (0.5 * flashP + 0.14) : 0; // sólo el flash (5.8: sin cuenta atrás 3-2-1)
     if (alpha > 0) {
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = tk('--push-tinte', '#FF0033');
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
+      ctx.globalAlpha = 1;
     }
-    if (pushReset.modo === 'reinicio') {
-      const n = pushResetNumero(el);
-      if (n >= 1 && n <= 3) {
-        ctx.save();
-        ctx.globalAlpha = 0.95; ctx.fillStyle = '#FFFFFF';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.font = '900 120px ' + COLOR.fuente;
-        ctx.fillText(String(n), W / 2, H / 2);
-        ctx.restore();
-        ctx.globalAlpha = 1;
-      }
-    }
+  }
+  // CAMBIO 5.6 — durante la ESPERA, un texto BREVE bajo el target invita a tocarlo (sin párrafos).
+  function dibujarEsperaPush() {
+    if (!pushEspera || !targetEspera) return;
+    ctx.save();
+    ctx.globalAlpha = 0.7 + 0.3 * Math.abs(Math.sin(performance.now() / 260)); // late al mismo ritmo que el target
+    ctx.fillStyle = ACENTO.base;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '800 18px ' + COLOR.fuente;
+    ctx.fillText('TOCA PARA SEGUIR', W / 2, targetEspera.y + 58);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+  // CAMBIO 4.5 — destello VERDE breve al lograr la meta (se nota, sin interrumpir el juego).
+  function dibujarLogroMeta(now) {
+    if (!pushMetaFlashHasta || now >= pushMetaFlashHasta) return;
+    const p = (pushMetaFlashHasta - now) / 800;
+    ctx.save();
+    ctx.globalAlpha = 0.22 * p;
+    ctx.fillStyle = tk('--push-safe', '#6FFF2C');
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   // Estela METEORO: UNA cola continua (no fantasmas). Un solo path con dos bordes
@@ -3135,6 +3226,7 @@
     // (crema) manda sobre ambos. La grilla puede ser 5×4 o mayor (target grande).
     let col = t.rojo
       ? (Math.floor(performance.now() / ROJO_PARPADEO_MS) % 2 ? COLOR.cloudoverA : COLOR.cloudoverB)
+      : t.equis ? ACENTO.profundo   // CAMBIO 1.2 — EQUIS: el mismo naranja pero MÁS OSCURO (no es un rojo)
       : ACENTO.base;
     // CAMBIO 3.6: el destello de contacto es un PARPADEO MOMENTÁNEO (no cambia el color del
     // target). En ShotClaud es BLANCO puro (que se vea qué golpeaste); en HitClaud, la crema
@@ -3157,13 +3249,23 @@
         ctx.fill();
       }
     }
-    // Ojos (dos cubos interiores, t.ojos), cada uno sólo si su celda sigue viva.
-    ctx.fillStyle = COLOR.negro;
-    const ojos = t.ojos || [6, 8];
-    for (let k = 0; k < ojos.length; k++) {
-      const oi = ojos[k];
-      if (!t.celdas[oi]) continue;
-      ctx.fillRect(x + (oi % COLS) * CUBO + 2, y + ((oi / COLS) | 0) * CUBO + 2, 4, 4);
+    if (t.equis) {
+      // CAMBIO 1.2 — EQUIS dibujada en el centro EN LUGAR de los ojos. Trazo negro grueso, SIN shadowBlur.
+      ctx.strokeStyle = COLOR.negro; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      const s = 8;
+      ctx.beginPath();
+      ctx.moveTo(-s, -s); ctx.lineTo(s, s);
+      ctx.moveTo(-s, s); ctx.lineTo(s, -s);
+      ctx.stroke();
+    } else {
+      // Ojos (dos cubos interiores, t.ojos), cada uno sólo si su celda sigue viva.
+      ctx.fillStyle = COLOR.negro;
+      const ojos = t.ojos || [6, 8];
+      for (let k = 0; k < ojos.length; k++) {
+        const oi = ojos[k];
+        if (!t.celdas[oi]) continue;
+        ctx.fillRect(x + (oi % COLS) * CUBO + 2, y + ((oi / COLS) | 0) * CUBO + 2, 4, 4);
+      }
     }
     // CAMBIO 2 (v3.0) — PUSHCLOUDE: la marca de la zona central YA NO SE DIBUJA (Pat la quitó). El
     // target se ve limpio. La MECÁNICA no cambia: el centro sigue valiendo 200 y el resto 50 (enZonaCentral
